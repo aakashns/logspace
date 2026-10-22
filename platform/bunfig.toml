@@ -1,0 +1,7 @@
+# `bun fmt`: no semicolons, single quotes, 100-character lines.
+[fmt]
+semi = false
+singleQuote = true
+printWidth = 100
+trailingComma = "all"
+ignorePatterns = ["bun.lock"]

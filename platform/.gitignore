@@ -5,3 +5,4 @@ media/
 tmp/
 .env
 .DS_Store
+dist/

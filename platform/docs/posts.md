@@ -99,7 +99,7 @@ HTML in the Markdown is shown as text, not rendered.
 - A file's type is set from its extension, so keep the usual extensions (`.jpg`, `.png`, `.mp4`,
   …).
 - Use MP4 (H.264) for videos so they play everywhere.
-- Uploads can be up to 100 MB each and 200 MB in one save (`MAX_UPLOAD_*` in
+- Uploads can be up to 100 MB each and 120 MB in one save (`MAX_UPLOAD_*` in
   `app/lib/constants.ts`); upload bigger sets over more than one save.
 - A post's files are only served once it's published. Files uploaded with a form that wasn't saved
   are kept, so the form comes back with their names filled in, but a new post that's never

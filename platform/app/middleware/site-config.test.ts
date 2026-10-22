@@ -7,7 +7,7 @@ import { router } from '../router.ts'
 import { routes } from '../routes.ts'
 import { TEST_SITE_CONFIG } from '../../test/seed.ts'
 
-// npm test sets ADMIN_PASSWORD to this and uses an in-memory database.
+// bun run test sets ADMIN_PASSWORD to this and uses an in-memory database.
 const PASSWORD = 'test-password-1234'
 
 function fetch(path: string, init?: RequestInit) {

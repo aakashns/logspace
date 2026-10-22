@@ -1,0 +1,10 @@
+{
+  // build.ts uses Bun's build API. Bun's types also change the global Blob and File, which the
+  // app's code doesn't match, so they're only for it.
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "types": ["node", "bun"]
+  },
+  "include": ["build.ts"],
+  "exclude": []
+}
