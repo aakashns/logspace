@@ -8,15 +8,15 @@ test("landing page, links, and responsive layout", async ({ page }) => {
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-    "A little spaceof your own.",
+    "Self-host your personal website with blog posts, photos, and videos",
   );
   await expect(page.getByRole("link", { name: "Changelog" })).toHaveAttribute(
     "href",
     "https://github.com/aakashns/logspace/releases",
   );
-  await page.getByRole("link", { name: "Make yourself at home" }).click();
+  await page.getByRole("link", { name: "Install LogSpace" }).click();
   await expect(
-    page.getByRole("heading", { name: "Your space starts here." }),
+    page.getByRole("heading", { name: "Install LogSpace" }),
   ).toBeInViewport();
   expect(
     await page.evaluate(

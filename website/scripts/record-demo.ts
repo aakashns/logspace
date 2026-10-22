@@ -72,20 +72,14 @@ try {
     cues.push({ start, end: (Date.now() - started) / 1000, text });
   }
   await page.screenshot({ path: join(temporary, "poster.png") });
-  await hold(
-    "Meet Mira. A fictional person, with a real LogSpace website.",
-    3000,
-  );
+  await hold("This example website uses a fictional profile and posts.", 3000);
   await page.evaluate(() => window.scrollTo({ top: 650, behavior: "smooth" }));
-  await hold(
-    "Photos, passing thoughts, and longer stories live together in one feed.",
-    2800,
-  );
+  await hold("Text posts, photos, and articles appear in one feed.", 2800);
   await page.locator('a[data-post-link][href="/posts/mirastory1"]').click();
   await expect(
     page.getByRole("heading", { name: "The long way around" }),
   ).toBeVisible();
-  await hold("Give a longer story its own page.", 2600);
+  await hold("Open an article to read the full post.", 2600);
   await page.goto(`${baseURL}/admin`);
   await page.getByRole("link", { name: "New Post", exact: true }).click();
   await page.getByLabel("Date", { exact: true }).fill("2026-10-22T10:30");
@@ -97,16 +91,16 @@ try {
       "Made a little space for the things I want to remember.\n\nToday: cold air, warm coffee, and the first page of a new notebook.",
       { delay: 42 },
     );
-  await hold("Sign in, write a thought, and make it yours.", 1000);
+  await hold("Create a text post in the admin page.", 1000);
   await page.getByRole("button", { name: "Publish", exact: true }).click();
   await expect(
     page.getByText("Made a little space for the things I want to remember.", {
       exact: false,
     }),
   ).toBeVisible();
-  await hold("Publish. Every post gets a link of its own.", 2000);
+  await hold("Click Publish to save the post at its own URL.", 2000);
   await page.goto(baseURL);
-  await hold("Your words, on your website. That’s LogSpace.", 3000);
+  await hold("The new post appears at the top of the feed.", 3000);
   await context.close();
   const recording = await video.path();
   execFileSync(

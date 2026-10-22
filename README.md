@@ -1,6 +1,6 @@
 # LogSpace
 
-A personal website for your words, photos, and videos. Publish from your browser, on your own domain, with your content on your own server. Free and open source.
+Self-host your personal website with blog posts, photos, and videos. Write and publish from your browser. Free and open source.
 
 [Website & demo](https://logspace.app) · [Changelog](https://github.com/aakashns/logspace/releases) · [Contributing](CONTRIBUTING.md)
 
@@ -15,7 +15,7 @@ sudo logspace setup example.com www.example.com
 
 Replace the domains with yours. Setup asks for an admin password, starts LogSpace, enables HTTPS, and redirects the second domain to the first. The installer also supports macOS for local use.
 
-## Make it yours
+## Publish
 
 1. Open `https://example.com/admin` and log in.
 2. Save your site title, URL, and description. Add a welcome message, logo, and icon if you like. Your site becomes public once these settings are saved.
@@ -23,7 +23,7 @@ Replace the domains with yours. Setup asks for an admin password, starts LogSpac
 
 Write in Markdown and upload media directly. Every post has its own link; readers can follow along with RSS. Light and dark themes are built in.
 
-## Keep it running
+## Updates and backups
 
 ```sh
 sudo logspace upgrade              # Install the latest release
@@ -40,6 +40,6 @@ sudo cp -a /var/lib/logspace/media /root/logspace-media-backup
 
 Use a fresh destination for each backup, avoid publishing or deleting posts while backing up, and keep a copy off the server. Protect a copy of `/etc/logspace.env` too; it contains your admin secrets. See `logspace help` for configuration options.
 
-## Get involved
+## Contribute
 
 [Report a bug](https://github.com/aakashns/logspace/issues) or read [CONTRIBUTING.md](CONTRIBUTING.md) to work on the app or website. Licensed under [MIT](LICENSE).

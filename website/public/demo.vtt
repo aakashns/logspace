@@ -1,19 +1,19 @@
 WEBVTT
 
 00:00:00.052 --> 00:00:03.057
-Meet Mira. A fictional person, with a real LogSpace website.
+This example website uses a fictional profile and posts.
 
 00:00:03.341 --> 00:00:06.145
-Photos, passing thoughts, and longer stories live together in one feed.
+Text posts, photos, and articles appear in one feed.
 
 00:00:06.235 --> 00:00:08.836
-Give a longer story its own page.
+Open an article to read the full post.
 
 00:00:14.375 --> 00:00:15.377
-Sign in, write a thought, and make it yours.
+Create a text post in the admin page.
 
 00:00:15.445 --> 00:00:17.447
-Publish. Every post gets a link of its own.
+Click Publish to save the post at its own URL.
 
 00:00:17.483 --> 00:00:20.485
-Your words, on your website. That’s LogSpace.
+The new post appears at the top of the feed.
