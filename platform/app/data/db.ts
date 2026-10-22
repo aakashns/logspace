@@ -6,7 +6,7 @@ import { loadMigrations } from 'remix/data-table/migrations/node'
 
 // The SQLite database file. Without DATABASE_PATH it's db/app.sqlite, inside the repo, which
 // `git clean -x` would delete, so set DATABASE_PATH to keep it outside: production uses
-// /var/lib/logspace/app.sqlite (see scripts/logspace.service). ":memory:" gives a throwaway
+// /var/lib/logspace/app.sqlite (see binary/setup.ts). ":memory:" gives a throwaway
 // database, as the tests use.
 const isInMemory = process.env.DATABASE_PATH === ':memory:'
 

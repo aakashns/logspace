@@ -6,8 +6,8 @@ A Remix 3 app on Bun, released as one binary. See `.agents/skills/remix/SKILL.md
 bun run dev          # restarts on change; reload the browser
 bun run test         # in-memory database and media storage
 bun run typecheck && bun run lint && bun run format:check
-bun run build && binary/smoke-test.sh dist/logspace
-../scripts/count-lines.sh
+bun run build && bun binary/smoke-test.ts dist/logspace
+bun scripts/count-lines.ts
 ```
 
 ## Where things go
@@ -15,9 +15,12 @@ bun run build && binary/smoke-test.sh dist/logspace
 - `app/routes.ts` → `app/router.ts` → `app/actions/**/controller.tsx`, with each page beside its controller
 - `app/data/` owns state; `app/lib/` and `app/ui/` are shared and never import pages
 - Posts: `data/posts/model.ts` (pure checks) → `presentation.ts` (pure, what pages show) → `store.ts` (database) → `mutations.ts` (one function per change, which controllers call)
+- `binary/main.ts` is the binary's command line (`start`, `setup`, `set-admin-password`, `upgrade`, `version`, `help`), with a module per command; `binary/setup-test.ts` checks `setup` on a throwaway Linux machine with systemd and Caddy, as CI's Linux runners are
 
 ## Rules
 
+- Every PR bumps `version` in `package.json` one step (CI checks), and merging it to main releases that version. Below 1.0, bump the minor version for breaking changes (like to the binary's commands or environment variables, or what `setup` installs) and the patch version for others
+- Scripts are TypeScript, run with Bun, including any that run on a server, which go in the binary as commands (servers have no Bun)
 - Controllers read the request, call `app/data/`, and pick a response; changes of more than one step are one data function
 - Pure modules and browser code (`*/public/`) import no database, storage, sharp, or server code; `bun run lint` checks
 - Check unknown input at the boundary and use specific types inside; expected failures are results, unexpected ones throw
