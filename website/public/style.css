@@ -100,11 +100,11 @@ header.site {
   gap: 0.5em 1.5em;
   margin-bottom: 3.5rem;
 }
-/* The wordmark's baseline is 78.3% of the way down. Let the descenders hang below the
+/* The wordmark's baseline is 78.9% of the way down. Let the descenders hang below the
    link's box, so the link's bottom edge is that baseline and it lines up with the nav. */
 header.site .name svg {
   display: block;
-  height: 1.25rem;
+  height: 1.29rem;
   width: auto;
   margin-bottom: -0.27rem;
 }
@@ -217,6 +217,10 @@ figcaption {
     font-size: 16px;
   }
   header.site {
+    column-gap: 1em;
     margin-bottom: 2.5rem;
+  }
+  header.site nav {
+    gap: 1em;
   }
 }
