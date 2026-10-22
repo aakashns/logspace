@@ -8,16 +8,13 @@ test("landing page, links, and responsive layout", async ({ page }) => {
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-    "Self-host your personal website with blog posts, photos, and videos",
+    "Self-host your personal website",
   );
   await expect(page.getByRole("link", { name: "Changelog" })).toHaveAttribute(
     "href",
     "https://github.com/aakashns/logspace/releases",
   );
-  await page.getByRole("link", { name: "Install LogSpace" }).click();
-  await expect(
-    page.getByRole("heading", { name: "Install LogSpace" }),
-  ).toBeInViewport();
+  await expect(page.locator("#install-command")).toBeInViewport();
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,
@@ -50,10 +47,11 @@ test("copy succeeds, or gives a selectable fallback when access is denied", asyn
 
 test("works without JavaScript and does not auto-play video", async ({
   browser,
+  baseURL,
 }) => {
   const context = await browser.newContext({ javaScriptEnabled: false });
   const page = await context.newPage();
-  await page.goto("http://127.0.0.1:8787");
+  await page.goto(baseURL!);
   await expect(page.locator("#install-command")).toHaveText(install);
   await expect(
     page.getByRole("button", { name: "Copy install command" }),

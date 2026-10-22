@@ -1,19 +1,19 @@
 WEBVTT
 
-00:00:00.052 --> 00:00:03.057
-This example website uses a fictional profile and posts.
+00:00:00.000 --> 00:00:06.872
+Browse the feed. Text posts, photos, and articles appear together.
 
-00:00:03.341 --> 00:00:06.145
-Text posts, photos, and articles appear in one feed.
+00:00:06.872 --> 00:00:10.128
+Read a blog post. Open an article to read the full text on its own page.
 
-00:00:06.235 --> 00:00:08.836
-Open an article to read the full post.
+00:00:10.128 --> 00:00:13.259
+Manage your site. Sign in to edit posts, change settings, or create a post.
 
-00:00:14.375 --> 00:00:15.377
-Create a text post in the admin page.
+00:00:13.259 --> 00:00:20.618
+Write a post. Choose a format, add text or media, then publish.
 
-00:00:15.445 --> 00:00:17.447
-Click Publish to save the post at its own URL.
+00:00:20.618 --> 00:00:23.645
+Publish and share. The published post has a URL you can share.
 
-00:00:17.483 --> 00:00:20.485
-The new post appears at the top of the feed.
+00:00:23.645 --> 00:00:26.854
+See the new post. New posts appear at the top of your website’s feed.

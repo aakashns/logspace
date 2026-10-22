@@ -15,7 +15,7 @@ export function HomePage() {
         </title>
         <meta
           name="description"
-          content="Self-host your personal website with blog posts, photos, and videos. Write and publish from your browser."
+          content="Publish blog posts, photos, and videos from your browser. Deploy your personal website to your own domain."
           data-rmx-key="description"
         />
         <link
@@ -23,7 +23,7 @@ export function HomePage() {
           href="https://logspace.app/"
           data-rmx-key="canonical"
         />
-        <meta name="theme-color" content="#111113" data-rmx-key="theme" />
+        <meta name="theme-color" content="#161616" data-rmx-key="theme" />
         <meta property="og:type" content="website" data-rmx-key="og-type" />
         <meta
           property="og:title"
@@ -32,7 +32,7 @@ export function HomePage() {
         />
         <meta
           property="og:description"
-          content="Self-host your personal website with blog posts, photos, and videos."
+          content="Publish blog posts, photos, and videos from your browser. Deploy to your own domain."
           data-rmx-key="og-description"
         />
         <meta
@@ -83,19 +83,42 @@ export function HomePage() {
         </header>
         <main id="main">
           <section class="hero" aria-labelledby="headline">
-            <h1 id="headline">
-              Self-host your personal website with blog posts, photos, and
-              videos
-            </h1>
+            <h1 id="headline">Self-host your personal website</h1>
             <p class="lede">
-              Write and publish from your browser. Run it on your own server and
-              domain.
+              Publish blog posts, photos, and videos from your browser. Deploy
+              to your own domain.
             </p>
-            <p class="hero-links">
-              <a class="primary-link" href="#install">
-                Install LogSpace <span aria-hidden="true">↓</span>
-              </a>
-              <span>Free &amp; open source</span>
+          </section>
+          <section
+            class="install"
+            id="install"
+            aria-labelledby="install-heading"
+          >
+            <h2 id="install-heading" class="sr-only">
+              Install LogSpace
+            </h2>
+            <p>On your Linux server, install LogSpace:</p>
+            <div class="command">
+              <pre>
+                <code id="install-command">
+                  curl -fsSL https://logspace.app/install.sh | sh
+                </code>
+              </pre>
+              <button
+                type="button"
+                id="copy"
+                hidden
+                aria-label="Copy install command"
+              >
+                Copy
+              </button>
+            </div>
+            <p id="copy-status" class="sr-only" role="status" />
+            <a class="guide-link" href={`${github}#deploy`}>
+              Read the deployment guide
+            </a>
+            <p class="fine-print">
+              Update with <code>sudo logspace upgrade</code>.
             </p>
           </section>
           <figure class="demo">
@@ -113,8 +136,8 @@ export function HomePage() {
               playsInline
               preload="none"
               poster="/demo-poster.webp"
-              width="1280"
-              height="900"
+              width="720"
+              height="816"
               aria-label="LogSpace demo: explore Mira’s site and publish a new post"
               aria-describedby="demo-caption"
             >
@@ -124,13 +147,12 @@ export function HomePage() {
                 src="/demo.vtt"
                 srcLang="en"
                 label="English"
-                default
               />
               <a href="/demo.mp4">Watch the LogSpace demo</a>
             </video>
             <figcaption id="demo-caption">
-              Demo: browse posts and publish a new one. The profile and posts
-              are fictional.
+              Walkthrough: browse posts, write, and publish. The profile and
+              posts are fictional.
             </figcaption>
           </figure>
           <section class="about" aria-label="Features">
@@ -149,44 +171,11 @@ export function HomePage() {
               URL. Readers can subscribe with an RSS reader without an account.
             </p>
           </section>
-          <section
-            class="install"
-            id="install"
-            aria-labelledby="install-heading"
-          >
-            <h2 id="install-heading">Install LogSpace</h2>
-            <p>On your Linux server, install LogSpace:</p>
-            <div class="command">
-              <pre>
-                <code id="install-command">
-                  curl -fsSL https://logspace.app/install.sh | sh
-                </code>
-              </pre>
-              <button
-                type="button"
-                id="copy"
-                hidden
-                aria-label="Copy install command"
-              >
-                Copy
-              </button>
-            </div>
-            <p id="copy-status" class="sr-only" role="status" />
-            <p class="note">
-              Point your domain to the server and install Caddy, then run{" "}
-              <code>sudo logspace setup yourdomain.com</code>. Open{" "}
-              <code>/admin</code> to configure your site and publish posts.
-            </p>
-            <a class="guide-link" href={`${github}#deploy`}>
-              Read the deployment guide <span aria-hidden="true">↗</span>
-            </a>
-            <p class="fine-print">
-              Update with <code>sudo logspace upgrade</code>.
-            </p>
-          </section>
         </main>
         <footer>
-          <span>LogSpace is free and open source.</span>
+          <span>
+            Built by <a href="https://aakashns.com">aakashns</a>.
+          </span>
           <span>
             <a href={github}>Source</a>
             <span aria-hidden="true"> · </span>

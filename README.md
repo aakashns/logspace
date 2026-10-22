@@ -1,6 +1,6 @@
 # LogSpace
 
-Self-host your personal website with blog posts, photos, and videos. Write and publish from your browser. Free and open source.
+Self-host your personal website with blog posts, photos, and videos. Write and publish from your browser. Deploy to your own domain. Free and open source.
 
 [Website & demo](https://logspace.app) · [Changelog](https://github.com/aakashns/logspace/releases) · [Contributing](CONTRIBUTING.md)
 
