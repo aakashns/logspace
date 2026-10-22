@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# Installs the systemd service and the Caddy site config on the server, for the site's domain and
-# any others that should redirect to it:
+# Installs the logspace binary, the systemd service, and the Caddy site config on the server, for
+# the site's domain and any others that should redirect to it:
 #
-#   scripts/install.sh example.com www.example.com
+#   ./install.sh example.com www.example.com
 #
-# The domains are saved, so later runs (after the service file or Caddyfile changes) can leave them
-# out. Existing Caddy site blocks for these domains are replaced. The app's port is PORT in the env
+# It's run from a release's folder, which has the binary next to it (or from a checkout's scripts/,
+# after `bun run build` in platform/). The domains are saved, so later runs (to install a new
+# release, or after the service file or Caddyfile changes) can leave them out. Existing Caddy site blocks for these domains are replaced. The app's port is PORT in the env
 # file (44100 when it isn't set), which Caddy is pointed at, so run this again after changing it.
 # Run as root.
 set -euo pipefail
@@ -17,7 +18,7 @@ ENV_FILE="$(sed -n 's/^EnvironmentFile=//p' "$SERVICE_FILE")"
 DOMAINS_FILE="/etc/$SERVICE_NAME.domains"
 DEFAULT_PORT=44100
 CADDYFILE=/etc/caddy/Caddyfile
-APP_DIR="$(dirname "$SCRIPTS_DIR")/webapp"
+BINARY_PATH=/usr/local/bin/logspace
 
 if [[ $EUID -ne 0 ]]; then
   echo "Run as root" >&2
@@ -40,8 +41,10 @@ for domain in $DOMAINS; do
 done
 read -r SITE_DOMAIN REDIRECT_DOMAINS <<< "$DOMAINS"
 
-if [[ ! -d "$APP_DIR/node_modules" ]]; then
-  echo "$APP_DIR/node_modules not found. Clone the repo there and run npm ci first." >&2
+BINARY="$SCRIPTS_DIR/logspace"
+[[ -f "$BINARY" ]] || BINARY="$(dirname "$SCRIPTS_DIR")/platform/dist/logspace"
+if [[ ! -f "$BINARY" ]]; then
+  echo "The logspace binary isn't next to $0. Run it from a release's folder." >&2
   exit 1
 fi
 
@@ -71,9 +74,12 @@ if [[ ! "$PORT" =~ ^[1-9][0-9]{0,4}$ ]] || (( PORT > 65535 )); then
 fi
 echo "The app listens on port $PORT"
 
+echo "Installing $("$BINARY" --version) at $BINARY_PATH..."
+# install replaces the file rather than writing over it, so a running server keeps its copy.
+install -m 755 "$BINARY" "$BINARY_PATH"
+
 echo "Installing $SERVICE_NAME.service..."
-sed "s|@APP_DIR@|$APP_DIR|" "$SERVICE_FILE" > "/etc/systemd/system/$SERVICE_NAME.service"
-chmod 644 "/etc/systemd/system/$SERVICE_NAME.service"
+install -m 644 "$SERVICE_FILE" "/etc/systemd/system/$SERVICE_NAME.service"
 systemctl daemon-reload
 systemctl enable "$SERVICE_NAME"
 systemctl restart "$SERVICE_NAME"

@@ -1,10 +1,12 @@
-# Webapp
+# Platform
+
+See [`AGENTS.md`](AGENTS.md) for the commands and how the app is laid out.
 
 ```sh
-npm i
-npm run dev
-npm run hmr
-npm run start
-npm test
-npm run typecheck
+bun install
+bun run dev
+bun run start
+bun run build
+bun run test
+bun run typecheck
 ```

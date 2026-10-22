@@ -12,7 +12,7 @@ function fetch(path: string, init?: RequestInit) {
   return router.fetch(new Request(new URL(path, 'http://localhost'), init))
 }
 
-// npm test uses an in-memory database and media storage; fill them with the test posts and files.
+// bun run test uses an in-memory database and media storage; fill them with the test posts and files.
 beforeAll(async () => {
   await seedDatabase()
   await seedMedia()

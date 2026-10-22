@@ -13,9 +13,10 @@ export const APP_NAME = 'LogSpace'
 export const FALLBACK_ICON_BACKGROUND = '#ffffff'
 
 // Limits on one submission of the /admin post form. Uploaded files are held in memory until
-// they're saved, so these also bound how much memory an upload takes.
+// they're saved, so these also bound how much memory an upload takes. The total stays under Bun's
+// limit on a request's body (128 MB), so a form over it gets the 413 page that says why.
 export const MAX_UPLOAD_FILE_SIZE = 100 * 1024 * 1024
-export const MAX_UPLOAD_TOTAL_SIZE = 200 * 1024 * 1024
+export const MAX_UPLOAD_TOTAL_SIZE = 120 * 1024 * 1024
 // File inputs count even when no file is chosen, and a photos post has one per photo.
 export const MAX_UPLOAD_FILES = 100
 

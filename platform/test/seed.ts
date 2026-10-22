@@ -25,7 +25,7 @@ export const TEST_SITE_CONFIG: SiteText = {
   socialImageAlt: '',
 }
 
-// npm test uses an in-memory database; this creates its tables, saves TEST_SITE_CONFIG, and adds
+// bun run test uses an in-memory database; this creates its tables, saves TEST_SITE_CONFIG, and adds
 // the sample posts that aren't there yet, so a test file's beforeAll can run it for each of its
 // suites.
 export async function seedDatabase() {
@@ -39,7 +39,7 @@ export async function seedDatabase() {
   if (added.length > 0) await db.createMany(posts, added.map(fromPostRecord))
 }
 
-// Copies the sample posts' media files into media storage (memory storage under npm test).
+// Copies the sample posts' media files into media storage (memory storage under bun run test).
 export async function seedMedia(storage = mediaStorage) {
   // Saving an image records its size in the database.
   await migrateDatabase()

@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url'
 import { createRouter, type MiddlewareContext } from 'remix/router'
 import { cop } from 'remix/middleware/cop'
 import { render } from 'remix/middleware/render'
@@ -15,6 +16,9 @@ import { securityHeaders } from './middleware/security-headers.ts'
 import { requireSiteConfig, siteConfig } from './middleware/site-config.ts'
 import { routes } from './routes.ts'
 
+// Root public/, or the copy of it the binary writes out (see binary/main.ts).
+const PUBLIC_DIR = process.env.PUBLIC_DIR ?? fileURLToPath(new URL('../public/', import.meta.url))
+
 const renderMiddleware = render({ assets })
 export type AppContext = MiddlewareContext<[typeof renderMiddleware]>
 
@@ -30,11 +34,11 @@ export const router = createRouter<AppContext>({
     // Rejects form posts from other sites, so a page elsewhere can't act with an admin login.
     cop(),
     // Font files never change in place (a new version gets a new name), so browsers can keep them.
-    staticFiles('./public', {
+    staticFiles(PUBLIC_DIR, {
       filter: (path) => path.startsWith('fonts/'),
       cacheControl: 'public, max-age=31536000, immutable',
     }),
-    staticFiles('./public', { index: false }),
+    staticFiles(PUBLIC_DIR, { index: false }),
     siteConfig(),
     // Sends visitors to /admin until the site's required settings are saved.
     requireSiteConfig(),

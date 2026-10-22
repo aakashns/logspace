@@ -3,25 +3,27 @@ Description=LogSpace
 After=network.target
 
 [Service]
-# install.sh fills in @APP_DIR@, the webapp folder of the checkout it's run from.
-WorkingDirectory=@APP_DIR@
-Environment=NODE_ENV=production
+# install.sh installs the binary there.
+ExecStart=/usr/local/bin/logspace
 # The default port, which PORT in /etc/logspace.env overrides (EnvironmentFile= wins over
 # Environment=). install.sh points Caddy at the same one.
 Environment=PORT=44100
 Environment=TRUST_PROXY=1
-# The SQLite database lives outside the repo, so `git clean -x` can't delete it. systemd creates
-# /var/lib/logspace (StateDirectory) before the service starts.
+# The SQLite database, media, and caches live in folders systemd creates before the service starts
+# (StateDirectory, CacheDirectory), which the app runs in.
 StateDirectory=logspace
+CacheDirectory=logspace
+WorkingDirectory=/var/lib/logspace
 Environment=DATABASE_PATH=/var/lib/logspace/app.sqlite
 # Media (post photos and videos, and the site's logo and icon), uploaded at /admin, is kept there
-# too, in file storage (see webapp/app/data/media.ts).
+# too, in file storage (see platform/app/data/media.ts).
 Environment=MEDIA_STORAGE=fs
 Environment=MEDIA_DIR=/var/lib/logspace/media
+# Link previews, and the copy of the binary's public files it serves.
+Environment=CACHE_DIR=/var/cache/logspace
 # Secrets (ADMIN_PASSWORD, AUTH_SESSION_SECRET) and PORT, readable only by root. install.sh
 # creates it.
 EnvironmentFile=/etc/logspace.env
-ExecStart=/usr/bin/node --import remix/node-tsx server.ts
 Restart=always
 RestartSec=2
 

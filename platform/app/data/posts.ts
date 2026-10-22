@@ -133,7 +133,7 @@ export function isPostId(id: unknown): id is string {
   return typeof id === 'string' && /^[0-9a-z]{10}$/.test(id)
 }
 
-// A new random post id, like `npm run new-id` makes.
+// A new random post id, like `bun run new-id` makes.
 export function newPostId() {
   let alphabet = '0123456789abcdefghijklmnopqrstuvwxyz'
   let id = ''
@@ -150,8 +150,7 @@ export function newPostId() {
 export function parsePost(
   data: unknown,
 ):
-  | { success: true; record: PostRecord; post: Post }
-  | { success: false; issues: readonly Issue[] } {
+  { success: true; record: PostRecord; post: Post } | { success: false; issues: readonly Issue[] } {
   let result = s.parseSafe(PostSchema, data, { errorMap })
   if (!result.success) return { success: false, issues: result.issues }
   return { success: true, record: result.value, post: resolvePost(result.value) }
@@ -260,7 +259,7 @@ let basePost = {
     .string()
     .refine(
       isPostId,
-      'Expected 10 lowercase letters and digits, like "fc7p7vjhx6" (see npm run new-id)',
+      'Expected 10 lowercase letters and digits, like "fc7p7vjhx6" (see bun run new-id)',
     ),
   date: s
     .string()

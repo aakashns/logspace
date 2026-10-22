@@ -2,7 +2,7 @@
   "compilerOptions": {
     "strict": true,
     "lib": ["ES2024", "DOM", "DOM.Iterable"],
-    "types": ["node", "remix/assets/types/hmr"],
+    "types": ["node"],
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "target": "ESNext",
@@ -15,5 +15,6 @@
     "jsxImportSource": "remix/component",
     "noEmit": true
   },
-  "exclude": ["dist"]
+  // binary/build.ts has its own, with Bun's types (see binary/tsconfig.json).
+  "exclude": ["dist", "binary/build.ts"]
 }

@@ -1,0 +1,92 @@
+# Checks the app and builds the logspace binary for each platform, smoke-testing each on its own
+# runner. Pushing a v* tag also publishes the binaries as a GitHub release:
+#
+#   git tag v1.0.0 && git push origin v1.0.0
+name: Release
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: platform
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: platform/package.json
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun run lint
+      - run: bun run format:check
+      - run: bun run test
+
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-x64
+            runner: ubuntu-24.04
+          - target: linux-arm64
+            runner: ubuntu-24.04-arm
+          - target: darwin-x64
+            runner: macos-15-intel
+          - target: darwin-arm64
+            runner: macos-15
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: platform/package.json
+      # Installs sharp's native addon for this runner's platform, which the binary embeds.
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+        env:
+          LOGSPACE_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('dev-{0}', github.sha) }}
+      - run: binary/smoke-test.sh dist/logspace
+      # The binary with the scripts that install it on a server (see the README).
+      - name: Package
+        run: |
+          name=logspace-${{ matrix.target }}
+          mkdir "dist/$name"
+          cp dist/logspace ../LICENSE ../scripts/install.sh ../scripts/set-admin-password.sh \
+            ../scripts/logspace.service ../scripts/Caddyfile "dist/$name/"
+          tar -C dist -czf "dist/$name.tar.gz" "$name"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: logspace-${{ matrix.target }}
+          path: platform/dist/logspace-${{ matrix.target }}.tar.gz
+          if-no-files-found: error
+
+  release:
+    if: github.ref_type == 'tag'
+    needs: [check, build]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publish
+        working-directory: dist
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sha256sum -- *.tar.gz > SHA256SUMS
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" \
+            --generate-notes --verify-tag -- *.tar.gz SHA256SUMS

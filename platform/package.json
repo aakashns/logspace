@@ -3,15 +3,15 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "NODE_ENV=development node --env-file-if-exists=.env --watch --import remix/node-tsx server.ts",
-    "hmr": "NODE_ENV=development node --env-file-if-exists=.env hmr.ts",
-    "start": "NODE_ENV=production node --import remix/node-tsx server.ts",
-    "test": "NODE_ENV=test MEDIA_STORAGE=memory DATABASE_PATH=:memory: ADMIN_PASSWORD=test-password-1234 AUTH_SESSION_SECRET=test-session-secret remix test",
-    "typecheck": "tsc --noEmit",
-    "new-id": "node -e \"let a = '0123456789abcdefghijklmnopqrstuvwxyz', id = ''; while (id.length < 10) { let [b] = crypto.getRandomValues(new Uint8Array(1)); if (b < 252) id += a[b % 36] } console.log(id)\"",
+    "dev": "NODE_ENV=development bun --watch server.ts",
+    "start": "NODE_ENV=production bun server.ts",
+    "build": "bun binary/build.ts",
+    "test": "NODE_ENV=test MEDIA_STORAGE=memory DATABASE_PATH=:memory: ADMIN_PASSWORD=test-password-1234 AUTH_SESSION_SECRET=test-session-secret bun x --bun remix test",
+    "typecheck": "bun check && bun check -p binary",
+    "new-id": "bun -e \"let a = '0123456789abcdefghijklmnopqrstuvwxyz', id = ''; while (id.length < 10) { let [b] = crypto.getRandomValues(new Uint8Array(1)); if (b < 252) id += a[b % 36] } console.log(id)\"",
     "lint": "oxlint",
-    "format": "oxfmt",
-    "format:check": "oxfmt --check"
+    "format": "bun fmt",
+    "format:check": "bun fmt --check"
   },
   "dependencies": {
     "@tanstack/markdown": "^1.0.0",
@@ -19,12 +19,12 @@
     "sharp": "^0.35.5"
   },
   "devDependencies": {
+    "@types/bun": "^1.4.3",
     "@types/node": "latest",
-    "oxfmt": "^0.73.0",
-    "oxlint": "^1.88.0",
-    "typescript": "latest"
+    "oxlint": "^1.88.0"
   },
   "engines": {
-    "node": ">=24.3.0"
-  }
+    "bun": ">=1.4.4"
+  },
+  "packageManager": "bun@1.4.4"
 }
