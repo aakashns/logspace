@@ -8,8 +8,6 @@ import * as path from 'node:path'
 
 import { $ } from 'bun'
 
-import packageJson from '../package.json' with { type: 'json' }
-
 if (!process.argv[2]) {
   console.error('Usage: bun binary/setup-test.ts <binary>')
   process.exit(1)
@@ -77,21 +75,21 @@ let initial = `other.localhost {\n\trespond "other"\n}\n\n${DOMAIN} {\n\trespond
 await $`sudo tee ${CADDYFILE} < ${new Response(initial)}`.quiet()
 await $`sudo systemctl reload-or-restart caddy`
 
+// Where install.sh puts it (smoke-test.ts checks install.sh).
+await $`sudo install -m 755 ${BINARY} ${INSTALLED}`
+
 console.log('--- setup')
 await expectRun($`${BINARY} setup ${DOMAIN}`, 'setup as a user', 1, /Run it as root/)
 await expectRun($`sudo ${BINARY} setup`, 'setup without domains', 1, /Give the site's domain/)
 await expectRun($`sudo ${BINARY} setup ${'bad_domain!'}`, 'setup a bad domain', 1, /Not a domain/)
 let output = await expectRun(
-  $`sudo ${BINARY} setup ${DOMAIN} ${REDIRECT} < /dev/null`,
+  $`sudo ${INSTALLED} setup ${DOMAIN} ${REDIRECT} < /dev/null`,
   `setup ${DOMAIN} ${REDIRECT}`,
   0,
   /Set the password for \/admin with/,
 )
-if (!output.includes(`Installing LogSpace ${packageJson.version} at ${INSTALLED}`)) {
-  fail(`it didn't install the binary:\n${output}`)
-}
-let version = (await $`${INSTALLED} version`.text()).trim()
-if (version !== packageJson.version) fail(`the installed binary is ${version}`)
+let unit = fs.readFileSync('/etc/systemd/system/logspace.service', 'utf8')
+if (!unit.includes(`\nExecStart=${INSTALLED} start\n`)) fail(`the service doesn't run ${INSTALLED}`)
 if ((await $`systemctl is-active logspace`.nothrow().text()).trim() !== 'active') {
   fail(`the service isn't running:\n${await $`sudo journalctl -u logspace -n 50`.text()}`)
 }
@@ -131,7 +129,6 @@ await expectHttps(`https://${DOMAIN}/admin/login`, `302 https://${DOMAIN}/admin`
 console.log('--- setup again, on another port')
 await $`sudo sed -i ${'s/^PORT=.*/PORT=44105/'} /etc/logspace.env`
 output = await expectRun($`sudo ${INSTALLED} setup`, 'setup with the saved domains', 0, /Done/)
-if (output.includes('Installing LogSpace')) fail('it installed the binary over itself')
 if (output.includes('set-admin-password')) fail('it lost the admin password')
 caddyfile = fs.readFileSync(CADDYFILE, 'utf8')
 let siteBlocks = caddyfile.split('\n').filter((line) => line === `${DOMAIN} {`)

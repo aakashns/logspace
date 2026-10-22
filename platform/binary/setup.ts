@@ -1,8 +1,9 @@
-// `logspace setup`: installs LogSpace on a Linux server, as root: the binary at
-// /usr/local/bin/logspace, a systemd service that runs it, and blocks in Caddy's config for the
-// site's domain and any domains that should redirect to it:
+// `logspace setup`: sets up a Linux server, as root, to run LogSpace from the binary it's run from
+// (which install.sh installs at /usr/local/bin/logspace): a systemd service that runs it, its env
+// file, and blocks in Caddy's config for the site's domain and any domains that should redirect
+// to it:
 //
-//   sudo ./logspace setup example.com www.example.com
+//   sudo logspace setup example.com www.example.com
 //
 // The domains are saved, so later runs (like the one after `logspace upgrade`) can leave them
 // out. Existing Caddy site blocks for these domains are replaced. The app's port is PORT in the
@@ -18,20 +19,19 @@ import { addSite } from './caddyfile.ts'
 import { CommandError, IS_BINARY, requireRoot, run, VERSION } from './command.ts'
 import { ENV_FILE, readEnvFile, setEnvVariable } from './env-file.ts'
 
-export const BINARY_PATH = '/usr/local/bin/logspace'
 export const DOMAINS_FILE = '/etc/logspace.domains'
 export const SERVER_DATABASE_PATH = '/var/lib/logspace/app.sqlite'
 const SERVICE_FILE = '/etc/systemd/system/logspace.service'
 const CADDYFILE = '/etc/caddy/Caddyfile'
 const DEFAULT_PORT = 44100
 
-const SERVICE = `[Unit]
+const service = (binary: string) => `[Unit]
 Description=LogSpace
 After=network.target
 
 [Service]
-# logspace setup installs the binary there.
-ExecStart=${BINARY_PATH} start
+# The binary logspace setup was run from.
+ExecStart=${binary} start
 # The default port, which PORT in ${ENV_FILE} overrides (EnvironmentFile= wins over
 # Environment=). logspace setup points Caddy at the same one.
 Environment=PORT=${DEFAULT_PORT}
@@ -62,7 +62,8 @@ export async function setup(args: string[]): Promise<void> {
   if (process.platform !== 'linux') {
     throw new CommandError('setup installs LogSpace on a Linux server, with systemd')
   }
-  if (!IS_BINARY) throw new CommandError('setup installs the built binary: run it from there')
+  if (!IS_BINARY)
+    throw new CommandError('setup makes a service of the built binary: run it from there')
   requireRoot()
 
   let domains = args.length > 0 ? args : savedDomains()
@@ -96,9 +97,9 @@ export async function setup(args: string[]): Promise<void> {
     setEnvVariable('ADMIN_PASSWORD', await promptAdminPassword())
   }
 
-  installBinary()
-  console.log('Installing logspace.service...')
-  fs.writeFileSync(SERVICE_FILE, SERVICE)
+  let binary = fs.realpathSync(process.execPath)
+  console.log(`Installing logspace.service, which runs ${binary}...`)
+  fs.writeFileSync(SERVICE_FILE, service(binary))
   fs.chmodSync(SERVICE_FILE, 0o644)
   run('systemctl', 'daemon-reload')
   run('systemctl', 'enable', '--quiet', 'logspace')
@@ -111,6 +112,13 @@ export async function setup(args: string[]): Promise<void> {
   if (!readEnvFile().get('ADMIN_PASSWORD')) {
     console.log('Set the password for /admin with: sudo logspace set-admin-password')
   }
+}
+
+// Whether the service setup installed runs this binary, so a new one there should set it up again.
+export function runsService(binary: string): boolean {
+  if (!fs.existsSync(DOMAINS_FILE) || !fs.existsSync(SERVICE_FILE)) return false
+  let execStart = `ExecStart=${fs.realpathSync(binary)} start`
+  return fs.readFileSync(SERVICE_FILE, 'utf8').split('\n').includes(execStart)
 }
 
 function savedDomains(): string[] | undefined {
@@ -129,23 +137,6 @@ function createEnvFile() {
   let secret = crypto.randomBytes(32).toString('base64')
   let env = `ADMIN_PASSWORD=\nAUTH_SESSION_SECRET=${secret}\nPORT=${DEFAULT_PORT}\n`
   fs.writeFileSync(ENV_FILE, env, { mode: 0o600, flag: 'wx' })
-}
-
-// Copies this binary to BINARY_PATH, unless it's the one there. It's copied beside it and moved
-// into place, so a running server keeps its copy.
-function installBinary() {
-  if (
-    fs.existsSync(BINARY_PATH) &&
-    fs.realpathSync(process.execPath) === fs.realpathSync(BINARY_PATH)
-  ) {
-    return
-  }
-  console.log(`Installing LogSpace ${VERSION} at ${BINARY_PATH}...`)
-  fs.mkdirSync(path.dirname(BINARY_PATH), { recursive: true })
-  let tmp = `${BINARY_PATH}.${process.pid}.tmp`
-  fs.copyFileSync(process.execPath, tmp)
-  fs.chmodSync(tmp, 0o755)
-  fs.renameSync(tmp, BINARY_PATH)
 }
 
 // Checks the new Caddyfile before it replaces the live one, and puts the old one back if Caddy

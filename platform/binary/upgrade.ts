@@ -1,14 +1,14 @@
 // `logspace upgrade [version] [--yes]`: replaces this binary with the latest release, or the given
-// one, from GitHub, checked against the release's SHA256SUMS. When it's the binary `logspace
-// setup` installed on a server, it then runs the new one's setup, which installs its service
-// file and restarts the app.
+// one, from GitHub, checked against the release's SHA256SUMS. When it's the binary a server's
+// service runs (see setup.ts), it then runs the new one's setup, which installs its service file
+// and restarts the app.
 import { spawnSync } from 'node:child_process'
 import * as crypto from 'node:crypto'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 
 import { CommandError, IS_BINARY, VERSION } from './command.ts'
-import { BINARY_PATH, DOMAINS_FILE } from './setup.ts'
+import { runsService } from './setup.ts'
 
 // Where releases are published. smoke-test.ts points it at pretend ones.
 const RELEASES_URL =
@@ -82,11 +82,7 @@ export async function upgrade(args: string[]): Promise<void> {
   }
   console.log(`Upgraded LogSpace ${VERSION} to ${version}`)
 
-  let installed =
-    fs.existsSync(DOMAINS_FILE) &&
-    fs.existsSync(BINARY_PATH) &&
-    fs.realpathSync(binary) === fs.realpathSync(BINARY_PATH)
-  if (!installed) {
+  if (!runsService(binary)) {
     console.log('Restart LogSpace to run it')
     return
   }

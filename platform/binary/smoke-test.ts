@@ -69,12 +69,20 @@ async function cli(
   return { status, stdout, stderr, output: `${stdout}${stderr}` }
 }
 
-async function expectCli(args: string[], status: number, output: RegExp, options = {}) {
+async function expectCli(
+  args: string[],
+  status: number,
+  output: RegExp,
+  {
+    label = `logspace ${args.join(' ')}`,
+    ...options
+  }: Parameters<typeof cli>[1] & { label?: string } = {},
+) {
   let result = await cli(args, options)
   if (result.status !== status || !output.test(result.output)) {
-    fail(`logspace ${args.join(' ')} exited with ${result.status}:\n${result.output}`)
+    fail(`${label} exited with ${result.status}:\n${result.output}`)
   }
-  ok(`logspace ${args.join(' ')}`)
+  ok(label)
   return result
 }
 
@@ -309,12 +317,13 @@ checkLog()
 await stop()
 s3.close()
 
-console.log('--- upgrade from pretend releases')
+console.log('--- install and upgrade from pretend releases')
 // Each release's binary is this one, and 99.0.1's SHA256SUMS has the wrong hash for it.
 let asset = `logspace-${process.platform}-${process.arch}`
 let bytes = fs.readFileSync(BINARY)
 let hash = crypto.createHash('sha256').update(bytes).digest('hex')
 let releases = new Map([
+  [packageJson.version, hash],
   ['99.0.0', hash],
   ['99.0.1', '0'.repeat(64)],
 ])
@@ -327,22 +336,39 @@ let releaseServer = Bun.serve({
     if (url.pathname === '/releases/latest') {
       return Response.redirect(new URL(`/releases/tag/v${latest}`, url), 302)
     }
-    let [, version, file] = /^\/releases\/download\/v([^/]+)\/(.+)$/.exec(url.pathname) ?? []
+    let [, version, file] =
+      /^\/releases\/(?:download\/v([^/]+)|latest\/download)\/(.+)$/.exec(url.pathname) ?? []
+    version ??= latest
     let sum = releases.get(version)
     if (sum && file === 'SHA256SUMS') return new Response(`${sum}  ${asset}\n`)
     if (sum && file === asset) return new Response(bytes)
     return new Response('Not found', { status: 404 })
   },
 })
-let copy = path.join(work, 'upgrade', 'logspace')
-fs.mkdirSync(path.dirname(copy))
-fs.copyFileSync(BINARY, copy)
-fs.chmodSync(copy, 0o755)
-let options = {
-  binary: copy,
-  env: { LOGSPACE_RELEASES_URL: `http://127.0.0.1:${RELEASES_PORT}/releases` },
-}
+let releasesUrl = `http://127.0.0.1:${RELEASES_PORT}/releases`
+
+// install.sh, into a folder of its own.
+let copy = path.join(work, 'bin', 'logspace')
+let install = (label: string, env: Record<string, string> = {}) => ({
+  binary: 'sh',
+  label,
+  env: { LOGSPACE_RELEASES_URL: releasesUrl, LOGSPACE_INSTALL_DIR: path.dirname(copy), ...env },
+})
+let installer = fileURLToPath(new URL('../../install.sh', import.meta.url))
+let installed = new RegExp(`Installed LogSpace ${packageJson.version.replaceAll('.', '\\.')} at `)
+await expectCli([installer], 0, installed, install('install.sh'))
+await expectCli([installer], 0, installed, install('install.sh again'))
 let inode = fs.statSync(copy).ino
+await expectCli([installer], 1, /doesn't match its checksum/, {
+  ...install('install.sh with a bad checksum', { LOGSPACE_VERSION: '99.0.1' }),
+})
+await expectCli([installer], 1, /couldn't download/, {
+  ...install('install.sh a missing version', { LOGSPACE_VERSION: 'v99.0.2' }),
+})
+if (fs.statSync(copy).ino !== inode) fail('a failed install replaced the binary')
+if (fs.readdirSync(path.dirname(copy)).length !== 1) fail('install.sh left files behind')
+
+let options = { binary: copy, env: { LOGSPACE_RELEASES_URL: releasesUrl } }
 await expectCli(['upgrade'], 0, /is up to date/, options)
 await expectCli(['upgrade', '0.0.1', '--yes'], 1, /is older than/, options)
 await expectCli(['upgrade', 'v99.0.1', '--yes'], 1, /doesn't match 99\.0\.1's SHA256SUMS/, options)

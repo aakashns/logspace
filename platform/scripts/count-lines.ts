@@ -15,7 +15,7 @@ const KINDS: [RegExp, Kind][] = [
     'test',
   ],
   [
-    /^platform\/(app\/|binary\/.*\.ts$|server\.ts$|db\/migrations\/.*\.sql$)|^platform\/scripts\//,
+    /^platform\/(app\/|binary\/.*\.ts$|server\.ts$|db\/migrations\/.*\.sql$)|^platform\/scripts\/|^install\.sh$/,
     'source',
   ],
   [/\.(json|toml)$|^\.github\/|\.gitignore$/, 'config'],

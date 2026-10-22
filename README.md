@@ -2,7 +2,7 @@
 
 LogSpace is a personal website for your posts, pictures, and videos: a feed of text posts, photos, videos, and articles that you write and upload at `/admin`, with an RSS feed, link previews, and a sitemap. It's one small server app with a SQLite database, meant to run on a server of your own. See [logspace.app](https://logspace.app).
 
-The app is in [`platform/`](platform/), built with [Remix 3](https://remix.run) on [Bun](https://bun.com). Each [release](https://github.com/aakashns/logspace/releases) has it as a single binary for Linux and macOS, which also sets up a server to run it. Every change merged to `main` is released, with the version in [`platform/package.json`](platform/package.json), which each pull request bumps: below 1.0, the minor version for breaking changes and the patch version for others.
+The app is in [`platform/`](platform/), built with [Remix 3](https://remix.run) on [Bun](https://bun.com). Each [release](https://github.com/aakashns/logspace/releases) has it as a single binary for Linux and macOS, which [`install.sh`](install.sh) installs, and which also sets up a server to run it. Every change merged to `main` is released, with the version in [`platform/package.json`](platform/package.json), which each pull request bumps: below 1.0, the minor version for breaking changes and the patch version for others.
 
 ## Running it locally
 
@@ -29,21 +29,22 @@ The binary runs on its own, configured by the same environment variables (it doe
 
 ## Deployment
 
-LogSpace runs on a Linux server (x64 or arm64, with glibc) as a systemd service behind [Caddy](https://caddyserver.com), which gets its HTTPS certificates. On a fresh server with Caddy installed (as root), ports 80 and 443 (but not the app's port, 44100) open in the firewall, and your domain's DNS pointing at it, download the latest release for the server's CPU (`linux-x64` or `linux-arm64`) and set it up:
+LogSpace runs on a Linux server (x64 or arm64, with glibc) as a systemd service behind [Caddy](https://caddyserver.com), which gets its HTTPS certificates. On a fresh server with Caddy installed (as root), ports 80 and 443 (but not the app's port, 44100) open in the firewall, and your domain's DNS pointing at it, install LogSpace and set it up:
 
 ```sh
-curl -fsSL -o logspace https://github.com/aakashns/logspace/releases/latest/download/logspace-linux-x64
-chmod +x logspace
-./logspace setup example.com www.example.com
+curl -fsSL https://raw.githubusercontent.com/aakashns/logspace/main/install.sh | sh
+sudo logspace setup example.com www.example.com
 ```
 
-`logspace setup` takes the site's domain, then any domains that should redirect to it. It installs the binary at `/usr/local/bin/logspace` (so the downloaded copy can be deleted after) and a systemd service, `logspace`, to run it, creates `/etc/logspace.env` (see [Admin](#admin)) if it's missing, asks for the admin password if there isn't one yet, and replaces any existing site blocks for those domains in `/etc/caddy/Caddyfile` with its own. It saves the domains in `/etc/logspace.domains`, so later runs can leave them out.
+`install.sh` downloads the latest release for the machine (`LOGSPACE_VERSION=0.1.0` picks another), checks it against the release's `SHA256SUMS`, and installs it at `/usr/local/bin/logspace` (`LOGSPACE_INSTALL_DIR` picks another folder), with `sudo` if that needs it. It works on macOS too, to run LogSpace locally.
+
+`logspace setup` takes the site's domain, then any domains that should redirect to it. It installs a systemd service, `logspace`, that runs the binary it's run from, creates `/etc/logspace.env` (see [Admin](#admin)) if it's missing, asks for the admin password if there isn't one yet, and replaces any existing site blocks for those domains in `/etc/caddy/Caddyfile` with its own. It saves the domains in `/etc/logspace.domains`, so later runs can leave them out.
 
 The app listens on port 44100. To use another one (if something else on the server has it), set `PORT` in `/etc/logspace.env`, which overrides the service's default, and run `logspace setup` again (without arguments), which restarts the app and points Caddy at the new port. Restarting the service alone would leave Caddy on the old one.
 
 Then log in at `https://example.com/admin` to set up the site (see [Configuration](#configuration)).
 
-To deploy an update, run `logspace upgrade`. It downloads the latest release (or the one given, like `logspace upgrade 0.2.0`), checks it against the release's `SHA256SUMS`, replaces `/usr/local/bin/logspace` with it, and runs its `setup`, which installs its service file and restarts the app. It asks first, unless given `--yes`. It won't go back to an earlier release, since the database may have changed in ways an earlier one doesn't know.
+To deploy an update, run `sudo logspace upgrade`. It downloads the latest release (or the one given, like `logspace upgrade 0.2.0`), checks it against the release's `SHA256SUMS`, replaces the binary with it, and runs its `setup`, which installs its service file and restarts the app. It asks first, unless given `--yes`. It won't go back to an earlier release, since the database may have changed in ways an earlier one doesn't know.
 
 The server applies new database migrations when it starts. To see what they'll be before restarting it, run `logspace migrate --dry-run`, and to apply them without starting it, `logspace migrate` (both as root, for the service's database; elsewhere, they use the database `logspace start` would). `journalctl -u logspace` has its logs, and `logspace version` says which release is installed. The binary loads [sharp](https://sharp.pixelplumbing.com)'s image library from a temporary copy when it starts, so if the server's `/tmp` doesn't allow running code (`noexec`), set `TMPDIR` in `/etc/logspace.env` to a folder that does.
 
