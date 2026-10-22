@@ -104,9 +104,9 @@ header.site {
    link's box, so the link's bottom edge is that baseline and it lines up with the nav. */
 header.site .name svg {
   display: block;
-  height: 1.5rem;
+  height: 1.25rem;
   width: auto;
-  margin-bottom: -0.325rem;
+  margin-bottom: -0.27rem;
 }
 header.site nav {
   display: flex;
