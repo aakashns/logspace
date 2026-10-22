@@ -148,24 +148,32 @@ export function HomePage() {
             </figcaption>
           </figure>
 
-          <ul>
-            <li>
-              <strong>Posts, photos, and videos.</strong> Share short updates or
-              long articles, and upload media. They all appear in one feed.
-            </li>
-            <li>
-              <strong>Write in your browser.</strong> Use Markdown, edit
-              published posts, and change your site’s title, description, and
-              images.
-            </li>
-            <li>
-              <strong>Links and RSS.</strong> Every post has its own URL.
-              Readers can follow along in an RSS reader, no account needed.
-            </li>
-          </ul>
+          <section aria-labelledby="features">
+            <h2 id="features">Features</h2>
+            <ul>
+              <li>
+                <strong>Posts, photos, and videos.</strong> Share short updates
+                or long articles, and upload media. They all appear in one feed.
+              </li>
+              <li>
+                <strong>Write in your browser.</strong> Use Markdown, edit
+                published posts, and change your site’s title, description, and
+                images.
+              </li>
+              <li>
+                <strong>Links and RSS.</strong> Every post has its own URL.
+                Readers can follow along in an RSS reader, no account needed.
+              </li>
+              <li>
+                <strong>Single binary.</strong> LogSpace runs as one program and
+                keeps your posts in a SQLite database. Store media on the
+                server’s disk or in any S3-compatible storage, like Cloudflare
+                R2 or MinIO.
+              </li>
+            </ul>
+          </section>
           <p>
-            Free and <a href={github}>open source</a>. Update anytime with{" "}
-            <code>sudo logspace upgrade</code>.
+            Free and <a href={github}>open source</a>.
           </p>
         </main>
         <footer class="site">
