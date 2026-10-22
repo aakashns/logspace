@@ -1,15 +1,9 @@
 import type { Handle, RemixNode } from 'remix/component'
 import { css } from 'remix/component'
 
-import { mutedStyle } from '../styles.ts'
-import {
-  FieldRow,
-  MediaFileField,
-  SizeFields,
-  TextareaField,
-  TextField,
-  UploadField,
-} from './fields.tsx'
+import { mutedStyle } from '../ui/styles.ts'
+import { FieldRow, TextareaField, TextField } from '../ui/fields.tsx'
+import { MediaFileField, SizeFields, UploadField } from './fields.tsx'
 import {
   POST_TYPES,
   type InvalidCheck,

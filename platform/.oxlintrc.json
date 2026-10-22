@@ -1,11 +1,41 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": ["typescript", "unicorn", "oxc"],
-  "categories": {
-    "correctness": "error"
-  },
-  "rules": {},
-  "env": {
-    "builtin": true
-  }
+  "categories": { "correctness": "error" },
+  "env": { "builtin": true },
+  "overrides": [
+    {
+      "files": ["app/data/**", "app/lib/**"],
+      "rules": { "no-restricted-imports": ["error", { "patterns": ["**/actions/**", "**/ui/**"] }] }
+    },
+    {
+      "files": [
+        "app/data/image-sources.ts",
+        "app/data/posts/model.ts",
+        "app/data/posts/presentation.ts"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              "**/actions/**",
+              "**/ui/**",
+              "sharp",
+              "../*.ts",
+              "!../image-sources.ts",
+              "./store.ts",
+              "./mutations.ts"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["app/actions/public/**", "app/ui/public/**"],
+      "rules": {
+        "no-restricted-imports": ["error", { "patterns": ["**/data/**", "node:*", "sharp"] }]
+      }
+    }
+  ]
 }

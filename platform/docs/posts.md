@@ -4,7 +4,7 @@ Posts appear on the home page, newest first, and each one has its own page at `/
 They're written and edited at `/admin` and stored in the database; their media (photos, videos,
 posters, covers) is stored in media storage, under keys like `posts/<id>/photo.jpg`. This is what a
 post is made of. The `/admin` post form has these fields and checks them the same way
-(`parsePost` in `app/data/posts.ts`), and the test posts in `test/content/posts.json` are written
+(`parsePostRecord` in `app/data/posts/model.ts`), and the test posts in `test/content/posts.json` are written
 in this format.
 
 Every post has:

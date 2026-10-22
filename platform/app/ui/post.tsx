@@ -3,11 +3,11 @@ import { css, unsafeHTML } from 'remix/component'
 
 import { getSiteConfig } from '../data/config.ts'
 import type { LinkPreview } from '../data/link-previews.ts'
-import type { ArticlePost, Photo, Post, Video } from '../data/posts.ts'
+import type { ArticlePost, Photo, Post, Video } from '../data/posts/presentation.ts'
 import { FULL_WIDTH_IMAGE_SIZES, HALF_WIDTH_IMAGE_SIZES } from '../lib/constants.ts'
 import { renderCaption } from '../lib/caption.ts'
 import { routes } from '../routes.ts'
-import type { PreloadImage } from '../actions/document.tsx'
+import type { PreloadImage } from '../lib/page-meta.ts'
 import { ShareButton } from './public/share-button.tsx'
 
 // Pieces of a post shared by the feed and the post page.

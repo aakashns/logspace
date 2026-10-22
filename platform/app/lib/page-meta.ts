@@ -12,3 +12,10 @@ export interface PageMeta {
   // Keeps the page out of search results (e.g. "not found" pages).
   noindex?: boolean
 }
+
+// An image to preload, with the srcset and sizes of its <img> so the same copy is fetched.
+export interface PreloadImage {
+  href: string
+  srcset?: string
+  sizes?: string
+}

@@ -1,8 +1,7 @@
-import { isUploadableFileName, savePostFile } from '../../../data/media.ts'
-import { findMissingPostFiles, parsePost } from '../../../data/posts.ts'
+import { isUploadableFileName, type PostIssue } from '../../../data/posts/model.ts'
+import type { PostSubmission } from '../../../data/posts/mutations.ts'
 
-// What the post form submits and shows, and the checks it goes through. The form itself is
-// post-form.tsx.
+// What the post form submits and shows. The form itself is post-form.tsx.
 
 // A post as the form shows it: the format of docs/posts.md, except that what was typed is kept as
 // is (a width can be "abc") so a rejected submission comes back unchanged.
@@ -23,29 +22,17 @@ export interface PhotoValues {
   alt?: string
 }
 
-// A file chosen in the form, to be saved as one of the post's files under `name`.
-export interface Upload {
-  name: string
-  file: File
-}
-
-// A problem with a submission. `field` is the path to the value, like "photos.0.file".
-export interface FormIssue {
-  field?: string
-  message: string
-}
-
 export const POST_TYPES = ['text', 'photos', 'video', 'article'] as const
 
 // Reads a submitted post form. Only the fields of the post's type are kept: `type` for a post that
 // already exists, since a post's type can't change, else the one chosen in the form. A media field
-// is a file name, or a file chosen next to it, which `uploads` has for savePostUploads and whose
-// name the field takes; `issues` has the chosen files that can't be uploaded.
+// is a file name, or a file chosen next to it, which `uploads` has and whose name the field takes;
+// `issues` has the chosen files that can't be uploaded.
 export function readPostForm(
   formData: FormData,
   id: string,
   type?: string,
-): { values: PostFormValues; uploads: Upload[]; issues: FormIssue[] } {
+): PostSubmission & { post: PostFormValues } {
   let raw = (name: string) => {
     let value = formData.get(name)
     // Browsers send textarea line breaks as \r\n.
@@ -63,8 +50,8 @@ export function readPostForm(
   let size = (value: string) =>
     value === '' ? undefined : /^\d+$/.test(value) ? Number(value) : value
 
-  let uploads: Upload[] = []
-  let issues: FormIssue[] = []
+  let uploads: PostSubmission['uploads'] = []
+  let issues: PostIssue[] = []
   // The name a chosen file is saved under, or undefined if no file was chosen (a file input left
   // empty sends an empty file) or it can't be uploaded.
   let upload = (value: FormDataEntryValue | null | undefined) => {
@@ -140,36 +127,7 @@ export function readPostForm(
       break
     }
   }
-  return { values: stripUndefined(values), uploads, issues }
-}
-
-// Saves the files chosen in a submission as the post's files, replacing any of the same names.
-// They're saved even when the post isn't, so a rejected submission doesn't need its files chosen
-// again: the form comes back with their names filled in.
-export async function savePostUploads(id: string, uploads: Upload[]) {
-  for (let { name, file } of uploads) await savePostFile(id, name, file)
-}
-
-// Checks a submitted post against the post format, and that every file it names is in media
-// storage. `uploadIssues` are readPostForm's. On success it returns the record to store.
-export async function validatePostForm(values: PostFormValues, uploadIssues: FormIssue[] = []) {
-  let parsed = parsePost(values)
-  if (!parsed.success) {
-    let issues: FormIssue[] = parsed.issues.map((issue) => ({
-      field: issue.path?.map((key) => String(typeof key === 'object' ? key.key : key)).join('.'),
-      message: issue.message,
-    }))
-    return { success: false as const, issues: [...uploadIssues, ...issues] }
-  }
-  let missing = await findMissingPostFiles(parsed.post)
-  let issues: FormIssue[] = [
-    ...uploadIssues,
-    ...missing.map((file) => ({
-      message: `${file} isn’t one of this post’s files. Choose the file to upload it, or check the name.`,
-    })),
-  ]
-  if (issues.length > 0) return { success: false as const, issues }
-  return { success: true as const, record: parsed.record }
+  return { post: stripUndefined(values), uploads, issues }
 }
 
 // The name an uploaded file is saved under: its own, without any folders (some browsers send
@@ -191,7 +149,7 @@ export function newPostDate(newestDate: string | undefined) {
 // aria-invalid for a field: "true" when one of the issues is about it.
 export type InvalidCheck = (field: string) => 'true' | undefined
 
-export function invalidCheck(issues: FormIssue[]): InvalidCheck {
+export function invalidCheck(issues: PostIssue[]): InvalidCheck {
   return (field) => (issues.some((issue) => issue.field === field) ? 'true' : undefined)
 }
 

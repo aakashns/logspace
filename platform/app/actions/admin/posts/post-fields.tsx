@@ -1,10 +1,10 @@
 import type { Handle } from 'remix/component'
 import { css } from 'remix/component'
 
-import { getPostFileUrl } from '../../../data/posts.ts'
+import { getPostFileUrl } from '../../../data/posts/presentation.ts'
 import { MAX_UPLOAD_FILE_SIZE, MAX_UPLOAD_TOTAL_SIZE } from '../../../lib/constants.ts'
-import { inputStyle, mutedStyle } from '../styles.ts'
-import { Field, FieldRow, TextareaField, TextField } from './fields.tsx'
+import { inputStyle, mutedStyle } from '../ui/styles.ts'
+import { Field, FieldRow, TextareaField, TextField } from '../ui/fields.tsx'
 import { POST_TYPES, type InvalidCheck, type PostFormValues } from './form-values.ts'
 
 // The post form's fields that every type of post has.

@@ -1,22 +1,15 @@
 import * as assert from 'remix/assert'
-import { beforeAll, describe, it } from 'remix/test'
+import { beforeAll, beforeEach, describe, it } from 'remix/test'
 
-import { db } from '../data/db.ts'
-import { getPost, getPosts } from '../data/posts.ts'
-import { fromPostRecord, posts } from '../data/tables.ts'
-import { router } from '../router.ts'
-import { routes } from '../routes.ts'
+import { fetch } from '../../test/client.ts'
 import { seedDatabase, seedMedia } from '../../test/seed.ts'
-
-function fetch(path: string, init?: RequestInit) {
-  return router.fetch(new Request(new URL(path, 'http://localhost'), init))
-}
+import { createPost, updatePost } from '../data/posts/mutations.ts'
+import { getPost, getPostRecord, getPosts } from '../data/posts/store.ts'
+import { routes } from '../routes.ts'
 
 // bun run test uses an in-memory database and media storage; fill them with the test posts and files.
-beforeAll(async () => {
-  await seedDatabase()
-  await seedMedia()
-})
+beforeAll(seedMedia)
+beforeEach(seedDatabase)
 
 describe('root controller', () => {
   it('GET / renders every post, newest first', async () => {
@@ -200,23 +193,17 @@ describe('posts controller', () => {
   it('renders a caption whose link is malformed, without a preview', async () => {
     let id = 'badlink000'
     let caption = 'Broken: https://[bad-host] but https://remix.run is fine'
-    await db.create(
-      posts,
-      fromPostRecord({ id, type: 'text', date: '2000-01-01T00:00:00Z', caption }),
-    )
-    try {
-      let home = await fetch(routes.home.href())
-      assert.equal(home.status, 200)
-      let response = await fetch(routes.posts.show.href({ id }))
-      let html = await response.text()
-      assert.equal(response.status, 200)
-      assert.match(html, /Broken: https:\/\/\[bad-host\]/)
-      assert.doesNotMatch(html, /href="https:\/\/\[bad-host\]"/)
-      // The preview card is for the first link that's a real URL.
-      assert.match(html, /<a [^>]*href="https:\/\/remix\.run"/)
-    } finally {
-      await db.delete(posts, id)
-    }
+    let post = { id, type: 'text', date: '2000-01-01T00:00:00Z', caption }
+    await createPost({ post, uploads: [], issues: [] })
+    let home = await fetch(routes.home.href())
+    assert.equal(home.status, 200)
+    let response = await fetch(routes.posts.show.href({ id }))
+    let html = await response.text()
+    assert.equal(response.status, 200)
+    assert.match(html, /Broken: https:\/\/\[bad-host\]/)
+    assert.doesNotMatch(html, /href="https:\/\/\[bad-host\]"/)
+    // The preview card is for the first link that's a real URL.
+    assert.match(html, /<a [^>]*href="https:\/\/remix\.run"/)
   })
 
   it('GET /posts/:id is a 404 for unknown posts', async () => {
@@ -271,20 +258,16 @@ describe('posts controller', () => {
 
   it('gives a video without a size its poster’s', async () => {
     let id = 'steq6e0rsh'
-    let { details } = (await db.find(posts, id))!
-    let { width, height, ...video } = JSON.parse(details).video
-    assert.ok(width && height)
-    await db.update(posts, id, { details: JSON.stringify({ video }) })
-    try {
-      let post = await getPost(id)
-      assert.ok(post?.type === 'video')
-      assert.equal(post.video.width, 64)
-      assert.equal(post.video.height, 36)
-      assert.match(post.video.poster ?? '', /poster\.jpg\?w=320&v=/)
-      assert.match(post.video.posterImage ?? '', /poster\.jpg\?v=/)
-    } finally {
-      await db.update(posts, id, { details })
-    }
+    let record = await getPostRecord(id)
+    assert.ok(record?.type === 'video' && record.video.width && record.video.height)
+    let edited = { ...record, video: { ...record.video, width: undefined, height: undefined } }
+    await updatePost(id, { post: edited, uploads: [], issues: [] })
+    let post = await getPost(id)
+    assert.ok(post?.type === 'video')
+    assert.equal(post.video.width, 64)
+    assert.equal(post.video.height, 36)
+    assert.match(post.video.poster ?? '', /poster\.jpg\?w=320&v=/)
+    assert.match(post.video.posterImage ?? '', /poster\.jpg\?v=/)
   })
 
   it('GET /posts/:id/:file only serves files of published posts', async () => {

@@ -1,7 +1,15 @@
 import * as s from 'remix/data-schema'
-import type { Issue } from 'remix/data-schema'
 
 import { db } from './db.ts'
+import {
+  deleteSiteImageFiles,
+  processSiteImage,
+  saveSiteImageFiles,
+  SITE_IMAGE_KINDS,
+  SiteImageError,
+  type ProcessedSiteImage,
+  type SiteImageKind,
+} from './site-images.ts'
 import { config as configTable } from './tables.ts'
 
 // The site's configuration: what's particular to this site, like its title, the home page's
@@ -146,13 +154,60 @@ async function readSiteConfig(): Promise<SavedSiteConfig> {
   return config
 }
 
-// Validates the settings typed into the /admin/config form.
-export function parseSiteText(
-  data: unknown,
-): { success: true; text: SiteText } | { success: false; issues: readonly Issue[] } {
-  let result = s.parseSafe(SiteTextSchema, data)
-  if (!result.success) return { success: false, issues: result.issues }
-  return { success: true, text: result.value }
+export interface SiteConfigIssue {
+  field?: keyof SiteConfig
+  message: string
+}
+
+// Saves the /admin/config form: its settings, and images to upload or remove. Uploads are turned
+// into the files they're served as first, but only stored once everything is valid. An image's old
+// files are removed after its new ones are stored, and the config is saved last, so if a step
+// fails the config still names files that exist.
+export async function updateSiteConfig(
+  text: SiteText,
+  uploads: Partial<Record<SiteImageKind, Blob>>,
+  removals: SiteImageKind[],
+): Promise<{ success: true } | { success: false; issues: SiteConfigIssue[] }> {
+  let issues: SiteConfigIssue[] = []
+  let parsed = s.parseSafe(SiteTextSchema, text)
+  if (!parsed.success) {
+    issues = parsed.issues.map((issue) => {
+      let [key] = issue.path ?? []
+      let field = typeof key === 'object' ? key.key : key
+      return { field: field as keyof SiteConfig | undefined, message: issue.message }
+    })
+  }
+  let processed = new Map<SiteImageKind, ProcessedSiteImage>()
+  for (let kind of SITE_IMAGE_KINDS) {
+    let upload = uploads[kind]
+    if (!upload) continue
+    try {
+      processed.set(kind, await processSiteImage(kind, upload))
+    } catch (error) {
+      if (!(error instanceof SiteImageError)) throw error
+      issues.push({ field: kind, message: error.message })
+    }
+  }
+  let { logo, icon, socialImage } = getSavedSiteConfig()
+  let images = { logo, icon, socialImage }
+  let hasSocialImage =
+    processed.has('socialImage') || (images.socialImage && !removals.includes('socialImage'))
+  if (hasSocialImage && !text.socialImageAlt) {
+    issues.push({ field: 'socialImageAlt', message: 'Describe the social preview image' })
+  }
+  if (!parsed.success || issues.length > 0) return { success: false, issues }
+
+  for (let [kind, upload] of processed) {
+    await saveSiteImageFiles(upload, images[kind])
+    images[kind] = upload.image
+  }
+  for (let kind of removals) {
+    let image = images[kind]
+    if (image) await deleteSiteImageFiles(image)
+    images[kind] = undefined
+  }
+  await saveSiteConfig({ ...parsed.value, ...images })
+  return { success: true }
 }
 
 // Saves every setting, replacing the saved ones. An image that's left out is removed.

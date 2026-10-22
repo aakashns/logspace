@@ -3,24 +3,12 @@ import { beforeAll, describe, it } from 'remix/test'
 
 import { getSavedSiteConfig, isSiteConfigured } from '../data/config.ts'
 import { migrateDatabase } from '../data/db.ts'
-import { router } from '../router.ts'
 import { routes } from '../routes.ts'
+import { fetch, logInAdmin, sessionCookie } from '../../test/client.ts'
 import { TEST_SITE_CONFIG } from '../../test/seed.ts'
 
-// bun run test sets ADMIN_PASSWORD to this and uses an in-memory database.
-const PASSWORD = 'test-password-1234'
-
-function fetch(path: string, init?: RequestInit) {
-  return router.fetch(new Request(new URL(path, 'http://localhost'), init))
-}
-
 async function adminCookie() {
-  let response = await fetch(routes.admin.authenticate.href(), {
-    method: 'POST',
-    body: new URLSearchParams({ password: PASSWORD }),
-  })
-  let header = response.headers.getSetCookie().find((cookie) => cookie.startsWith('admin_session='))
-  return header!.split(';')[0]
+  return sessionCookie(await logInAdmin())!
 }
 
 // A fresh database, with none of the site's settings saved: each test file has its own.

@@ -1,4 +1,4 @@
-import type { Post } from '../data/posts.ts'
+import type { Post } from '../data/posts/presentation.ts'
 import { routes } from '../routes.ts'
 import { getSiteConfig } from '../data/config.ts'
 import { escapeXml } from './xml.ts'

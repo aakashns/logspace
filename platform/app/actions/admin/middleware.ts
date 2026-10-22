@@ -18,7 +18,7 @@ import {
 import type { AppContext } from '../../router.ts'
 import { routes } from '../../routes.ts'
 import { adminSessionCookie, adminSessionStorage, isAdminLoggedIn } from './auth.ts'
-import { renderUploadTooLarge } from './posts/post-form.tsx'
+import { renderAdminMessage } from './ui/page.tsx'
 
 // Shared by every controller under /admin.
 export const adminMiddleware = createMiddleware(
@@ -68,7 +68,14 @@ function rejectTooLargeUploads(): Middleware {
       ) {
         // The router's render middleware has run, though Middleware's type doesn't know it.
         let { render } = context as unknown as AppContext
-        return render(...renderUploadTooLarge(context.request))
+        let mb = (bytes: number) => `${Math.round(bytes / (1024 * 1024))} MB`
+        let message =
+          `Nothing was saved. Files can be up to ${mb(MAX_UPLOAD_FILE_SIZE)} each, and ` +
+          `${mb(MAX_UPLOAD_TOTAL_SIZE)} in one save. Go back and choose smaller files, or upload ` +
+          'them over more than one save.'
+        return render(
+          ...renderAdminMessage(context.request, 'Upload too large', message, { status: 413 }),
+        )
       }
       throw error
     }

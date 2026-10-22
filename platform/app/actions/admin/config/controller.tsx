@@ -4,24 +4,13 @@ import { createController } from 'remix/router'
 import {
   getSavedSiteConfig,
   isSiteConfigured,
-  parseSiteText,
-  saveSiteConfig,
-  type SiteConfig,
-  type SiteImages,
+  updateSiteConfig,
   type SiteText,
 } from '../../../data/config.ts'
-import {
-  deleteSiteImageFiles,
-  processSiteImage,
-  saveSiteImageFiles,
-  SITE_IMAGE_KINDS,
-  SiteImageError,
-  type ProcessedSiteImage,
-  type SiteImageKind,
-} from '../../../data/site-images.ts'
+import { SITE_IMAGE_KINDS, type SiteImageKind } from '../../../data/site-images.ts'
 import { routes } from '../../../routes.ts'
 import { adminMiddleware, requireAdminLogin } from '../middleware.ts'
-import { renderConfigPage, type ConfigIssue } from './config-page.tsx'
+import { renderConfigPage } from './config-page.tsx'
 
 export default createController(routes.admin.config, {
   middleware: [...adminMiddleware, requireAdminLogin()],
@@ -47,63 +36,23 @@ export default createController(routes.admin.config, {
     },
     async action(context) {
       let { formData } = context
-      let { logo, icon, socialImage } = getSavedSiteConfig()
-      let images: SiteImages = { logo, icon, socialImage }
       let values = readConfigForm(formData)
-      let issues: ConfigIssue[] = []
-      let parsed = parseSiteText(values)
-      if (!parsed.success) {
-        issues = parsed.issues.map((issue) => {
-          let [key] = issue.path ?? []
-          let field = typeof key === 'object' ? key.key : key
-          return { field: field as keyof SiteConfig | undefined, message: issue.message }
-        })
-      }
-
-      // Uploads are turned into the files they're served as now, but only stored once the whole
-      // form is valid.
-      let uploads = new Map<SiteImageKind, ProcessedSiteImage>()
+      let uploads: Partial<Record<SiteImageKind, File>> = {}
       let removals: SiteImageKind[] = []
       for (let kind of SITE_IMAGE_KINDS) {
         let upload = formData.get(kind)
         // A file input left empty sends an empty file.
-        if (upload instanceof File && upload.size > 0) {
-          try {
-            uploads.set(kind, await processSiteImage(kind, upload))
-          } catch (error) {
-            if (!(error instanceof SiteImageError)) throw error
-            issues.push({ field: kind, message: error.message })
-          }
-        } else if (formData.get(`${kind}Remove`) !== null) {
-          removals.push(kind)
-        }
+        if (upload instanceof File && upload.size > 0) uploads[kind] = upload
+        else if (formData.get(`${kind}Remove`) !== null) removals.push(kind)
       }
-      let hasSocialImage =
-        uploads.has('socialImage') || (images.socialImage && !removals.includes('socialImage'))
-      if (hasSocialImage && !values.socialImageAlt) {
-        issues.push({ field: 'socialImageAlt', message: 'Describe the social preview image' })
-      }
-
-      if (!parsed.success || issues.length > 0) {
+      let result = await updateSiteConfig(values, uploads, removals)
+      if (!result.success) {
+        let { logo, icon, socialImage } = getSavedSiteConfig()
+        let page = { values, images: { logo, icon, socialImage }, issues: result.issues }
         return context.render(
-          ...renderConfigPage(context.request, {
-            values,
-            images,
-            issues,
-            unconfigured: !isSiteConfigured(),
-          }),
+          ...renderConfigPage(context.request, { ...page, unconfigured: !isSiteConfigured() }),
         )
       }
-      for (let [kind, upload] of uploads) {
-        await saveSiteImageFiles(upload, images[kind])
-        images[kind] = upload.image
-      }
-      for (let kind of removals) {
-        let image = images[kind]
-        if (image) await deleteSiteImageFiles(image)
-        images[kind] = undefined
-      }
-      await saveSiteConfig({ ...parsed.text, ...images })
       context.session.flash('configSaved', true)
       return redirect(routes.admin.config.index.href(), 303)
     },

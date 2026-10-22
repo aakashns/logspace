@@ -2,7 +2,7 @@ import type { Handle } from 'remix/component'
 import { css } from 'remix/component'
 
 import type { LinkPreview } from '../data/link-previews.ts'
-import type { Post } from '../data/posts.ts'
+import type { Post } from '../data/posts/presentation.ts'
 import { routes } from '../routes.ts'
 import { Caption, PostMedia, PostMeta } from './post.tsx'
 

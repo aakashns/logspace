@@ -2,10 +2,8 @@ import type { Handle } from 'remix/component'
 import { css, unsafeHTML } from 'remix/component'
 
 import type { LinkPreview } from '../../data/link-previews.ts'
-import type { Photo, Post } from '../../data/posts.ts'
-import { captionText } from '../../lib/caption.ts'
+import type { Post } from '../../data/posts/presentation.ts'
 import { FULL_WIDTH_IMAGE_SIZES } from '../../lib/constants.ts'
-import type { PageMeta } from '../../lib/page-meta.ts'
 import { routes } from '../../routes.ts'
 import { Caption, PostMedia, PostMeta } from '../../ui/post.tsx'
 
@@ -63,46 +61,6 @@ export function PostNotFound() {
       </p>
     </section>
   )
-}
-
-// What the post's page tells search engines and link previews: an article's title, summary, and
-// cover, or for other posts the start of the caption and the first photo or the video's poster.
-export function getPostMeta(post: Post): PageMeta {
-  let path = routes.posts.show.href({ id: post.id })
-  let text = post.caption ? captionText(post.caption).trim() : ''
-  let caption = text.replace(/\s+/g, ' ')
-  let firstLine = text.split('\n')[0]
-  let published = {
-    date: post.date,
-    kind: post.type === 'article' ? ('BlogPosting' as const) : ('SocialMediaPosting' as const),
-  }
-
-  if (post.type === 'article') {
-    let { title, summary, cover } = post.article
-    return { path, title, description: summary, image: cover && toImage(cover), published }
-  }
-
-  let image =
-    post.type === 'photos'
-      ? toImage(post.photos[0])
-      : post.type === 'video' && post.video.posterImage
-        ? { url: post.video.posterImage, width: post.video.width, height: post.video.height }
-        : undefined
-  return {
-    path,
-    title: clamp(firstLine, 60) || 'Post',
-    description: clamp(caption, 160) || undefined,
-    image,
-    published,
-  }
-}
-
-function toImage(photo: Photo): PageMeta['image'] {
-  return { url: photo.src, alt: photo.alt, width: photo.width, height: photo.height }
-}
-
-function clamp(text: string, length: number) {
-  return text.length > length ? `${text.slice(0, length - 1)}…` : text
 }
 
 const pageStyle = css({

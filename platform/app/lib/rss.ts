@@ -1,5 +1,4 @@
-import type { Post } from '../data/posts.ts'
-import { getPostMeta } from '../actions/posts/post-page.tsx'
+import { getPostMeta, type Post } from '../data/posts/presentation.ts'
 import { routes } from '../routes.ts'
 import { renderCaption } from './caption.ts'
 import { getSiteConfig } from '../data/config.ts'

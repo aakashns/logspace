@@ -3,7 +3,7 @@ import * as path from 'node:path'
 
 import { getDomain, getFirstLink } from '../lib/links.ts'
 import { getSiteConfig } from './config.ts'
-import type { Post } from './posts.ts'
+import type { Post } from './posts/presentation.ts'
 
 export interface LinkPreview {
   url: string

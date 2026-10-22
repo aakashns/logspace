@@ -9,13 +9,9 @@ import { detectMimeType } from 'remix/mime'
 import { and, inList } from 'remix/data-table'
 
 import { db } from './db.ts'
-import {
-  IMAGE_WIDTHS,
-  isResizableImage,
-  readImageInfo,
-  resizeImage,
-  type ImageInfo,
-} from './images.ts'
+import { IMAGE_WIDTHS, isResizableImage, type ImageInfo } from './image-sources.ts'
+import { readImageInfo, resizeImage } from './images.ts'
+import { isPostFileName } from './posts/model.ts'
 import { postImages } from './tables.ts'
 
 // Post media (photos, videos, posters, covers) is kept in file storage, under keys like
@@ -83,23 +79,6 @@ const VARIANTS_PREFIX = 'variants/'
 // The key a post's file is stored under.
 export function getPostFileKey(id: string, name: string) {
   return `${POST_FILES_PREFIX}${id}/${name}`
-}
-
-// Whether `name` can be a file of a post (no paths, no hidden files).
-export function isPostFileName(name: string) {
-  return /^[^./\\][^/\\]*$/.test(name)
-}
-
-// Whether a file by this name can be uploaded as one of a post's files: photos and videos only,
-// since files are served inline from the site's own origin. SVG is left out because it can run
-// scripts.
-export function isUploadableFileName(name: string) {
-  let type = detectMimeType(name)
-  return (
-    isPostFileName(name) &&
-    (type?.startsWith('video/') || (type?.startsWith('image/') && type !== 'image/svg+xml')) ===
-      true
-  )
 }
 
 // A post's file, or null if it has none by that name.

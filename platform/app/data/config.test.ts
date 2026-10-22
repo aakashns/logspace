@@ -1,16 +1,12 @@
 import * as assert from 'remix/assert'
-import { beforeAll, describe, it } from 'remix/test'
+import { beforeEach, describe, it } from 'remix/test'
 
-import { router } from '../router.ts'
-import { routes } from '../routes.ts'
+import { fetch } from '../../test/client.ts'
 import { seedDatabase, TEST_SITE_CONFIG } from '../../test/seed.ts'
+import { routes } from '../routes.ts'
 import { getSiteConfig, loadSiteConfig, saveSiteConfig } from './config.ts'
 import { db } from './db.ts'
 import { config } from './tables.ts'
-
-function fetch(path: string) {
-  return router.fetch(new Request(new URL(path, 'http://localhost')))
-}
 
 // Requests until one has the title, since each request reads the config again for later ones.
 async function fetchTitle(title: string) {
@@ -21,21 +17,15 @@ async function fetchTitle(title: string) {
   return undefined
 }
 
-beforeAll(async () => {
-  await seedDatabase()
-})
+beforeEach(seedDatabase)
 
 describe('site config', () => {
   it('picks up a change made in the database without a restart', async () => {
     assert.equal(await fetchTitle(TEST_SITE_CONFIG.siteTitle), 1)
-    try {
-      await db.update(config, { key: 'siteTitle' }, { value: 'Changed Elsewhere' })
-      let requests = await fetchTitle('Changed Elsewhere')
-      assert.ok(requests !== undefined && requests <= 2, `took ${requests} requests`)
-      assert.equal(getSiteConfig().siteTitle, 'Changed Elsewhere')
-    } finally {
-      await saveSiteConfig(TEST_SITE_CONFIG)
-    }
+    await db.update(config, { key: 'siteTitle' }, { value: 'Changed Elsewhere' })
+    let requests = await fetchTitle('Changed Elsewhere')
+    assert.ok(requests !== undefined && requests <= 2, `took ${requests} requests`)
+    assert.equal(getSiteConfig().siteTitle, 'Changed Elsewhere')
   })
 
   it('keeps the last config when reading it again fails', async (t) => {
@@ -54,20 +44,20 @@ describe('site config', () => {
   })
 
   it('a save isn’t undone by a read that started before it', async (t) => {
-    // Reads that finish after the save, with what was in the database before it.
+    // A read that finishes after the save, with what was in the database before it.
+    let { promise: saved, resolve: finishRead } = Promise.withResolvers<void>()
     let findMany = db.findMany.bind(db)
-    t.mock.method(db, 'findMany', async (...args: Parameters<typeof db.findMany>) => {
-      let rows = await findMany(...args)
-      await new Promise((resolve) => setTimeout(resolve, 20))
-      return rows
+    let read: Promise<unknown> | undefined
+    t.mock.method(db, 'findMany', (...args: Parameters<typeof db.findMany>) => {
+      read = findMany(...args).then(async (rows) => (await saved, rows))
+      return read
     })
-    try {
-      await loadSiteConfig()
-      await saveSiteConfig({ ...TEST_SITE_CONFIG, siteTitle: 'Just Saved' })
-      await new Promise((resolve) => setTimeout(resolve, 40))
-      assert.equal(getSiteConfig().siteTitle, 'Just Saved')
-    } finally {
-      await saveSiteConfig(TEST_SITE_CONFIG)
-    }
+    await loadSiteConfig()
+    await saveSiteConfig({ ...TEST_SITE_CONFIG, siteTitle: 'Just Saved' })
+    finishRead()
+    await read
+    // Lets the read's callbacks run.
+    await new Promise(setImmediate)
+    assert.equal(getSiteConfig().siteTitle, 'Just Saved')
   })
 })
