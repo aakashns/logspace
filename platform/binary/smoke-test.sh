@@ -75,8 +75,8 @@ for script in $scripts; do
   [[ "$(status "$BASE$script")" == 200 ]] || fail "couldn't load $script"
 done
 echo "ok $(wc -l <<< "$scripts" | tr -d ' ') scripts"
-request -o /dev/null -D - "$BASE$(head -n 1 <<< "$scripts")" | grep -qi 'cache-control:.*immutable' ||
-  fail "scripts aren't cached"
+headers="$(request -o /dev/null -D - "$BASE$(head -n 1 <<< "$scripts")")"
+grep -qi 'cache-control:.*immutable' <<< "$headers" || fail "scripts aren't cached"
 
 # Form posts carry the proxy's origin, which cop() checks against the forwarded URL's host (there's
 # no Sec-Fetch-Site for it to go by), and each is answered with a redirect once it's done.
@@ -90,7 +90,8 @@ session="$(request -o /dev/null -D - -H "Origin: $ORIGIN" -d password=smoke-test
 [[ -n "$session" ]] || fail "couldn't log in"
 echo "ok logged in"
 # The config form suggests the forwarded origin as the site's URL.
-request "$BASE/admin/config" | grep -q "value=\"$ORIGIN\"" || fail "the request's URL isn't the forwarded one"
+config_page="$(request "$BASE/admin/config")"
+grep -q "value=\"$ORIGIN\"" <<< "$config_page" || fail "the request's URL isn't the forwarded one"
 echo "ok forwarded URL"
 post -F siteTitle='Smoke Test' -F siteUrl="$ORIGIN" -F siteDescription='A smoke test.' \
   -F heroHeading= -F heroSubheading= -F socialImageAlt= "$BASE/admin/config"
