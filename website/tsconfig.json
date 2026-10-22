@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "types": ["bun"],
+    "allowImportingTsExtensions": true,
+    "skipLibCheck": true,
+    "jsx": "react-jsx",
+    "jsxImportSource": "remix/component",
+    "noEmit": true
+  },
+  "include": [
+    "app/**/*",
+    "worker.ts",
+    "tests/**/*",
+    "playwright.config.ts",
+    "scripts/record-demo.ts"
+  ]
+}

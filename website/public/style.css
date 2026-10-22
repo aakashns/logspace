@@ -1,0 +1,305 @@
+@font-face {
+  font-family: "Instrument Sans";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/instrument-sans-latin-600.woff2") format("woff2");
+}
+:root {
+  color-scheme: dark;
+  /* Match the publishing app’s theme tokens. */
+  --background: light-dark(oklch(0.985 0 0), oklch(0.2 0 0));
+  --foreground: light-dark(oklch(0.25 0 0), oklch(0.9 0 0));
+  --card: light-dark(oklch(1 0 0), oklch(0.205 0 0));
+  --muted-foreground: light-dark(oklch(0.556 0 0), oklch(0.708 0 0));
+  --border: light-dark(oklch(0.922 0 0), oklch(1 0 0 / 10%));
+  --input: light-dark(oklch(0.922 0 0), oklch(1 0 0 / 15%));
+  --link: light-dark(oklch(0.5 0.134 242.749), oklch(0.685 0.169 237.323));
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  font-size: 16px;
+  line-height: 1.7;
+  background: var(--background);
+  color: var(--foreground);
+  -webkit-text-size-adjust: 100%;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 34px 28px 28px;
+}
+a {
+  color: inherit;
+  text-underline-offset: 4px;
+  text-decoration-color: var(--muted-foreground);
+}
+a:hover {
+  color: var(--link);
+}
+a:focus-visible,
+button:focus-visible,
+video:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 5px;
+}
+button {
+  font: inherit;
+}
+p,
+h1,
+h2,
+figure,
+pre {
+  margin: 0;
+}
+.site-header,
+.brand,
+nav,
+footer {
+  display: flex;
+  align-items: center;
+}
+.site-header {
+  justify-content: space-between;
+  gap: 24px;
+}
+.brand {
+  gap: 10px;
+  font-size: 19px;
+  font-weight: 650;
+  letter-spacing: -0.7px;
+  text-decoration: none;
+}
+nav {
+  gap: 25px;
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+nav a {
+  text-decoration: none;
+}
+.hero {
+  padding: 72px 0 30px;
+}
+h1 {
+  font-family: "Instrument Sans", system-ui, sans-serif;
+  margin: 0 0 22px;
+  font-size: clamp(34px, 5.5vw, 48px);
+  font-weight: 600;
+  letter-spacing: -1.4px;
+  line-height: 1.15;
+}
+.lede {
+  color: var(--muted-foreground);
+  font-size: 18px;
+  line-height: 1.65;
+}
+.demo {
+  margin: 0 -36px;
+}
+.demo-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 38px;
+  padding: 0 16px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-bottom: 0;
+  border-radius: 9px 9px 0 0;
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.window-dots {
+  display: flex;
+  gap: 5px;
+  width: 100px;
+}
+.window-dots i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--muted-foreground);
+}
+.demo-tag {
+  font-size: 8px;
+  letter-spacing: 1px;
+  width: 100px;
+  text-align: right;
+}
+.demo video {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 720 / 816;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-top: 0;
+  border-radius: 0 0 9px 9px;
+}
+figcaption {
+  margin-top: 13px;
+  text-align: center;
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.about {
+  display: grid;
+  gap: 20px;
+  padding: 46px 0;
+  font-size: 15px;
+  color: var(--muted-foreground);
+}
+.about strong {
+  color: var(--foreground);
+  font-weight: 600;
+}
+.install {
+  margin-bottom: 36px;
+  scroll-margin-top: 30px;
+}
+h2 {
+  font-family: "Instrument Sans", system-ui, sans-serif;
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.8px;
+  margin: 10px 0 17px;
+  line-height: 1.25;
+}
+.install > p {
+  color: var(--muted-foreground);
+  font-size: 14px;
+}
+.command {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 14px 0 17px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 16px;
+}
+code {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 0.86em;
+}
+.command pre {
+  min-width: 0;
+  flex: 1;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--foreground);
+  line-height: 1.6;
+  font-size: 14px;
+}
+.command button {
+  border: 1px solid var(--input);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--foreground);
+  font-size: 11px;
+  padding: 4px 10px;
+  cursor: pointer;
+  min-height: 32px;
+}
+.command button:hover {
+  border-color: var(--link);
+}
+.note code,
+.fine-print code {
+  color: var(--foreground);
+}
+.guide-link {
+  display: inline-block;
+  font-size: 13px;
+  margin-top: 14px;
+}
+.install .fine-print {
+  font-size: 12px !important;
+  margin-top: 26px;
+}
+footer {
+  margin-top: 8px;
+  padding-top: 22px;
+  border-top: 1px solid var(--border);
+  justify-content: space-between;
+  gap: 16px;
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.sr-only,
+.skip-link:not(:focus) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+.skip-link:focus {
+  display: block;
+  padding: 10px;
+}
+[hidden] {
+  display: none !important;
+}
+@media (max-width: 840px) {
+  .demo {
+    margin-inline: 0;
+  }
+}
+@media (max-width: 520px) {
+  body {
+    padding: 25px 22px;
+  }
+  nav {
+    gap: 17px;
+    font-size: 12px;
+  }
+  .brand {
+    font-size: 17px;
+    gap: 7px;
+  }
+  .brand img {
+    width: 22px;
+    height: 22px;
+  }
+  .hero {
+    padding-top: 60px;
+    padding-bottom: 35px;
+  }
+  h1 {
+    letter-spacing: -1px;
+  }
+  .lede {
+    font-size: 16px;
+  }
+  .about {
+    padding-block: 34px;
+  }
+  .demo-tag {
+    display: none;
+  }
+  .window-dots {
+    width: auto;
+  }
+  figcaption {
+    padding-inline: 10px;
+  }
+  footer {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+}

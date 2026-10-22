@@ -1,0 +1,8 @@
+node_modules/
+.wrangler/
+dist/
+test-results/
+playwright-report/
+.env
+.dev.vars
+.DS_Store
