@@ -172,14 +172,16 @@ export function HomePage() {
               </li>
             </ul>
           </section>
-          <p>
-            Free and <a href={github}>open source</a>.
-          </p>
         </main>
         <footer class="site">
-          Built by <a href="https://aakashns.com">aakashns</a>
-          <span aria-hidden="true"> · </span>
-          <a href={`${github}/blob/main/LICENSE`}>MIT license</a>
+          <span>
+            Free and <a href={github}>open source</a>
+            <span aria-hidden="true"> · </span>
+            <a href={`${github}/blob/main/LICENSE`}>MIT License</a>
+          </span>
+          <span>
+            Built by <a href="https://aakashns.com">aakashns</a>
+          </span>
         </footer>
       </body>
     </html>
