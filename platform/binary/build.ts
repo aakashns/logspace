@@ -1,6 +1,6 @@
 // Builds the logspace binary for the platform it runs on, a single file with Bun's runtime, the
-// server, and everything it reads: `bun run build` writes dist/logspace. LOGSPACE_VERSION, if set,
-// is the version it reports (`logspace --version`).
+// server, and everything it reads: `bun run build` writes dist/logspace, which reports
+// package.json's version (`logspace version`).
 //
 // Bundling gives every module the binary's own URL as import.meta.url, so the app's modules have
 // theirs rewritten to where they'd be in its embedded file system, and the files they find from it
@@ -14,10 +14,11 @@ import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { BunPlugin } from 'bun'
 
+import packageJson from '../package.json' with { type: 'json' }
+
 const ROOT_DIR = fileURLToPath(new URL('../', import.meta.url))
 const OUTFILE = 'dist/logspace'
 const EMBED_DIR = path.join(ROOT_DIR, 'dist/embed')
-const VERSION = process.env.LOGSPACE_VERSION || 'dev'
 
 process.chdir(ROOT_DIR)
 
@@ -40,7 +41,7 @@ for (let file of [
   await fsp.cp(file, path.join(EMBED_DIR, file), { recursive: true })
 }
 
-console.log(`Compiling ${OUTFILE} (${VERSION})...`)
+console.log(`Compiling ${OUTFILE} (${packageJson.version})...`)
 const result = await Bun.build({
   entrypoints: ['binary/main.ts'],
   compile: {
@@ -53,7 +54,6 @@ const result = await Bun.build({
   define: {
     'process.env.NODE_ENV': JSON.stringify('production'),
     'process.env.LOGSPACE_ASSETS': JSON.stringify('prebuilt'),
-    'process.env.LOGSPACE_VERSION': JSON.stringify(VERSION),
   },
   // Drops the code for the other asset mode (see app/assets.ts).
   // Remix names a client entry's export after its component function, so names are kept.

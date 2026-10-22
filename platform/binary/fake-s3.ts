@@ -1,16 +1,14 @@
-// A stand-in for an S3 bucket, slow to send objects, for smoke-test.sh: it checks the server still
+// A stand-in for an S3 bucket, slow to send objects, for smoke-test.ts: it checks the server still
 // answers when a media read takes longer than its runtime's idle timeout. Keeps objects in memory
 // and only does what remix/file-storage's S3 backend does: PUT, GET, HEAD, and DELETE objects, and
 // list them (without paging).
-//
-//   bun binary/fake-s3.ts <port> <seconds to wait before sending an object>
 import * as http from 'node:http'
 
-let [port, delay] = process.argv.slice(2).map(Number)
 let objects = new Map<string, { body: Buffer; headers: Record<string, string> }>()
 
-http
-  .createServer(async (req, res) => {
+// Listens on the port, waiting delay seconds before sending an object.
+export function startFakeS3(port: number, delay: number): Promise<http.Server> {
+  let server = http.createServer(async (req, res) => {
     let url = new URL(req.url ?? '/', 'http://localhost')
     let key = url.pathname
     let object = objects.get(key)
@@ -48,7 +46,8 @@ http
         return res.writeHead(405).end()
     }
   })
-  .listen(port, '127.0.0.1', () => console.log(`Fake S3 listening on ${port}`))
+  return new Promise((resolve) => server.listen(port, '127.0.0.1', () => resolve(server)))
+}
 
 // A ListObjectsV2 result for the bucket at bucketPath, with the keys URL-encoded as it asks.
 function list(bucketPath: string, url: URL) {

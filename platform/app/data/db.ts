@@ -6,7 +6,7 @@ import { loadMigrations } from 'remix/data-table/migrations/node'
 
 // The SQLite database file. Without DATABASE_PATH it's db/app.sqlite, inside the repo, which
 // `git clean -x` would delete, so set DATABASE_PATH to keep it outside: production uses
-// /var/lib/logspace/app.sqlite (see scripts/logspace.service). ":memory:" gives a throwaway
+// /var/lib/logspace/app.sqlite (see binary/setup.ts). ":memory:" gives a throwaway
 // database, as the tests use.
 const isInMemory = process.env.DATABASE_PATH === ':memory:'
 
@@ -26,8 +26,10 @@ export const db = createSqliteDatabase({
   foreignKeys: true,
 })
 
-// Applies any migrations in db/migrations that haven't run yet. The server runs this before it
-// starts listening.
-export async function migrateDatabase() {
-  await db.migrate(await loadMigrations(MIGRATIONS_DIR))
+// Applies any migrations in db/migrations that haven't run yet (or with dryRun, only finds them),
+// and returns their names. The server runs this before it starts listening, and so does
+// `logspace migrate`.
+export async function migrateDatabase({ dryRun = false } = {}): Promise<string[]> {
+  let result = await db.migrate(await loadMigrations(MIGRATIONS_DIR), { dryRun })
+  return result.applied.map((migration) => `${migration.id}_${migration.name}`)
 }

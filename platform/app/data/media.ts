@@ -20,7 +20,7 @@ import { postImages } from './tables.ts'
 // is configuration. MEDIA_STORAGE picks the backend:
 //
 // - fs (the default): a folder, MEDIA_DIR, outside the repo so `git clean -x` can't delete it
-//   (/var/lib/logspace/media in production, see scripts/logspace.service). Without MEDIA_DIR it's
+//   (/var/lib/logspace/media in production, see binary/setup.ts). Without MEDIA_DIR it's
 //   the git-ignored media/ folder in the webapp, which `git clean -x` would delete. The folder is
 //   the backend's own: files are stored under hashed names, so don't put files in it by hand.
 // - s3: a bucket in AWS S3, or at an S3-compatible provider like Cloudflare R2 or MinIO, set with

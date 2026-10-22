@@ -1,18 +1,24 @@
-# Checks the app and builds the logspace binary for each platform, smoke-testing each on its own
-# runner. Pushing a v* tag also publishes the binaries as a GitHub release:
-#
-#   git tag v1.0.0 && git push origin v1.0.0
+# Checks the app and builds the logspace binary for each platform, testing each on its own runner.
+# Every PR bumps platform/package.json's version (see platform/scripts/check-version.ts), and
+# merging it to main publishes the binaries as that version's GitHub release, which
+# `logspace upgrade` installs.
 name: Release
 
 on:
   push:
     branches: [main]
-    tags: ['v*']
   pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
+
+# Runs on main go one at a time, so releases are made in order. (If a third is queued while one
+# runs, it replaces the waiting one, whose changes go in the third's release.) A PR's new push
+# cancels its last run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 defaults:
   run:
@@ -21,11 +27,25 @@ defaults:
 jobs:
   check:
     runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version-file: platform/package.json
+      - name: Check the version
+        id: version
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [[ -n "$BASE_REF" ]]; then
+            git fetch --depth=1 origin "$BASE_REF"
+            version="$(bun scripts/check-version.ts "origin/$BASE_REF")"
+          else
+            version="$(bun scripts/check-version.ts)"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
       - run: bun run lint
@@ -54,25 +74,24 @@ jobs:
       # Installs sharp's native addon for this runner's platform, which the binary embeds.
       - run: bun install --frozen-lockfile
       - run: bun run build
-        env:
-          LOGSPACE_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('dev-{0}', github.sha) }}
-      - run: binary/smoke-test.sh dist/logspace
-      # The binary with the scripts that install it on a server (see the README).
-      - name: Package
+      - run: bun binary/smoke-test.ts dist/logspace
+      # Sets the runner up as a server with `logspace setup`, behind Caddy from Ubuntu's packages.
+      - name: Test logspace setup
+        if: runner.os == 'Linux'
         run: |
-          name=logspace-${{ matrix.target }}
-          mkdir "dist/$name"
-          cp dist/logspace ../LICENSE ../scripts/install.sh ../scripts/set-admin-password.sh \
-            ../scripts/logspace.service ../scripts/Caddyfile "dist/$name/"
-          tar -C dist -czf "dist/$name.tar.gz" "$name"
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq caddy
+          bun binary/setup-test.ts dist/logspace
+      # Named as `logspace upgrade` looks for it.
+      - run: mv dist/logspace dist/logspace-${{ matrix.target }}
       - uses: actions/upload-artifact@v7
         with:
           name: logspace-${{ matrix.target }}
-          path: platform/dist/logspace-${{ matrix.target }}.tar.gz
+          path: platform/dist/logspace-${{ matrix.target }}
           if-no-files-found: error
 
   release:
-    if: github.ref_type == 'tag'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: [check, build]
     runs-on: ubuntu-24.04
     permissions:
@@ -86,7 +105,12 @@ jobs:
         working-directory: dist
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: v${{ needs.check.outputs.version }}
         run: |
-          sha256sum -- *.tar.gz > SHA256SUMS
-          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" \
-            --generate-notes --verify-tag -- *.tar.gz SHA256SUMS
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "$TAG is released already"
+            exit 0
+          fi
+          sha256sum -- logspace-* > SHA256SUMS
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "$TAG" --generate-notes -- logspace-* SHA256SUMS

@@ -1,6 +1,0 @@
-# install.sh fills in @DOMAIN@, the site's domain, and @PORT@, the port the app listens on (PORT
-# in /etc/logspace.env), and adds a block redirecting each other domain it's given to it.
-@DOMAIN@ {
-	encode zstd gzip
-	reverse_proxy localhost:@PORT@
-}
