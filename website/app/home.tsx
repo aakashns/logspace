@@ -143,8 +143,8 @@ export function HomePage() {
               <a href="/demo.mp4">Watch the LogSpace demo</a>
             </video>
             <figcaption id="demo-caption">
-              Browse a site, then write and publish a post. The person and posts
-              are fictional.
+              A consolidated feed, clean & minimal pages, and a simple
+              publishing flow.
             </figcaption>
           </figure>
 
