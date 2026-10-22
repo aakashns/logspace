@@ -12,6 +12,8 @@ Commands:
   setup [domain...]           install LogSpace on this server as a service behind Caddy, for the
                               site's domain and any domains that redirect to it (as root)
   set-admin-password          set the password for /admin (as root)
+  migrate [--dry-run]         apply the database migrations that haven't run yet (the server does
+                              when it starts), or list them
   upgrade [version] [--yes]   replace this binary with the latest release, or the given one
   version                     print the version
   help                        print this help
@@ -35,6 +37,7 @@ const COMMANDS = new Map<string, (args: string[]) => Promise<void>>(
       noArguments(args)
       await (await import('./admin-password.ts')).setAdminPassword()
     },
+    migrate: async (args: string[]) => (await import('./migrate.ts')).migrate(args),
     upgrade: async (args: string[]) => (await import('./upgrade.ts')).upgrade(args),
     version: async (args: string[]) => {
       noArguments(args)

@@ -20,6 +20,7 @@ import { ENV_FILE, readEnvFile, setEnvVariable } from './env-file.ts'
 
 export const BINARY_PATH = '/usr/local/bin/logspace'
 export const DOMAINS_FILE = '/etc/logspace.domains'
+export const SERVER_DATABASE_PATH = '/var/lib/logspace/app.sqlite'
 const SERVICE_FILE = '/etc/systemd/system/logspace.service'
 const CADDYFILE = '/etc/caddy/Caddyfile'
 const DEFAULT_PORT = 44100
@@ -40,7 +41,7 @@ Environment=TRUST_PROXY=1
 StateDirectory=logspace
 CacheDirectory=logspace
 WorkingDirectory=/var/lib/logspace
-Environment=DATABASE_PATH=/var/lib/logspace/app.sqlite
+Environment=DATABASE_PATH=${SERVER_DATABASE_PATH}
 # Media (post photos and videos, and the site's logo and icon), uploaded at /admin, is kept there
 # too, in file storage.
 Environment=MEDIA_STORAGE=fs

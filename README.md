@@ -45,7 +45,7 @@ Then log in at `https://example.com/admin` to set up the site (see [Configuratio
 
 To deploy an update, run `logspace upgrade`. It downloads the latest release (or the one given, like `logspace upgrade 0.2.0`), checks it against the release's `SHA256SUMS`, replaces `/usr/local/bin/logspace` with it, and runs its `setup`, which installs its service file and restarts the app. It asks first, unless given `--yes`. It won't go back to an earlier release, since the database may have changed in ways an earlier one doesn't know.
 
-The server applies new database migrations when it starts. `journalctl -u logspace` has its logs, and `logspace version` says which release is installed. The binary loads [sharp](https://sharp.pixelplumbing.com)'s image library from a temporary copy when it starts, so if the server's `/tmp` doesn't allow running code (`noexec`), set `TMPDIR` in `/etc/logspace.env` to a folder that does.
+The server applies new database migrations when it starts. To see what they'll be before restarting it, run `logspace migrate --dry-run`, and to apply them without starting it, `logspace migrate` (both as root, for the service's database; elsewhere, they use the database `logspace start` would). `journalctl -u logspace` has its logs, and `logspace version` says which release is installed. The binary loads [sharp](https://sharp.pixelplumbing.com)'s image library from a temporary copy when it starts, so if the server's `/tmp` doesn't allow running code (`noexec`), set `TMPDIR` in `/etc/logspace.env` to a folder that does.
 
 ### Configuration
 

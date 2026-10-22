@@ -76,7 +76,8 @@ jobs:
       - run: bun run build
       - run: bun binary/smoke-test.ts dist/logspace
       # Sets the runner up as a server with `logspace setup`, behind Caddy from Ubuntu's packages.
-      - if: runner.os == 'Linux'
+      - name: Test logspace setup
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq caddy

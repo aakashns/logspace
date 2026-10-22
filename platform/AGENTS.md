@@ -15,7 +15,7 @@ bun scripts/count-lines.ts
 - `app/routes.ts` → `app/router.ts` → `app/actions/**/controller.tsx`, with each page beside its controller
 - `app/data/` owns state; `app/lib/` and `app/ui/` are shared and never import pages
 - Posts: `data/posts/model.ts` (pure checks) → `presentation.ts` (pure, what pages show) → `store.ts` (database) → `mutations.ts` (one function per change, which controllers call)
-- `binary/main.ts` is the binary's command line (`start`, `setup`, `set-admin-password`, `upgrade`, `version`, `help`), with a module per command; `binary/setup-test.ts` checks `setup` on a throwaway Linux machine with systemd and Caddy, as CI's Linux runners are
+- `binary/main.ts` is the binary's command line (`start`, `setup`, `set-admin-password`, `migrate`, `upgrade`, `version`, `help`), with a module per command; `binary/setup-test.ts` checks `setup` on a throwaway Linux machine with systemd and Caddy, as CI's Linux runners are
 
 ## Rules
 

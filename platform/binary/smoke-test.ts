@@ -51,8 +51,12 @@ function ok(message: string) {
 
 // Runs the binary (or a copy of it) to completion. It's async, so the pretend releases this
 // process serves can answer it.
-async function cli(args: string[], { binary = BINARY, env = {} as Record<string, string> } = {}) {
+async function cli(
+  args: string[],
+  { binary = BINARY, env = {} as Record<string, string>, cwd = work } = {},
+) {
   let child = Bun.spawn([binary, ...args], {
+    cwd,
     env: { ...process.env, ...env },
     stdout: 'pipe',
     stderr: 'pipe',
@@ -117,7 +121,7 @@ async function post(url: string, fields: Record<string, string | File>) {
 // without NODE_ENV, which its environment needn't have.
 async function start(name: string, args: string[], env: Record<string, string> = {}) {
   let dir = path.join(work, name)
-  fs.mkdirSync(dir)
+  fs.mkdirSync(dir, { recursive: true })
   log = path.join(dir, 'server.log')
   let output = fs.openSync(log, 'a')
   let { NODE_ENV: _, ...inherited } = process.env
@@ -198,6 +202,19 @@ for (let args of [['version'], ['--version'], ['-v']]) await expectCli(args, 0, 
 for (let args of [['help'], ['--help'], ['-h']]) await expectCli(args, 0, /^Usage: logspace/m)
 await expectCli(['bogus'], 1, /^Unknown command: bogus/)
 await expectCli(['version', 'extra'], 1, /^Error: Unexpected arguments: extra/)
+
+console.log('--- migrate')
+// The database the server below starts with.
+let local = { cwd: path.join(work, 'local') }
+fs.mkdirSync(local.cwd)
+let migrations = fs.readdirSync(new URL('../db/migrations/', import.meta.url)).length
+await expectCli(['migrate', '--dry-run'], 1, /There's no database at .*data\/app\.sqlite/, local)
+let applied = await expectCli(['migrate'], 0, /^Applied to .*data\/app\.sqlite:/, local)
+if (applied.stdout.match(/^  \d{4}_/gm)?.length !== migrations) {
+  fail(`migrate should apply ${migrations} migrations:\n${applied.stdout}`)
+}
+await expectCli(['migrate'], 0, /has no migrations to apply/, local)
+await expectCli(['migrate', '--dry-run'], 0, /has no migrations to apply/, local)
 
 console.log('--- media in a folder')
 await start('local', [])

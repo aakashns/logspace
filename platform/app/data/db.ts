@@ -26,8 +26,10 @@ export const db = createSqliteDatabase({
   foreignKeys: true,
 })
 
-// Applies any migrations in db/migrations that haven't run yet. The server runs this before it
-// starts listening.
-export async function migrateDatabase() {
-  await db.migrate(await loadMigrations(MIGRATIONS_DIR))
+// Applies any migrations in db/migrations that haven't run yet (or with dryRun, only finds them),
+// and returns their names. The server runs this before it starts listening, and so does
+// `logspace migrate`.
+export async function migrateDatabase({ dryRun = false } = {}): Promise<string[]> {
+  let result = await db.migrate(await loadMigrations(MIGRATIONS_DIR), { dryRun })
+  return result.applied.map((migration) => `${migration.id}_${migration.name}`)
 }

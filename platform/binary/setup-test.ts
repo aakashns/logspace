@@ -112,6 +112,13 @@ await expectHttps(`https://${DOMAIN}/`, `302 https://${DOMAIN}/admin/login`)
 await expectHttps(`https://${REDIRECT}/a?b=1`, `301 https://${DOMAIN}/a?b=1`)
 await expectHttps('https://other.localhost/', '200')
 
+await expectRun(
+  $`sudo ${INSTALLED} migrate --dry-run`,
+  "migrate the service's database",
+  0,
+  /\/var\/lib\/logspace\/app\.sqlite has no migrations to apply/,
+)
+
 console.log('--- set-admin-password')
 let setPassword = (input: string) => $`sudo ${BINARY} set-admin-password < ${new Response(input)}`
 await expectRun(setPassword(`${PASSWORD}\nanother\n`), 'mismatched', 1, /don't match/)
