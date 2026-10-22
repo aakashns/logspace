@@ -1,14 +1,21 @@
 import { db, migrateDatabase } from './app/data/db.ts'
+import { withForwardedUrl } from './app/lib/forwarded.ts'
 import { router } from './app/router.ts'
 
 const port = process.env.PORT ? Number.parseInt(process.env.PORT, 10) : 44100
-// Set when running behind a reverse proxy that overwrites X-Forwarded-* headers (e.g. Caddy)
+// Set when running behind a reverse proxy that overwrites the Forwarded and X-Forwarded-* headers
+// (e.g. Caddy)
 const trustProxy = process.env.TRUST_PROXY === '1'
 
 // The one Bun API the server uses. Bun's own types change the global Blob and File in ways the
 // app's code doesn't match, so they're left out of tsconfig.json (see binary/tsconfig.json).
 declare const Bun: {
-  serve(options: { port: number; fetch(request: Request): Promise<Response> }): {
+  serve(options: {
+    port: number
+    fetch(request: Request): Promise<Response>
+    development: boolean
+    idleTimeout: number
+  }): {
     port: number
     stop(closeActiveConnections?: boolean): Promise<void>
   }
@@ -18,27 +25,18 @@ await migrateDatabase()
 
 const server = Bun.serve({
   port,
-  fetch: (request) => router.fetch(trustProxy ? withForwardedUrl(request) : request),
+  fetch: (request) => router.fetch(withForwardedUrl(request, { trustProxy })),
+  // In development mode Bun answers an error with a page of the stack and the code around it. It
+  // goes by NODE_ENV when the server starts, which the binary doesn't need set (its NODE_ENV is
+  // built in, see binary/build.ts), so it's set here, where the build's value applies.
+  development: process.env.NODE_ENV !== 'production',
+  // Bun closes a connection after 10 seconds without sending or receiving anything by default,
+  // even while a response is being made, like a slow read from S3 or a big photo's first resize.
+  // 255 seconds is its longest.
+  idleTimeout: 255,
 })
 
 console.log(`Server listening on http://localhost:${server.port}`)
-
-// Behind the proxy the request arrives over plain HTTP, so its URL is rebuilt from the protocol
-// and host the browser used, which the proxy forwards. Pages, links, and cop()'s same-origin check
-// depend on it.
-function withForwardedUrl(request: Request): Request {
-  let url = new URL(request.url)
-  let protocol = firstValue(request.headers.get('X-Forwarded-Proto'))?.toLowerCase()
-  if (protocol !== 'http' && protocol !== 'https') protocol = url.protocol.slice(0, -1)
-  let host = firstValue(request.headers.get('X-Forwarded-Host')) ?? url.host
-  // Built whole: setting a URL's host keeps its port when the new one has none.
-  let forwarded = URL.parse(`${url.pathname}${url.search}`, `${protocol}://${host}`)
-  return forwarded ? new Request(forwarded, request) : request
-}
-
-function firstValue(header: string | null): string | undefined {
-  return header?.split(',', 1)[0].trim() || undefined
-}
 
 let shuttingDown = false
 
