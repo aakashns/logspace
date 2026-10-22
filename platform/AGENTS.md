@@ -20,7 +20,7 @@ bun scripts/count-lines.ts
 ## Rules
 
 - Every PR bumps `version` in `package.json` one step (CI checks), and merging it to main releases that version. Below 1.0, bump the minor version for breaking changes (like to the binary's commands or environment variables, or what `setup` installs) and the patch version for others
-- Scripts are TypeScript, run with Bun, and any that run on a server go in the binary as commands (servers have no Bun). The exception is `../install.sh`, which runs before there's a binary
+- Scripts are TypeScript, run with Bun, and any that run on a server go in the binary as commands (servers have no Bun). The exception is `../website/public/install.sh`, which runs before there's a binary
 - Controllers read the request, call `app/data/`, and pick a response; changes of more than one step are one data function
 - Pure modules and browser code (`*/public/`) import no database, storage, sharp, or server code; `bun run lint` checks
 - Check unknown input at the boundary and use specific types inside; expected failures are results, unexpected ones throw

@@ -1,7 +1,7 @@
 #!/bin/sh
 # Installs LogSpace (https://github.com/aakashns/logspace) on Linux or macOS:
 #
-#   curl -fsSL https://raw.githubusercontent.com/aakashns/logspace/main/install.sh | sh
+#   curl -fsSL https://logspace.app/install.sh | sh
 #
 # Downloads the latest release for this machine, checks it against the release's SHA256SUMS, and
 # installs it at /usr/local/bin/logspace, with sudo if that folder needs it. Running it again

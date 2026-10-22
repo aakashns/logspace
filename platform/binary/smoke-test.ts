@@ -354,7 +354,7 @@ let install = (label: string, env: Record<string, string> = {}) => ({
   label,
   env: { LOGSPACE_RELEASES_URL: releasesUrl, LOGSPACE_INSTALL_DIR: path.dirname(copy), ...env },
 })
-let installer = fileURLToPath(new URL('../../install.sh', import.meta.url))
+let installer = fileURLToPath(new URL('../../website/public/install.sh', import.meta.url))
 let installed = new RegExp(`Installed LogSpace ${packageJson.version.replaceAll('.', '\\.')} at `)
 await expectCli([installer], 0, installed, install('install.sh'))
 await expectCli([installer], 0, installed, install('install.sh again'))
