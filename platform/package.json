@@ -1,0 +1,30 @@
+{
+  "name": "webapp",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "NODE_ENV=development node --env-file-if-exists=.env --watch --import remix/node-tsx server.ts",
+    "hmr": "NODE_ENV=development node --env-file-if-exists=.env hmr.ts",
+    "start": "NODE_ENV=production node --import remix/node-tsx server.ts",
+    "test": "NODE_ENV=test MEDIA_STORAGE=memory DATABASE_PATH=:memory: ADMIN_PASSWORD=test-password-1234 AUTH_SESSION_SECRET=test-session-secret remix test",
+    "typecheck": "tsc --noEmit",
+    "new-id": "node -e \"let a = '0123456789abcdefghijklmnopqrstuvwxyz', id = ''; while (id.length < 10) { let [b] = crypto.getRandomValues(new Uint8Array(1)); if (b < 252) id += a[b % 36] } console.log(id)\"",
+    "lint": "oxlint",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check"
+  },
+  "dependencies": {
+    "@tanstack/markdown": "^1.0.0",
+    "remix": "^3.0.0",
+    "sharp": "^0.35.5"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "oxfmt": "^0.73.0",
+    "oxlint": "^1.88.0",
+    "typescript": "latest"
+  },
+  "engines": {
+    "node": ">=24.3.0"
+  }
+}

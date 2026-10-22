@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=1200" />
+    <title>Social preview artwork</title>
+    <link rel="stylesheet" href="../app/actions/public/theme.css" />
+    <style>
+      @font-face {
+        font-family: 'Instrument Sans';
+        src: url('../public/fonts/instrument-sans-latin-600.woff2') format('woff2');
+        font-weight: 600;
+      }
+
+      @font-face {
+        font-family: Inter;
+        src: url('fonts/inter-latin.woff2') format('woff2');
+        font-weight: 100 900;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        width: 1200px;
+        height: 630px;
+        overflow: hidden;
+      }
+
+      body {
+        position: relative;
+        /* Use the app’s dark theme regardless of the system appearance. */
+        background: var(--background);
+        color: var(--foreground);
+        font-family: Inter, sans-serif;
+        padding: 64px 80px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+      }
+
+      body::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background-image:
+          linear-gradient(var(--border) 1px, transparent 1px),
+          linear-gradient(90deg, var(--border) 1px, transparent 1px);
+        background-size: 48px 48px;
+        mask-image: linear-gradient(110deg, transparent 25%, black 100%);
+      }
+
+      main,
+      footer {
+        position: relative;
+      }
+
+      main {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+      }
+
+      h1 {
+        margin: 0;
+        color: var(--foreground);
+        font-family: 'Instrument Sans', sans-serif;
+        font-size: 100px;
+        font-weight: 600;
+        letter-spacing: -0.0125em;
+        line-height: 1.12;
+      }
+
+      p {
+        margin: 24px 0 0;
+        color: var(--muted-foreground);
+        font-size: 28px;
+        line-height: 1.5;
+      }
+
+      footer {
+        color: var(--muted-foreground);
+        font-family: var(--font-mono);
+        font-size: 28px;
+        line-height: 1.5;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1 id="title">Your Name</h1>
+      <p id="tagline">Posts, pictures, and videos.</p>
+    </main>
+    <footer id="domain">example.com</footer>
+    <script>
+      // ?title=…&tagline=…&domain=… fill in the card.
+      let params = new URLSearchParams(location.search)
+      for (let id of ['title', 'tagline', 'domain']) {
+        if (params.has(id)) document.getElementById(id).textContent = params.get(id)
+      }
+    </script>
+  </body>
+</html>
