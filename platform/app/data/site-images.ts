@@ -42,11 +42,13 @@ const SITE_FILES_PREFIX = 'site/'
 
 const FORMATS = new Set(['png', 'jpeg', 'webp', 'avif', 'gif', 'svg'])
 
-// LogSpace's mark, an L in a circle, for sites that haven't uploaded an icon.
+// LogSpace's mark, for sites that haven't uploaded an icon: a pen nib on a dark gray circle, the
+// same icon as logspace.app's. The nib is Phosphor Icons' pen-nib-fill (MIT License, Copyright (c)
+// 2023 Phosphor Icons).
 export const DEFAULT_ICON_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">' +
   '<circle cx="256" cy="256" r="256" fill="#161616"/>' +
-  '<path fill="#dedede" d="M184 128h64v200h104v56H184z"/></svg>'
+  '<path fill="#dedede" d="M397.9 209.6 302.4 114C293.7 105.3 279.6 105.3 270.9 114L231.4 153.6L150.7 183.9C143.2 186.6 137.8 193.2 136.5 201L107.6 374.4C107.2 376.7 108.4 379.1 110.5 380.2C112.7 381.3 115.3 380.9 117 379.2L196.3 299.9C193.8 294.7 192.7 288.9 193.1 283.1C194.2 268.5 204.6 256.3 218.9 253C233.2 249.7 247.9 256.1 255.3 268.8C262.6 281.4 260.9 297.4 251 308.2C241 318.9 225.2 322 212 315.7L132.7 395C131 396.7 130.6 399.3 131.7 401.4C132.8 403.6 135.2 404.8 137.6 404.4L310.9 375.5C318.8 374.2 325.3 368.8 328.1 361.4L358.4 280.6L397.9 241.1C406.6 232.4 406.6 218.3 397.9 209.6V209.6ZM348.8 258.7 253.3 163.2 286.7 129.8 382.2 225.3 348.8 258.7Z"/></svg>'
 
 const DEFAULT_ICON_VERSION = hash(new TextEncoder().encode(DEFAULT_ICON_SVG))
 

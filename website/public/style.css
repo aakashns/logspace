@@ -1,3 +1,6 @@
+/* logspace.app: one narrow column, dark like the LogSpace demo. Two heading sizes, and two for
+   body text: 1rem, and 0.875rem for notes, code, and the footer. */
+
 @font-face {
   font-family: "Instrument Sans";
   font-style: normal;
@@ -5,243 +8,209 @@
   font-display: swap;
   src: url("/fonts/instrument-sans-latin-600.woff2") format("woff2");
 }
+
 :root {
+  --bg: #161616;
+  --text: #e6e6e6;
+  --muted: #a1a1a1;
+  --faint: #2e2e2e;
+  --surface: #1e1e1e;
+  --link: #5fb3f0;
+  --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --small: 0.875rem;
   color-scheme: dark;
-  /* Match the publishing app’s theme tokens. */
-  --background: light-dark(oklch(0.985 0 0), oklch(0.2 0 0));
-  --foreground: light-dark(oklch(0.25 0 0), oklch(0.9 0 0));
-  --card: light-dark(oklch(1 0 0), oklch(0.205 0 0));
-  --muted-foreground: light-dark(oklch(0.556 0 0), oklch(0.708 0 0));
-  --border: light-dark(oklch(0.922 0 0), oklch(1 0 0 / 10%));
-  --input: light-dark(oklch(0.922 0 0), oklch(1 0 0 / 15%));
-  --link: light-dark(oklch(0.5 0.134 242.749), oklch(0.685 0.169 237.323));
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--bg);
+  color: var(--text);
   font-family:
     system-ui,
     -apple-system,
     BlinkMacSystemFont,
     "Segoe UI",
     sans-serif;
-  font-size: 16px;
-  line-height: 1.7;
-  background: var(--background);
-  color: var(--foreground);
-  -webkit-text-size-adjust: 100%;
-}
-* {
-  box-sizing: border-box;
-}
-body {
-  max-width: 760px;
-  margin: 0 auto;
-  padding: 34px 28px 28px;
-}
-a {
-  color: inherit;
-  text-underline-offset: 4px;
-  text-decoration-color: var(--muted-foreground);
-}
-a:hover {
-  color: var(--link);
-}
-a:focus-visible,
-button:focus-visible,
-video:focus-visible {
-  outline: 2px solid var(--link);
-  outline-offset: 5px;
-}
-button {
-  font: inherit;
-}
-p,
-h1,
-h2,
-figure,
-pre {
-  margin: 0;
-}
-.site-header,
-.brand,
-nav,
-footer {
-  display: flex;
-  align-items: center;
-}
-.site-header {
-  justify-content: space-between;
-  gap: 24px;
-}
-.brand {
-  gap: 10px;
-  font-size: 19px;
-  font-weight: 650;
-  letter-spacing: -0.7px;
-  text-decoration: none;
-}
-nav {
-  gap: 25px;
-  font-size: 13px;
-  color: var(--muted-foreground);
-}
-nav a {
-  text-decoration: none;
-}
-.hero {
-  padding: 72px 0 30px;
-}
-h1 {
-  font-family: "Instrument Sans", system-ui, sans-serif;
-  margin: 0 0 22px;
-  font-size: clamp(34px, 5.5vw, 48px);
-  font-weight: 600;
-  letter-spacing: -1.4px;
-  line-height: 1.15;
-}
-.lede {
-  color: var(--muted-foreground);
   font-size: 18px;
   line-height: 1.65;
+  -webkit-text-size-adjust: 100%;
 }
-.demo {
-  margin: 0 -36px;
+
+body {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 3rem;
 }
-.demo-bar {
+
+a {
+  color: inherit;
+  text-decoration-color: var(--muted);
+  text-underline-offset: 0.2em;
+}
+a:hover {
+  text-decoration-color: var(--text);
+}
+:focus-visible {
+  outline: 2px solid var(--link);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+h1 {
+  margin: 0 0 0.3em;
+  font-family: "Instrument Sans", system-ui, sans-serif;
+  font-size: 2rem;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+h2 {
+  margin: 0 0 0.5em;
+  font-family: "Instrument Sans", system-ui, sans-serif;
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+p,
+ul,
+figure {
+  margin: 0 0 1.1em;
+}
+ul {
+  padding-left: 1.3em;
+}
+li {
+  margin: 0.4em 0;
+}
+li::marker {
+  color: var(--muted);
+}
+strong {
+  font-weight: 600;
+}
+code,
+pre {
+  font-family: var(--mono);
+  font-size: var(--small);
+}
+
+/* Header and footer */
+
+header.site {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5em 1.5em;
+  margin-bottom: 3.5rem;
+}
+/* The wordmark's baseline is 78.9% of the way down. Let the descenders hang below the
+   link's box, so the link's bottom edge is that baseline and it lines up with the nav. */
+header.site .name svg {
+  display: block;
+  height: 1.29rem;
+  width: auto;
+  margin-bottom: -0.27rem;
+}
+header.site nav {
+  display: flex;
+  gap: 1.25em;
+}
+header.site nav a {
+  color: var(--muted);
+  text-decoration: none;
+}
+header.site nav a:hover {
+  color: var(--text);
+}
+
+footer.site {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.25em 1.5em;
+  margin-top: 3rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--faint);
+  color: var(--muted);
+  font-size: var(--small);
+}
+
+/* Landing page */
+
+.lede,
+.note,
+figcaption {
+  color: var(--muted);
+}
+.lede {
+  margin-bottom: 2.5rem;
+}
+.note,
+figcaption {
+  font-size: var(--small);
+}
+
+.command {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  height: 38px;
-  padding: 0 16px;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-bottom: 0;
-  border-radius: 9px 9px 0 0;
-  color: var(--muted-foreground);
-  font-size: 11px;
+  gap: 1em;
+  margin-bottom: 0.8em;
+  padding: 0.7em 0.7em 0.7em 1em;
+  background: var(--surface);
+  border: 1px solid var(--faint);
+  border-radius: 6px;
 }
-.window-dots {
-  display: flex;
-  gap: 5px;
-  width: 100px;
+.command pre {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow-x: auto;
 }
-.window-dots i {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--muted-foreground);
+.command button {
+  flex: none;
+  padding: 0.2em 0.7em;
+  font: inherit;
+  font-size: var(--small);
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--faint);
+  border-radius: 4px;
+  cursor: pointer;
 }
-.demo-tag {
-  font-size: 8px;
-  letter-spacing: 1px;
-  width: 100px;
-  text-align: right;
+.command button:hover {
+  color: var(--text);
+  border-color: var(--muted);
+}
+
+.demo {
+  margin: 3rem 0;
 }
 .demo video {
   display: block;
   width: 100%;
   height: auto;
   aspect-ratio: 720 / 816;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-top: 0;
-  border-radius: 0 0 9px 9px;
+  background: var(--surface);
+  border: 1px solid var(--faint);
+  border-radius: 8px;
 }
 figcaption {
-  margin-top: 13px;
+  margin-top: 0.65rem;
   text-align: center;
-  color: var(--muted-foreground);
-  font-size: 11px;
 }
-.about {
-  display: grid;
-  gap: 20px;
-  padding: 46px 0;
-  font-size: 15px;
-  color: var(--muted-foreground);
-}
-.about strong {
-  color: var(--foreground);
-  font-weight: 600;
-}
-.install {
-  margin-bottom: 36px;
-  scroll-margin-top: 30px;
-}
-h2 {
-  font-family: "Instrument Sans", system-ui, sans-serif;
-  font-size: 28px;
-  font-weight: 600;
-  letter-spacing: -0.8px;
-  margin: 10px 0 17px;
-  line-height: 1.25;
-}
-.install > p {
-  color: var(--muted-foreground);
-  font-size: 14px;
-}
-.command {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 14px 0 17px;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 16px;
-}
-code {
-  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-  font-size: 0.86em;
-}
-.command pre {
-  min-width: 0;
-  flex: 1;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  color: var(--foreground);
-  line-height: 1.6;
-  font-size: 14px;
-}
-.command button {
-  border: 1px solid var(--input);
-  border-radius: 4px;
-  background: transparent;
-  color: var(--foreground);
-  font-size: 11px;
-  padding: 4px 10px;
-  cursor: pointer;
-  min-height: 32px;
-}
-.command button:hover {
-  border-color: var(--link);
-}
-.note code,
-.fine-print code {
-  color: var(--foreground);
-}
-.guide-link {
-  display: inline-block;
-  font-size: 13px;
-  margin-top: 14px;
-}
-.install .fine-print {
-  font-size: 12px !important;
-  margin-top: 26px;
-}
-footer {
-  margin-top: 8px;
-  padding-top: 22px;
-  border-top: 1px solid var(--border);
-  justify-content: space-between;
-  gap: 16px;
-  color: var(--muted-foreground);
-  font-size: 11px;
-}
+
 .sr-only,
 .skip-link:not(:focus) {
   position: absolute;
   width: 1px;
   height: 1px;
-  padding: 0;
   margin: -1px;
+  padding: 0;
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
@@ -249,57 +218,21 @@ footer {
 }
 .skip-link:focus {
   display: block;
-  padding: 10px;
+  padding: 0.5rem;
 }
 [hidden] {
   display: none !important;
 }
-@media (max-width: 840px) {
-  .demo {
-    margin-inline: 0;
-  }
-}
-@media (max-width: 520px) {
-  body {
-    padding: 25px 22px;
-  }
-  nav {
-    gap: 17px;
-    font-size: 12px;
-  }
-  .brand {
-    font-size: 17px;
-    gap: 7px;
-  }
-  .brand img {
-    width: 22px;
-    height: 22px;
-  }
-  .hero {
-    padding-top: 60px;
-    padding-bottom: 35px;
-  }
-  h1 {
-    letter-spacing: -1px;
-  }
-  .lede {
+
+@media (max-width: 30rem) {
+  html {
     font-size: 16px;
   }
-  .about {
-    padding-block: 34px;
+  header.site {
+    column-gap: 1em;
+    margin-bottom: 2.5rem;
   }
-  .demo-tag {
-    display: none;
-  }
-  .window-dots {
-    width: auto;
-  }
-  figcaption {
-    padding-inline: 10px;
-  }
-  footer {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 8px;
+  header.site nav {
+    gap: 1em;
   }
 }
