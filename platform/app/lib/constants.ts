@@ -22,6 +22,6 @@ export const MAX_UPLOAD_FILES = 100
 
 // The `sizes` of a photo shown across the content column (36rem wide inside its padding, see
 // --content-width in theme.css), and of one in the feed's two-column photo grid, for choosing
-// between a photo's resized copies (see images.ts).
+// between a photo's resized copies (see image-sources.ts).
 export const FULL_WIDTH_IMAGE_SIZES = '(min-width: 38rem) 36rem, calc(100vw - 2rem)'
 export const HALF_WIDTH_IMAGE_SIZES = '(min-width: 38rem) 18rem, calc(50vw - 1rem)'

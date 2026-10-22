@@ -1,12 +1,10 @@
 import type { Handle } from 'remix/component'
 import { css } from 'remix/component'
 
-import type { Post } from '../../data/posts.ts'
+import type { Post } from '../../data/posts/presentation.ts'
 import { captionText } from '../../lib/caption.ts'
 import { routes } from '../../routes.ts'
 import { formatPostDate } from '../../ui/post.tsx'
-import { navButtonStyle } from '../../ui/public/nav-button.ts'
-import { Tooltip } from '../../ui/public/tooltip.tsx'
 import {
   actionsStyle,
   buttonStyle,
@@ -16,7 +14,7 @@ import {
   pageStyle,
   secondaryButtonStyle,
   titleStyle,
-} from './styles.ts'
+} from './ui/styles.ts'
 
 export function AdminLoginPage(handle: Handle<{ error?: string; enabled: boolean }>) {
   return () => {
@@ -95,35 +93,6 @@ export function AdminPage(handle: Handle<{ posts: Post[] }>) {
       </section>
     )
   }
-}
-
-// For the navbar on pages behind the admin login.
-export function AdminLogoutButton() {
-  return () => (
-    <form method="post" action={routes.admin.logout.href()}>
-      <Tooltip label="Log out">
-        <button type="submit" aria-label="Log out" mix={navButtonStyle}>
-          <LogoutIcon />
-        </button>
-      </Tooltip>
-    </form>
-  )
-}
-
-// An arrow leaving a door frame.
-function LogoutIcon() {
-  return () => (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        d="M9.5 20.5H5.5A1.5 1.5 0 0 1 4 19V5A1.5 1.5 0 0 1 5.5 3.5H9.5M15.5 16.5L20 12L15.5 7.5M20 12H9"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.5"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      />
-    </svg>
-  )
 }
 
 // One line describing a post: an article's title, else the caption's first line, else its media.

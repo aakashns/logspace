@@ -2,7 +2,7 @@ import type { Handle } from 'remix/component'
 import { css } from 'remix/component'
 
 import { routes } from '../../../routes.ts'
-import { actionsStyle, destructiveButtonStyle, secondaryButtonStyle } from '../styles.ts'
+import { actionsStyle, destructiveButtonStyle, secondaryButtonStyle } from '../ui/styles.ts'
 
 // Deleting a post from its edit page: a button that opens a dialog to confirm. The buttons open
 // and close the dialog with command/commandfor, so it works without JavaScript.

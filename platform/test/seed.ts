@@ -5,9 +5,10 @@ import { openLazyFile } from 'remix/fs'
 
 import { saveSiteConfig, type SiteText } from '../app/data/config.ts'
 import { db, migrateDatabase } from '../app/data/db.ts'
-import { isPostFileName, mediaStorage, savePostFile } from '../app/data/media.ts'
-import { isPostId, parsePosts } from '../app/data/posts.ts'
-import { fromPostRecord, posts } from '../app/data/tables.ts'
+import { mediaStorage, savePostFile } from '../app/data/media.ts'
+import { isPostFileName, isPostId, parsePostRecords } from '../app/data/posts/model.ts'
+import { toPostRow } from '../app/data/posts/store.ts'
+import { posts } from '../app/data/tables.ts'
 
 // The sample posts the tests run on, one of each type, in test/content: posts.json has the posts
 // (in the format of docs/posts.md) and posts/<id>/ each post's media files. An article's body is
@@ -25,18 +26,13 @@ export const TEST_SITE_CONFIG: SiteText = {
   socialImageAlt: '',
 }
 
-// bun run test uses an in-memory database; this creates its tables, saves TEST_SITE_CONFIG, and adds
-// the sample posts that aren't there yet, so a test file's beforeAll can run it for each of its
-// suites.
+// bun run test uses an in-memory database; this creates its tables, saves TEST_SITE_CONFIG, and
+// replaces every post with the sample posts, so a beforeEach can run it to start each test afresh.
 export async function seedDatabase() {
   await migrateDatabase()
   await saveSiteConfig(TEST_SITE_CONFIG)
-  let records = await readTestPostRecords()
-  // Throws, naming the post and field, if posts.json is invalid.
-  parsePosts(records)
-  let existing = new Set((await db.findMany(posts)).map((row) => row.id))
-  let added = records.filter((record) => !existing.has(String(record.id)))
-  if (added.length > 0) await db.createMany(posts, added.map(fromPostRecord))
+  for (let { id } of await db.findMany(posts)) await db.delete(posts, id)
+  await db.createMany(posts, (await readTestPosts()).map(toPostRow))
 }
 
 // Copies the sample posts' media files into media storage (memory storage under bun run test).
@@ -53,17 +49,16 @@ export async function seedMedia(storage = mediaStorage) {
   }
 }
 
+// Throws, naming the post and field, if posts.json is invalid.
 export async function readTestPosts() {
-  return parsePosts(await readTestPostRecords())
-}
-
-async function readTestPostRecords(): Promise<Record<string, unknown>[]> {
   let records = JSON.parse(await fsp.readFile(path.join(TEST_CONTENT_DIR, 'posts.json'), 'utf8'))
-  return Promise.all(
-    records.map(async (record: Record<string, any>) => {
-      if (record.type !== 'article' || 'body' in record.article) return record
-      let file = path.join(TEST_CONTENT_DIR, 'posts', record.id, 'article.md')
-      return { ...record, article: { ...record.article, body: await fsp.readFile(file, 'utf8') } }
-    }),
+  return parsePostRecords(
+    await Promise.all(
+      records.map(async (record: Record<string, any>) => {
+        if (record.type !== 'article' || 'body' in record.article) return record
+        let file = path.join(TEST_CONTENT_DIR, 'posts', record.id, 'article.md')
+        return { ...record, article: { ...record.article, body: await fsp.readFile(file, 'utf8') } }
+      }),
+    ),
   )
 }

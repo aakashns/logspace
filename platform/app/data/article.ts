@@ -4,9 +4,9 @@ import { parseMarkdown } from '@tanstack/markdown/parser'
 import type { BlockNode } from '@tanstack/markdown'
 
 import { FULL_WIDTH_IMAGE_SIZES } from '../lib/constants.ts'
-import { getImageSources, type ImageInfo } from './images.ts'
+import { getImageSources, type ImageInfo } from './image-sources.ts'
 import { getPostFileKey, getPostImages, hasPostFile } from './media.ts'
-import { getPostFileUrl, type ArticlePost } from './posts.ts'
+import { getPostFileUrl, type ArticlePost } from './posts/presentation.ts'
 
 // The HTML of an article's body. Rendered once and kept until the body, its videos' posters, or
 // its images change. The posters are looked up in media storage on every call, by name rather than

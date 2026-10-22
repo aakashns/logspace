@@ -13,7 +13,6 @@ import {
   getPostFile,
   getPostImages,
   getPostImageVariant,
-  isUploadableFileName,
   listPostFiles,
   savePostFile,
 } from './media.ts'
@@ -195,17 +194,6 @@ describe('listPostFiles', () => {
       { name: 'a.mp4', size: 1 },
       { name: 'b.jpg', size: 2 },
     ])
-  })
-})
-
-describe('isUploadableFileName', () => {
-  it('allows photos and videos only', () => {
-    for (let name of ['a.jpg', 'B.JPEG', 'c.png', 'd.webp', 'e.mp4', 'f.mov']) {
-      assert.equal(isUploadableFileName(name), true, name)
-    }
-    for (let name of ['a.svg', 'b.html', 'c.txt', 'noextension', '.hidden.jpg', 'a/b.jpg']) {
-      assert.equal(isUploadableFileName(name), false, name)
-    }
   })
 })
 

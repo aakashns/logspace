@@ -1,10 +1,10 @@
 import type { Handle } from 'remix/component'
 
-import { alertStyle } from '../styles.ts'
-import type { FormIssue } from './form-values.ts'
+import type { PostIssue } from '../../../data/posts/model.ts'
+import { alertStyle } from '../ui/styles.ts'
 
 // Why a submitted post wasn't saved, one issue per line.
-export function IssueList(handle: Handle<{ issues: FormIssue[] }>) {
+export function IssueList(handle: Handle<{ issues: PostIssue[] }>) {
   return () => (
     <div role="alert" mix={alertStyle}>
       <p>The post wasn’t saved:</p>

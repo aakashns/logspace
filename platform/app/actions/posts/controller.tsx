@@ -9,12 +9,13 @@ import {
   getPostImages,
   getPostImageVariant,
 } from '../../data/media.ts'
-import { getPost } from '../../data/posts.ts'
+import { getPostMeta } from '../../data/posts/presentation.ts'
+import { getPost, getPostRecord } from '../../data/posts/store.ts'
 import { getTheme } from '../../lib/theme.ts'
 import { routes } from '../../routes.ts'
 import { getPriorityImage } from '../../ui/post.tsx'
 import { Document } from '../document.tsx'
-import { getPostMeta, PostNotFound, PostPage } from './post-page.tsx'
+import { PostNotFound, PostPage } from './post-page.tsx'
 
 export default createController(routes.posts, {
   actions: {
@@ -53,12 +54,12 @@ export default createController(routes.posts, {
     // backend it's streamed from disk, so range requests only read the bytes they ask for.
     //
     // Pages link to images with `v`, a hash of the image's contents, and to resized copies with `w`
-    // as well (see resolvePost in posts.ts). Those URLs change when the image does, so browsers can
-    // keep them for good. Other URLs, and ones with an old `v`, are revalidated with the ETag after
-    // an hour, so replacing a file shows up soon.
+    // as well (see toPost in data/posts/presentation.ts). Those URLs change when the image does, so
+    // browsers can keep them for good. Other URLs, and ones with an old `v`, are revalidated with the
+    // ETag after an hour, so replacing a file shows up soon.
     async file(context) {
       let { id, file: name } = context.params
-      if (!(await getPost(id))) return notFound()
+      if (!(await getPostRecord(id))) return notFound()
       let version = context.url.searchParams.get('v')
       let width = context.url.searchParams.get('w')
 

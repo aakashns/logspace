@@ -1,14 +1,12 @@
 import type { Handle, RemixNode } from 'remix/component'
 import { css } from 'remix/component'
 
-import type { SiteConfig, SiteImages, SiteText } from '../../../data/config.ts'
+import type { SiteConfig, SiteConfigIssue, SiteImages, SiteText } from '../../../data/config.ts'
 import { getIconHref, getSiteImageHref, type SiteImageKind } from '../../../data/site-images.ts'
-import { getTheme } from '../../../lib/theme.ts'
 import { routes } from '../../../routes.ts'
 import { SiteLogo } from '../../../ui/site-logo.tsx'
-import { Document } from '../../document.tsx'
-import { AdminLogoutButton } from '../admin-page.tsx'
-import { Field, TextareaField, TextField } from '../posts/fields.tsx'
+import { Field, TextareaField, TextField } from '../ui/fields.tsx'
+import { renderAdminPage } from '../ui/page.tsx'
 import {
   actionsStyle,
   alertStyle,
@@ -18,18 +16,13 @@ import {
   pageStyle,
   secondaryButtonStyle,
   titleStyle,
-} from '../styles.ts'
-
-export interface ConfigIssue {
-  field?: keyof SiteConfig
-  message: string
-}
+} from '../ui/styles.ts'
 
 interface ConfigPageProps {
   // What was typed, and the images that are saved.
   values: SiteText
   images: SiteImages
-  issues?: ConfigIssue[]
+  issues?: SiteConfigIssue[]
   // Set on the page shown after saving.
   saved?: boolean
   // Set until the site's required settings are saved, when its public pages aren't shown.
@@ -37,21 +30,9 @@ interface ConfigPageProps {
 }
 
 // The /admin/config page, with the submission's problems if it was rejected.
-export function renderConfigPage(
-  request: Request,
-  props: ConfigPageProps,
-): [RemixNode, ResponseInit | undefined] {
-  let { pathname } = new URL(request.url)
-  return [
-    <Document
-      theme={getTheme(request)}
-      meta={{ path: pathname, title: 'Configure Site', noindex: true }}
-      navActions={<AdminLogoutButton />}
-    >
-      <ConfigPage {...props} />
-    </Document>,
-    props.issues ? { status: 400 } : undefined,
-  ]
+export function renderConfigPage(request: Request, props: ConfigPageProps) {
+  let init = props.issues && { status: 400 }
+  return renderAdminPage(request, 'Configure Site', <ConfigPage {...props} />, init)
 }
 
 const LABELS: Record<keyof SiteConfig, string> = {

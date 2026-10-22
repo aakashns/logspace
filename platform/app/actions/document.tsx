@@ -6,7 +6,7 @@ import { globalStylesheet, scriptEntry } from '../assets.ts'
 import { getSavedSiteConfig, isSiteConfigured, type SiteConfig } from '../data/config.ts'
 import { getIconHref, getSiteImageHref } from '../data/site-images.ts'
 import { APP_NAME, THEME_COOKIE_NAME } from '../lib/constants.ts'
-import type { PageMeta } from '../lib/page-meta.ts'
+import type { PageMeta, PreloadImage } from '../lib/page-meta.ts'
 import type { Theme } from '../lib/theme.ts'
 import { routes } from '../routes.ts'
 import { RssLink } from '../ui/rss-link.tsx'
@@ -23,13 +23,6 @@ export interface DocumentProps {
   // The page's main image, usually what Lighthouse calls the Largest Contentful Paint, which is
   // fetched before anything else (see getPriorityImage).
   preloadImage?: PreloadImage
-}
-
-// An image to preload, with the srcset and sizes of its <img> so the same copy is fetched.
-export interface PreloadImage {
-  href: string
-  srcset?: string
-  sizes?: string
 }
 
 export function Document(handle: Handle<DocumentProps>) {
