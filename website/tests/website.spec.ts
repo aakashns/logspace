@@ -10,6 +10,9 @@ test("landing page, links, and responsive layout", async ({ page }) => {
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(
     "Self-host your personal website",
   );
+  await expect(
+    page.getByRole("link", { name: "LogSpace home" }).getByRole("img"),
+  ).toHaveAccessibleName("LogSpace");
   await expect(page.getByRole("link", { name: "Changelog" })).toHaveAttribute(
     "href",
     "https://github.com/aakashns/logspace/releases",
@@ -90,7 +93,7 @@ test("demo loads, plays, and seeks with captions available", async ({
   expect(poster.headers()["content-type"]).toContain("image/webp");
 });
 
-test("serves the exact installer and rejects missing paths", async ({
+test("serves the installer and icons, and rejects missing paths", async ({
   request,
 }) => {
   const response = await request.get("/install.sh");
@@ -99,5 +102,8 @@ test("serves the exact installer and rejects missing paths", async ({
   expect(await response.text()).toBe(
     await readFile(new URL("../public/install.sh", import.meta.url), "utf8"),
   );
+  for (const icon of ["/icon.svg", "/favicon.ico", "/apple-touch-icon.png"]) {
+    expect((await request.get(icon)).status()).toBe(200);
+  }
   expect((await request.get("/not-a-page")).status()).toBe(404);
 });

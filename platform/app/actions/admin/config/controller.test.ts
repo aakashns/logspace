@@ -251,7 +251,7 @@ describe('admin config page', () => {
       return [...data.subarray(i, i + 4)]
     }
 
-    // LogSpace's icon is a dark gray circle.
+    // LogSpace's icon is a dark gray rounded square.
     let manifest = await (await fetch(routes.manifest.href())).json()
     assert.deepEqual([manifest.theme_color, manifest.background_color], ['#161616', '#161616'])
 

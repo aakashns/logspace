@@ -1,4 +1,9 @@
+import { Wordmark } from "./wordmark.tsx";
+
 const github = "https://github.com/aakashns/logspace";
+const title = "LogSpace — Self-host your personal website";
+const description =
+  "Publish blog posts, photos, and videos on your own domain.";
 
 export function HomePage() {
   return () => (
@@ -10,12 +15,10 @@ export function HomePage() {
           content="width=device-width, initial-scale=1"
           data-rmx-key="viewport"
         />
-        <title data-rmx-key="title">
-          LogSpace — Self-host your personal website
-        </title>
+        <title data-rmx-key="title">{title}</title>
         <meta
           name="description"
-          content="Publish blog posts, photos, and videos from your browser. Deploy your personal website to your own domain."
+          content={description}
           data-rmx-key="description"
         />
         <link
@@ -25,14 +28,10 @@ export function HomePage() {
         />
         <meta name="theme-color" content="#161616" data-rmx-key="theme" />
         <meta property="og:type" content="website" data-rmx-key="og-type" />
-        <meta
-          property="og:title"
-          content="LogSpace — Self-host your personal website"
-          data-rmx-key="og-title"
-        />
+        <meta property="og:title" content={title} data-rmx-key="og-title" />
         <meta
           property="og:description"
-          content="Publish blog posts, photos, and videos from your browser. Deploy to your own domain."
+          content={description}
           data-rmx-key="og-description"
         />
         <meta
@@ -47,7 +46,7 @@ export function HomePage() {
         />
         <meta
           property="og:image:alt"
-          content="LogSpace. Self-host your personal website with blog posts, photos, and videos."
+          content="LogSpace: Self-host your personal website"
           data-rmx-key="og-alt"
         />
         <meta
@@ -57,9 +56,28 @@ export function HomePage() {
         />
         <link
           rel="icon"
+          href="/favicon.ico"
+          sizes="32x32"
+          data-rmx-key="icon-ico"
+        />
+        <link
+          rel="icon"
           href="/icon.svg"
           type="image/svg+xml"
           data-rmx-key="icon"
+        />
+        <link
+          rel="apple-touch-icon"
+          href="/apple-touch-icon.png"
+          data-rmx-key="apple-touch-icon"
+        />
+        <link
+          rel="preload"
+          href="/fonts/instrument-sans-latin-600.woff2"
+          as="font"
+          type="font/woff2"
+          crossorigin="anonymous"
+          data-rmx-key="font"
         />
         <link rel="stylesheet" href="/style.css" data-rmx-key="style" />
         <script src="/site.js" defer data-rmx-key="script" />
@@ -68,69 +86,43 @@ export function HomePage() {
         <a class="skip-link" href="#main">
           Skip to content
         </a>
-        <header class="site-header">
-          <a class="brand" href="/" aria-label="LogSpace home">
-            <img src="/icon.svg" width="25" height="25" alt="" />
-            LogSpace
+        <header class="site">
+          <a class="name" href="/" aria-label="LogSpace home">
+            <Wordmark />
           </a>
           <nav aria-label="Main navigation">
             <a href={`${github}#deploy`}>Docs</a>
             <a href={`${github}/releases`}>Changelog</a>
-            <a href={github}>
-              GitHub <span aria-hidden="true">↗</span>
-            </a>
+            <a href={github}>GitHub</a>
           </nav>
         </header>
         <main id="main">
-          <section class="hero" aria-labelledby="headline">
-            <h1 id="headline">Self-host your personal website</h1>
-            <p class="lede">
-              Publish blog posts, photos, and videos from your browser. Deploy
-              to your own domain.
-            </p>
-          </section>
-          <section
-            class="install"
-            id="install"
-            aria-labelledby="install-heading"
-          >
-            <h2 id="install-heading" class="sr-only">
-              Install LogSpace
-            </h2>
-            <p>On your Linux server, install LogSpace:</p>
-            <div class="command">
-              <pre>
-                <code id="install-command">
-                  curl -fsSL https://logspace.app/install.sh | sh
-                </code>
-              </pre>
-              <button
-                type="button"
-                id="copy"
-                hidden
-                aria-label="Copy install command"
-              >
-                Copy
-              </button>
-            </div>
-            <p id="copy-status" class="sr-only" role="status" />
-            <a class="guide-link" href={`${github}#deploy`}>
-              Read the deployment guide
-            </a>
-            <p class="fine-print">
-              Update with <code>sudo logspace upgrade</code>.
-            </p>
-          </section>
+          <h1>Self-host your personal website</h1>
+          <p class="lede">{description}</p>
+
+          <p>Run this command on a Linux server to install LogSpace:</p>
+          <div class="command">
+            <pre>
+              <code id="install-command">
+                curl -fsSL https://logspace.app/install.sh | sh
+              </code>
+            </pre>
+            <button
+              type="button"
+              id="copy"
+              hidden
+              aria-label="Copy install command"
+            >
+              Copy
+            </button>
+          </div>
+          <p id="copy-status" class="sr-only" role="status" />
+          <p class="note">
+            You’ll need Caddy and a domain pointing to the server.{" "}
+            <a href={`${github}#deploy`}>Read the deployment guide</a>.
+          </p>
+
           <figure class="demo">
-            <div class="demo-bar">
-              <span class="window-dots" aria-hidden="true">
-                <i />
-                <i />
-                <i />
-              </span>
-              <span>Example website</span>
-              <span class="demo-tag">DEMO</span>
-            </div>
             <video
               controls
               playsInline
@@ -151,36 +143,35 @@ export function HomePage() {
               <a href="/demo.mp4">Watch the LogSpace demo</a>
             </video>
             <figcaption id="demo-caption">
-              Walkthrough: browse posts, write, and publish. The profile and
-              posts are fictional.
+              Browse a site, then write and publish a post. The person and posts
+              are fictional.
             </figcaption>
           </figure>
-          <section class="about" aria-label="Features">
-            <p>
-              <strong>Posts, photos, and videos.</strong> Publish short updates
-              or longer blog posts, upload media, and display them in a single
-              feed.
-            </p>
-            <p>
-              <strong>Browser-based editing.</strong> Write in Markdown, edit
+
+          <ul>
+            <li>
+              <strong>Posts, photos, and videos.</strong> Share short updates or
+              long articles, and upload media. They all appear in one feed.
+            </li>
+            <li>
+              <strong>Write in your browser.</strong> Use Markdown, edit
               published posts, and change your site’s title, description, and
               images.
-            </p>
-            <p>
-              <strong>RSS and shareable links.</strong> Every post has its own
-              URL. Readers can subscribe with an RSS reader without an account.
-            </p>
-          </section>
+            </li>
+            <li>
+              <strong>Links and RSS.</strong> Every post has its own URL.
+              Readers can follow along in an RSS reader, no account needed.
+            </li>
+          </ul>
+          <p>
+            Free and <a href={github}>open source</a>. Update anytime with{" "}
+            <code>sudo logspace upgrade</code>.
+          </p>
         </main>
-        <footer>
-          <span>
-            Built by <a href="https://aakashns.com">aakashns</a>.
-          </span>
-          <span>
-            <a href={github}>Source</a>
-            <span aria-hidden="true"> · </span>
-            <a href={`${github}/blob/main/LICENSE`}>MIT license</a>
-          </span>
+        <footer class="site">
+          Built by <a href="https://aakashns.com">aakashns</a>
+          <span aria-hidden="true"> · </span>
+          <a href={`${github}/blob/main/LICENSE`}>MIT license</a>
         </footer>
       </body>
     </html>
