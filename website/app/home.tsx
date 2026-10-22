@@ -91,9 +91,15 @@ export function HomePage() {
             <Wordmark />
           </a>
           <nav aria-label="Main navigation">
-            <a href={`${github}#deploy`}>Docs</a>
-            <a href={`${github}/releases`}>Changelog</a>
-            <a href={github}>GitHub</a>
+            <a href={`${github}#deploy`} target="_blank">
+              Docs
+            </a>
+            <a href={`${github}/releases`} target="_blank">
+              Changelog
+            </a>
+            <a href={github} target="_blank">
+              GitHub
+            </a>
           </nav>
         </header>
         <main id="main">
@@ -118,8 +124,15 @@ export function HomePage() {
           </div>
           <p id="copy-status" class="sr-only" role="status" />
           <p class="note">
-            You’ll need Caddy and a domain pointing to the server.{" "}
-            <a href={`${github}#deploy`}>Read the deployment guide</a>.
+            You’ll need{" "}
+            <a href="https://caddyserver.com/docs/install" target="_blank">
+              Caddy
+            </a>{" "}
+            and a domain pointing to the server.{" "}
+            <a href={`${github}#deploy`} target="_blank">
+              Read the deployment guide
+            </a>
+            .
           </p>
 
           <figure class="demo">
@@ -140,7 +153,9 @@ export function HomePage() {
                 srcLang="en"
                 label="English"
               />
-              <a href="/demo.mp4">Watch the LogSpace demo</a>
+              <a href="/demo.mp4" target="_blank">
+                Watch the LogSpace demo
+              </a>
             </video>
             <figcaption id="demo-caption">
               A consolidated feed, clean & minimal pages, and a simple
@@ -165,22 +180,29 @@ export function HomePage() {
                 Readers can follow along in an RSS reader, no account needed.
               </li>
               <li>
-                <strong>Single binary.</strong> LogSpace runs as one program and
-                keeps your posts in a SQLite database. Store media on the
-                server’s disk or in any S3-compatible storage, like Cloudflare
-                R2 or MinIO.
+                <strong>Single binary.</strong> Runs as one program and keeps
+                your posts in a SQLite database. Store media on the server’s
+                disk or in any S3-compatible storage.
               </li>
             </ul>
           </section>
         </main>
         <footer class="site">
           <span>
-            Free and <a href={github}>open source</a>
+            Free and{" "}
+            <a href={github} target="_blank">
+              open source
+            </a>
             <span aria-hidden="true"> · </span>
-            <a href={`${github}/blob/main/LICENSE`}>MIT License</a>
+            <a href={`${github}/blob/main/LICENSE`} target="_blank">
+              MIT License
+            </a>
           </span>
           <span>
-            Built by <a href="https://aakashns.com">aakashns</a>
+            Built by{" "}
+            <a href="https://aakashns.com" target="_blank">
+              aakashns
+            </a>
           </span>
         </footer>
       </body>

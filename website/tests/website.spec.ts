@@ -24,6 +24,12 @@ test("landing page, links, and responsive layout", async ({ page }) => {
     ),
   ).toBe(true);
   await expect(page.locator("#install-command")).toHaveText(install);
+  // Links that leave the page open in a new tab; the skip link and home link stay here.
+  for (const link of await page.locator("a").all()) {
+    const href = await link.getAttribute("href");
+    const target = href === "/" || href?.startsWith("#") ? null : "_blank";
+    expect(await link.getAttribute("target"), href!).toBe(target);
+  }
   expect(errors).toEqual([]);
 });
 
