@@ -1,7 +1,7 @@
 // The pages under /admin, for managing the site: logging in and out, the list of posts, the
 // site's settings, and writing, editing, and deleting posts. Every handler here only reads and
 // sends commands; what a command does is in commands/.
-import { Effect } from 'effect'
+import { Clock, Effect } from 'effect'
 import { HttpRouter, HttpServerResponse } from 'effect/http'
 
 import type { Child } from '#jsx/jsx-runtime'
@@ -39,7 +39,7 @@ import { AdminAuth, type Session } from './session.ts'
 const adminPage = (
   title: string,
   content: Child,
-  options?: { status?: number; loggedIn?: boolean },
+  options?: { status?: number | undefined; loggedIn?: boolean | undefined },
 ) =>
   Effect.gen(function* () {
     let page = yield* pageContext
@@ -145,18 +145,14 @@ const index = loggedIn(() =>
 
 const configPage = (props: {
   values: SiteText
-  issues?: readonly SiteConfigIssue[]
-  saved?: boolean
+  issues?: readonly SiteConfigIssue[] | undefined
+  saved?: boolean | undefined
 }) =>
   Effect.gen(function* () {
-    let { logo, icon, socialImage, ...saved } = yield* (yield* SiteConfigQueries).saved
+    let saved = yield* (yield* SiteConfigQueries).saved
     return yield* adminPage(
       'Configure Site',
-      <ConfigPage
-        {...props}
-        images={{ logo, icon, socialImage }}
-        unconfigured={!isSiteConfigured(saved)}
-      />,
+      <ConfigPage {...props} images={saved} unconfigured={!isSiteConfigured(saved)} />,
       { status: props.issues ? 400 : 200 },
     )
   })
@@ -177,7 +173,8 @@ const showConfig = loggedIn((session) =>
     }
     let response = yield* configPage({ values, saved: session.flash === 'configSaved' })
     // The note that the settings were saved is shown once.
-    return session.flash ? auth.saveSession(response, { ...session, flash: undefined }) : response
+    let { flash, ...read } = session
+    return flash ? auth.saveSession(response, read) : response
   }),
 )
 
@@ -203,7 +200,7 @@ const saveConfig = loggedIn((session) =>
         ),
       ),
       Effect.catchTag('SiteConfigRejected', (rejected) =>
-        configPage({ values, issues: rejected.issues as SiteConfigIssue[] }),
+        configPage({ values, issues: rejected.issues }),
       ),
     )
   }),
@@ -232,7 +229,7 @@ function readConfigForm(form: FormData): SiteText {
 const postForm = (props: {
   isNew: boolean
   values: PostFormValues
-  issues?: readonly PostIssue[]
+  issues?: readonly PostIssue[] | undefined
 }) =>
   Effect.gen(function* () {
     let { id } = props.values
@@ -249,7 +246,8 @@ const postForm = (props: {
 const newPost = loggedIn(() =>
   Effect.gen(function* () {
     let [newest] = yield* (yield* PostQueries).all
-    let values = { id: newPostId(), type: 'text', date: newPostDate(newest?.date) }
+    let now = yield* Clock.currentTimeMillis
+    let values = { id: newPostId(), type: 'text', date: newPostDate(newest?.date, now) }
     return yield* postForm({ isNew: true, values })
   }),
 )
@@ -272,7 +270,7 @@ const editPost = loggedIn(() =>
   Effect.gen(function* () {
     let values = yield* (yield* PostQueries).findRecord(yield* param('id'))
     if (!values) return yield* postNotFound
-    return yield* postForm({ isNew: false, values: values as PostFormValues })
+    return yield* postForm({ isNew: false, values })
   }),
 )
 

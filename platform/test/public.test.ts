@@ -1,10 +1,10 @@
 // The public pages and files.
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test'
-import { Effect } from 'effect'
+import { Effect, Schema } from 'effect'
 
 import { PostCommands } from '../src/commands/posts.ts'
 import { PostQueries } from '../src/queries/posts.ts'
-import { makeTestApp } from './app.ts'
+import { capture, defined, makeTestApp } from './app.ts'
 
 const app = makeTestApp()
 const posts = () => app.run(Effect.flatMap(PostQueries, (queries) => queries.all))
@@ -17,7 +17,9 @@ describe('the home page', () => {
   it('renders every post, newest first', async () => {
     let response = await app.fetch('/')
     let html = await response.text()
-    let dates = [...html.matchAll(/<time datetime="([^"]+)"/g)].map((match) => Date.parse(match[1]))
+    let dates = [...html.matchAll(/<time datetime="([^"]+)"/g)].map(([, date = '']) =>
+      Date.parse(date),
+    )
     expect(response.status).toBe(200)
     expect(response.headers.get('Content-Type')).toBe('text/html; charset=utf-8')
     expect(dates.length).toBe((await posts()).length)
@@ -101,7 +103,7 @@ describe('the home page', () => {
 
   it('caches fonts and Datastar for a year, and runs no scripts in other responses', async () => {
     let html = await (await app.fetch('/')).text()
-    let datastar = await app.fetch(html.match(/src="(\/assets\/datastar\.[^"]+)"/)![1])
+    let datastar = await app.fetch(capture(html, /src="(\/assets\/datastar\.[^"]+)"/))
     expect(datastar.status).toBe(200)
     expect(datastar.headers.get('Content-Type')).toBe('text/javascript; charset=utf-8')
     expect(datastar.headers.get('Cache-Control')).toBe('public, max-age=31536000, immutable')
@@ -151,7 +153,7 @@ describe('feeds and files for machines', () => {
     expect(xml).toMatch(/^<\?xml version="1.0" encoding="UTF-8"\?>\n<rss version="2.0"/)
     expect(xml).toMatch(/<atom:link href="https:\/\/example\.com\/rss\.xml" rel="self"/)
     let all = await posts()
-    let items = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].map((match) => match[1])
+    let items = [...xml.matchAll(/<item>([\s\S]*?)<\/item>/g)].map(([, item = '']) => item)
     expect(items.length).toBe(all.length)
     for (let [i, post] of all.entries()) {
       let url = `https://example.com/posts/${post.id}`
@@ -178,7 +180,9 @@ describe('feeds and files for machines', () => {
   it('site.webmanifest is named after the site', async () => {
     let response = await app.fetch('/site.webmanifest')
     expect(response.headers.get('Content-Type')).toMatch(/application\/manifest\+json/)
-    let manifest = (await response.json()) as { name: string; icons: unknown[] }
+    let manifest = Schema.decodeUnknownSync(
+      Schema.Struct({ name: Schema.String, icons: Schema.Array(Schema.Unknown) }),
+    )(await response.json())
     expect(manifest.name).toBe('Test Site')
     expect(manifest.icons.length).toBe(2)
   })
@@ -226,7 +230,10 @@ describe('a post’s page and files', () => {
   })
 
   it('renders an article body, with its photos sized and its videos’ posters', async () => {
-    let article = (await posts()).find((post) => post.type === 'article')!
+    let article = defined(
+      (await posts()).find((post) => post.type === 'article'),
+      'an article',
+    )
     let html = await (await app.fetch(`/posts/${article.id}`)).text()
     expect(html).toMatch(/<h2[^>]*>/)
     // notebook.mp4's poster is notebook.jpg, found in media storage.
@@ -272,13 +279,16 @@ describe('a post’s page and files', () => {
   })
 
   it('serves media, with range requests and revalidation', async () => {
-    let video = (await posts()).find((post) => post.type === 'video')!
+    let video = defined(
+      (await posts()).find((post) => post.type === 'video'),
+      'a video post',
+    )
     if (video.type !== 'video') throw new Error('No video post')
     let response = await app.fetch(video.video.src)
     expect(response.status).toBe(200)
     expect(response.headers.get('Content-Type')).toBe('video/mp4')
     expect(response.headers.get('Cache-Control')).toMatch(/max-age/)
-    let etag = response.headers.get('ETag')!
+    let etag = defined(response.headers.get('ETag'), 'an ETag')
     await response.body?.cancel()
 
     let partial = await app.fetch(video.video.src, { headers: { Range: 'bytes=0-99' } })
@@ -294,14 +304,17 @@ describe('a post’s page and files', () => {
   })
 
   it('sizes photos and links to their resized copies, which are cached for good', async () => {
-    let post = (await posts()).find((post) => post.type === 'photos')!
+    let post = defined(
+      (await posts()).find((post) => post.type === 'photos'),
+      'a photos post',
+    )
     if (post.type !== 'photos') throw new Error('No photos post')
     let html = await (await app.fetch('/')).text()
     let img = html.match(/<img [^>]*hike-1\.jpg[^>]*>/)?.[0] ?? ''
     expect(img).toMatch(/ width="32" height="21"/)
     expect(img).toMatch(/ sizes="[^"]+"/)
     let srcset = img.match(/ srcset="([^"]+)"/)?.[1] ?? ''
-    let [url, descriptor] = srcset.replaceAll('&amp;', '&').split(' ')
+    let [url = '', descriptor] = srcset.replaceAll('&amp;', '&').split(' ')
     expect(url).toMatch(/^\/posts\/drdp3ei6fd\/hike-1\.jpg\?w=320&v=[0-9a-f]{12}$/)
     expect(descriptor).toBe('32w')
 
@@ -349,7 +362,7 @@ describe('a post’s page and files', () => {
   })
 
   it('only serves files of published posts', async () => {
-    let [post] = await posts()
+    let post = defined((await posts())[0], 'a post')
     for (let path of [
       '/posts/no-such-post/photo.jpg',
       `/posts/${post.id}/missing.jpg`,

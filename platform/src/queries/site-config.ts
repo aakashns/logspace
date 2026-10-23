@@ -4,13 +4,7 @@
 import { Context, Effect, Layer } from 'effect'
 import { SqlClient } from 'effect/sql'
 
-import {
-  DEFAULT_SITE_CONFIG,
-  SITE_IMAGE_KINDS,
-  TEXT_SETTINGS,
-  decodeSiteImage,
-  type SavedSiteConfig,
-} from '../domain/site.ts'
+import { fromConfigRows, type SavedSiteConfig } from '../domain/site.ts'
 import { makeView } from '../services/data-version.ts'
 
 export class SiteConfigQueries extends Context.Service<
@@ -25,21 +19,11 @@ export class SiteConfigQueries extends Context.Service<
     Effect.gen(function* () {
       let sql = yield* SqlClient.SqlClient
       let saved = yield* makeView(
-        Effect.gen(function* () {
-          let config: Record<string, unknown> = { ...DEFAULT_SITE_CONFIG }
-          for (let { key, value } of yield* sql<{
-            key: string
-            value: string
-          }>`select key, value from config`) {
-            if ((TEXT_SETTINGS as readonly string[]).includes(key)) config[key] = value
-            if ((SITE_IMAGE_KINDS as readonly string[]).includes(key)) {
-              // A mangled row is ignored, like a missing one.
-              let image = decodeSiteImage(value)
-              if (image) config[key] = image
-            }
-          }
-          return config as SavedSiteConfig
-        }).pipe(Effect.orDie, Effect.withSpan('SiteConfigQueries.build')),
+        sql<{ key: string; value: string }>`select key, value from config`.pipe(
+          Effect.map((rows) => fromConfigRows(new Map(rows.map((row) => [row.key, row.value])))),
+          Effect.orDie,
+          Effect.withSpan('SiteConfigQueries.build'),
+        ),
       )
       return SiteConfigQueries.of({ saved })
     }),

@@ -4,18 +4,16 @@ import { Effect } from 'effect'
 
 import { PostCommands } from '../src/commands/posts.ts'
 import { isUploadableFileName, mimeType } from '../src/domain/post.ts'
-import { makeTestApp } from './app.ts'
+import { defined, makeTestApp } from './app.ts'
 
 const app = makeTestApp()
 beforeAll(app.seedMedia)
 beforeEach(app.seedDatabase)
 afterAll(app.dispose)
 
-const publish = (post: Record<string, unknown>) =>
+const publish = (post: { id: string; type: string; [field: string]: unknown }) =>
   app.run(
-    Effect.flatMap(PostCommands, (commands) =>
-      commands.publish({ post: post as { id: string; type: string }, uploads: [], issues: [] }),
-    ),
+    Effect.flatMap(PostCommands, (commands) => commands.publish({ post, uploads: [], issues: [] })),
   )
 
 describe('found in review', () => {
@@ -48,7 +46,7 @@ describe('found in review', () => {
       body.append('photo_upload', new File(['one'], 'one.jpg'))
       return body
     }
-    let cookie = app.sessionCookie(await app.logIn())!
+    let cookie = defined(app.sessionCookie(await app.logIn()), 'a session cookie')
     let submit = () =>
       app.fetch('/admin/posts/new', { method: 'POST', headers: { Cookie: cookie }, body: form() })
     let statuses = (await Promise.all([submit(), submit()]))
@@ -89,7 +87,7 @@ describe('found in review', () => {
     let id = 'truncated1'
     let photo = Bun.file(`${import.meta.dir}/content/posts/t83tytis1i/cover.jpg`)
     let png = await new Bun.Image(await photo.bytes()).resize(2000, 1500).png().bytes()
-    let cookie = app.sessionCookie(await app.logIn())!
+    let cookie = defined(app.sessionCookie(await app.logIn()), 'a session cookie')
     let body = new FormData()
     for (let [name, value] of Object.entries({
       id,
@@ -111,9 +109,9 @@ describe('found in review', () => {
         .status,
     ).toBe(303)
     let html = await (await app.fetch(`/posts/${id}`)).text()
-    let src = html.match(/srcset="([^" ]+)/)?.[1].replaceAll('&amp;', '&')
+    let src = defined(html.match(/srcset="([^" ]+)/)?.[1], 'a srcset').replaceAll('&amp;', '&')
     expect(src).toMatch(/\/posts\/truncated1\/cut\.png\?w=/)
-    expect((await app.fetch(src!)).status).toBe(404)
+    expect((await app.fetch(src)).status).toBe(404)
   })
 
   it('accepts the photo and video formats LogSpace 0.1 did, with its types', () => {
@@ -125,7 +123,7 @@ describe('found in review', () => {
       ['a.ts', 'video/mp2t'],
       ['a.m2ts', 'video/mp2t'],
       ['a.mov', 'video/quicktime'],
-    ]) {
+    ] as const) {
       expect([name, mimeType(name), isUploadableFileName(name)]).toEqual([name, type, true])
     }
   })

@@ -1,4 +1,6 @@
 // Pieces of a post shared by the feed and the post page.
+import type { Array as Arr } from 'effect'
+
 import { raw, type Html } from '#jsx/jsx-runtime'
 
 import { FULL_WIDTH_IMAGE_SIZES, HALF_WIDTH_IMAGE_SIZES } from '../domain/constants.ts'
@@ -40,9 +42,9 @@ export function Caption(props: { html: string }): Html {
 // shows up to four photos in a grid; the post page (`full`) shows them all, one after another.
 export function PostMedia(props: {
   post: Post
-  preview?: LinkPreview
-  full?: boolean
-  priority?: boolean
+  preview?: LinkPreview | undefined
+  full?: boolean | undefined
+  priority?: boolean | undefined
 }): Html | null {
   let { post, preview, full, priority } = props
   switch (post.type) {
@@ -63,7 +65,10 @@ export function PostMedia(props: {
 
 // A single photo keeps its own shape; two to four share a 16:9 frame, split the way X does it.
 // Past four, the last tile says how many more there are.
-function PhotoGrid(props: { photos: readonly Photo[]; priority?: boolean }): Html {
+function PhotoGrid(props: {
+  photos: Arr.NonEmptyReadonlyArray<Photo>
+  priority?: boolean | undefined
+}): Html {
   let { photos, priority } = props
   if (photos.length === 1) {
     let [photo] = photos
@@ -90,7 +95,7 @@ function PhotoGrid(props: { photos: readonly Photo[]; priority?: boolean }): Htm
   )
 }
 
-function PhotoList(props: { photos: readonly Photo[]; priority?: boolean }): Html {
+function PhotoList(props: { photos: readonly Photo[]; priority?: boolean | undefined }): Html {
   return (
     <div class="photo-list">
       {props.photos.map((photo, index) => (
@@ -123,7 +128,10 @@ function VideoPlayer(props: { video: Video }): Html {
 }
 
 // In the feed the whole post links to the article, so the card itself isn't a link.
-function ArticleCard(props: { article: ArticlePost['article']; priority?: boolean }): Html {
+function ArticleCard(props: {
+  article: ArticlePost['article']
+  priority?: boolean | undefined
+}): Html {
   let { article, priority } = props
   return (
     <div class="media-frame card">
@@ -163,10 +171,10 @@ function LinkCard(props: { preview: LinkPreview }): Html {
 // browser picks the resized copy of the photo that fits `sizes` (full width by default).
 function PostImage(props: {
   photo: Photo
-  priority?: boolean
-  sizes?: string
-  aspectRatio?: string
-  class?: string
+  priority?: boolean | undefined
+  sizes?: string | undefined
+  aspectRatio?: string | undefined
+  class?: string | undefined
 }): Html {
   let { photo, priority, sizes = FULL_WIDTH_IMAGE_SIZES, aspectRatio } = props
   return (
@@ -188,6 +196,12 @@ function PostImage(props: {
 
 // Very tall media is cropped (photos) or letterboxed (videos) to 4:5 so one post can't fill the
 // whole screen. Without a known size, the media keeps its natural shape.
-function displayAspectRatio({ width, height }: { width?: number; height?: number }) {
+function displayAspectRatio({
+  width,
+  height,
+}: {
+  width?: number | undefined
+  height?: number | undefined
+}) {
   return width && height ? String(Math.max(width / height, 4 / 5)) : undefined
 }

@@ -71,8 +71,8 @@ export const AppMiddleware = HttpRouter.middleware(
 function withForwardedOrigin(request: HttpServerRequest.HttpServerRequest) {
   let { protocol, host } = getForwardedOrigin(request.headers)
   return request.modify({
-    protocol: protocol ?? request.protocol,
-    headers: host ? Headers.set(request.headers, 'host', host) : request.headers,
+    ...(protocol && { protocol }),
+    ...(host && { headers: Headers.set(request.headers, 'host', host) }),
   })
 }
 
@@ -116,7 +116,7 @@ const gate = Effect.fnUntraced(function* (
   savedConfig: SiteConfigQueries['Service']['saved'],
 ) {
   if (isSiteConfigured(yield* savedConfig)) return undefined
-  let pathname = request.url.split('?')[0]
+  let [pathname = ''] = request.url.split('?')
   if (ALWAYS_SERVED.some((prefix) => pathname === prefix || pathname.startsWith(prefix + '/'))) {
     return undefined
   }

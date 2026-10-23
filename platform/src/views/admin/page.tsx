@@ -9,7 +9,7 @@ export function AdminPage(props: {
   page: PageContext
   path: string
   title: string
-  loggedIn?: boolean
+  loggedIn?: boolean | undefined
   children: Child
 }): Html {
   let { page, path, title, loggedIn = true, children } = props

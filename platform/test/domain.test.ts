@@ -6,14 +6,14 @@ import { parseLinkMetadata } from '../src/domain/link-metadata.ts'
 import { formatLinkText, getFirstLink, splitLinks } from '../src/domain/links.ts'
 import { captionText, renderArticle, renderCaption } from '../src/domain/markdown.ts'
 import { fromPostRow, toPostRow } from '../src/domain/post-rows.ts'
-import { isUploadableFileName, parsePostRecord } from '../src/domain/post.ts'
+import { isUploadableFileName, parsePostRecord, type PostRecord } from '../src/domain/post.ts'
 import { getPostMeta, toPost } from '../src/domain/presentation.ts'
 import { newPostDate, readPostForm } from '../src/domain/post-form.ts'
 import { formatPostDate } from '../src/domain/format.ts'
 
 const ID = 'fc7p7vjhx6'
 const DATE = '2026-10-16T18:42:00+05:30'
-const text = { id: ID, type: 'text', date: DATE, caption: 'Hi' }
+const text = { id: ID, type: 'text', date: DATE, caption: 'Hi' } satisfies PostRecord
 
 describe('parsePostRecord', () => {
   let issues = (post: unknown) => {
@@ -29,14 +29,14 @@ describe('parsePostRecord', () => {
       field: 'id',
       message: expect.stringMatching(/Expected 10 lowercase letters and digits/),
     })
-    expect(issues({ ...text, id: ID.toUpperCase() })[0].field).toBe('id')
+    expect(issues({ ...text, id: ID.toUpperCase() })[0]?.field).toBe('id')
     expect(issues({ ...text, date: '2026-10-16' })[0]).toMatchObject({
       field: 'date',
       message: expect.stringMatching(/Expected a date/),
     })
-    expect(issues({ ...text, caption: ' ' })[0].message).toBe('Text posts need a caption')
-    expect(issues({ ...text, type: 'poll' })[0].field).toBe('type')
-    expect(issues({ ...text, type: 'photos', photos: [] })[0].message).toBe(
+    expect(issues({ ...text, caption: ' ' })[0]?.message).toBe('Text posts need a caption')
+    expect(issues({ ...text, type: 'poll' })[0]?.field).toBe('type')
+    expect(issues({ ...text, type: 'photos', photos: [] })[0]?.message).toBe(
       'Expected at least one photo',
     )
     expect(issues({ ...text, type: 'video', video: { file: '../secret.mp4' } })[0]).toEqual({
@@ -69,7 +69,7 @@ describe('parsePostRecord', () => {
   })
 
   it('throws, naming the post and field, for a stored post that’s wrong', () => {
-    let row = { ...toPostRow({ ...text, type: 'text' } as never), date: 'yesterday' }
+    let row = { ...toPostRow(text), date: 'yesterday' }
     expect(() => fromPostRow(row)).toThrow(`post "${ID}", date: Expected a date`)
   })
 })
@@ -191,7 +191,6 @@ describe('parseLinkMetadata', () => {
       title: "Tom & Jerry's",
       description: 'A description',
       image: 'https://example.com/share.png',
-      smallImage: undefined,
     })
   })
 
@@ -218,7 +217,7 @@ describe('presentation', () => {
     let photos = [
       { file: 'a b.jpg', alt: 'A' },
       { file: 'c.jpg', alt: 'C' },
-    ]
+    ] as const
     let post = toPost({ id: ID, type: 'photos', date: DATE, photos }, (file) =>
       file === 'c.jpg' ? { width: 500, height: 400, version: 'v1' } : undefined,
     )

@@ -1,6 +1,8 @@
 // What a command can refuse to do. These are expected: the page that sent the command shows why.
 import { Schema } from 'effect'
 
+import { SITE_CONFIG_FIELDS } from '../domain/site.ts'
+
 const PostIssue = Schema.Struct({
   field: Schema.optionalKey(Schema.String),
   message: Schema.String,
@@ -20,7 +22,10 @@ export class SiteConfigRejected extends Schema.TaggedError<SiteConfigRejected>()
   'SiteConfigRejected',
   {
     issues: Schema.Array(
-      Schema.Struct({ field: Schema.optionalKey(Schema.String), message: Schema.String }),
+      Schema.Struct({
+        field: Schema.optionalKey(Schema.Literals(SITE_CONFIG_FIELDS)),
+        message: Schema.String,
+      }),
     ),
   },
 ) {}

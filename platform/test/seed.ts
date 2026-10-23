@@ -3,7 +3,7 @@
 // rather than in posts.json, since Markdown is easier to read in a file of its own.
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
-import { Effect } from 'effect'
+import { Effect, Predicate, Schema } from 'effect'
 import { SqlClient } from 'effect/sql'
 
 import { PostFiles } from '../src/commands/post-files.ts'
@@ -53,18 +53,29 @@ export const seedMedia = Effect.gen(function* () {
   }
 })
 
+// posts.json: posts, each with an id and a type, checked by parsePostRecord once their article
+// bodies are read in.
+const decodeTestPosts = Schema.decodeUnknownSync(
+  Schema.Array(
+    Schema.StructWithRest(Schema.Struct({ id: Schema.String, type: Schema.String }), [
+      Schema.Record(Schema.String, Schema.Unknown),
+    ]),
+  ),
+)
+
 // Throws, naming the post and field, if posts.json is invalid.
 export async function readTestPosts(): Promise<PostRecord[]> {
-  let records = await Bun.file(path.join(TEST_CONTENT_DIR, 'posts.json')).json()
+  let records = decodeTestPosts(await Bun.file(path.join(TEST_CONTENT_DIR, 'posts.json')).json())
   return Promise.all(
-    records.map(async (record: Record<string, any>) => {
-      if (record.type === 'article' && !('body' in record.article)) {
-        let file = path.join(TEST_CONTENT_DIR, 'posts', record.id, 'article.md')
-        record = { ...record, article: { ...record.article, body: await Bun.file(file).text() } }
+    records.map(async (record) => {
+      let { id, type, article } = record
+      if (type === 'article' && Predicate.isObject(article) && !('body' in article)) {
+        let file = path.join(TEST_CONTENT_DIR, 'posts', id, 'article.md')
+        record = { ...record, article: { ...article, body: await Bun.file(file).text() } }
       }
       let result = parsePostRecord(record)
       if (result._tag === 'Failure')
-        throw new Error(`Invalid test post ${record.id}: ${JSON.stringify(result.failure)}`)
+        throw new Error(`Invalid test post ${id}: ${JSON.stringify(result.failure)}`)
       return result.success
     }),
   )

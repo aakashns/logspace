@@ -11,8 +11,8 @@ import { Caption, PostMedia, PostMeta } from './post.tsx'
 export function PostPage(props: {
   post: Post
   siteUrl: string
-  preview?: LinkPreview
-  articleHtml?: string
+  preview?: LinkPreview | undefined
+  articleHtml?: string | undefined
 }): Html {
   let { post, siteUrl, preview, articleHtml } = props
 

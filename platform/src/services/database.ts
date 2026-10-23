@@ -4,10 +4,9 @@
 // the `data_table_migrations` table, in the same rows LogSpace 0.1 (the Remix version) wrote: the
 // same ids, names, and SHA-256 checksums. So a database 0.1 made is upgraded in place, and 0.1 can
 // still open one this made.
-import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { SqliteClient } from '@effect/sql-sqlite-bun'
-import { Context, Effect, Layer } from 'effect'
+import { Context, Effect, FileSystem, Layer } from 'effect'
 import { SqlClient } from 'effect/sql'
 
 import createPosts from '../../db/migrations/0001_create_posts.sql' with { type: 'text' }
@@ -31,7 +30,11 @@ export const DatabaseLive = Layer.unwrap(
   Effect.gen(function* () {
     let { databasePath } = yield* AppConfig
     // SQLite creates the file but not its folder.
-    if (databasePath !== ':memory:') fs.mkdirSync(path.dirname(databasePath), { recursive: true })
+    if (databasePath !== ':memory:') {
+      yield* (yield* FileSystem.FileSystem).makeDirectory(path.dirname(databasePath), {
+        recursive: true,
+      })
+    }
     return SqliteClient.layer({ filename: databasePath }).pipe(
       Layer.tap((context) =>
         Context.get(context, SqliteClient.SqliteClient).unsafe('PRAGMA foreign_keys = ON'),

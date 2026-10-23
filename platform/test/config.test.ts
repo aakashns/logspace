@@ -1,15 +1,24 @@
 // The site's settings: /admin/config, the site's images, and the gate in front of a site that
 // isn't set up yet.
 import { afterAll, beforeEach, describe, expect, it } from 'bun:test'
-import { Effect } from 'effect'
+import { Effect, Schema } from 'effect'
 import { SqlClient } from 'effect/sql'
 
 import { isSiteConfigured } from '../src/domain/site.ts'
 import { SiteConfigQueries } from '../src/queries/site-config.ts'
-import { makeTestApp } from './app.ts'
+import { capture, defined, makeTestApp } from './app.ts'
 import { TEST_SITE_CONFIG } from './seed.ts'
 
 const app = makeTestApp()
+// The parts of site.webmanifest the tests check.
+const decodeManifest = Schema.decodeUnknownSync(
+  Schema.Struct({
+    theme_color: Schema.String,
+    background_color: Schema.String,
+    icons: Schema.Array(Schema.Struct({ src: Schema.String })),
+  }),
+)
+const manifest = async () => decodeManifest(await (await app.fetch('/site.webmanifest')).json())
 const savedConfig = () => app.run(Effect.flatMap(SiteConfigQueries, (queries) => queries.saved))
 const sql = <A extends object>(
   run: (sql: SqlClient.SqlClient) => Effect.Effect<readonly A[], unknown>,
@@ -18,7 +27,7 @@ const sql = <A extends object>(
 beforeEach(app.seedDatabase)
 afterAll(app.dispose)
 
-const save = (body: URLSearchParams | FormData, headers?: HeadersInit) =>
+const save = (body: URLSearchParams | FormData, headers: HeadersInit = {}) =>
   app.adminFetch('/admin/config', { method: 'POST', headers, body })
 const configForm = (fields: Record<string, string> = {}) =>
   new URLSearchParams({ ...TEST_SITE_CONFIG, ...fields })
@@ -87,11 +96,11 @@ describe('/admin/config', () => {
     })
 
     // The next page says it was saved, once.
-    let flashed = app.sessionCookie(response)!
+    let flashed = defined(app.sessionCookie(response), 'a session cookie')
     let saved = await app.fetch('/admin/config', { headers: { Cookie: flashed } })
     expect(await saved.text()).toMatch(/role="status"[^>]*>Saved\./)
     let afterwards = await app.fetch('/admin/config', {
-      headers: { Cookie: app.sessionCookie(saved)! },
+      headers: { Cookie: defined(app.sessionCookie(saved), 'a session cookie') },
     })
     expect(await afterwards.text()).not.toMatch(/Saved\./)
 
@@ -108,7 +117,7 @@ describe('/admin/config', () => {
     let rows = await sql<{ value: string }>(
       (sql) => sql`select value from config where key = 'siteTitle'`,
     )
-    expect(rows[0].value).toBe('New Title')
+    expect(rows[0]?.value).toBe('New Title')
   })
 
   it('rejects settings that are missing or invalid, keeping what was typed', async () => {
@@ -118,7 +127,7 @@ describe('/admin/config', () => {
       ['siteUrl', 'example.com'],
       ['siteUrl', 'https://example.com/blog'],
       ['siteUrl', 'javascript:alert(1)'],
-    ]) {
+    ] as const) {
       let response = await save(configForm({ [field]: value, heroHeading: 'Typed heading' }))
       let html = await response.text()
       expect([field, value, response.status]).toEqual([field, value, 400])
@@ -192,10 +201,9 @@ describe('the site’s images', () => {
     expect(html).toMatch(/<header[^]*>Test Site<\/span><\/a>[^]*<\/header>/)
     expect(html).not.toMatch(/og:image/)
     expect(html).toMatch(/<meta name="twitter:card" content="summary">/)
-    let icon = html.match(/<link rel="icon" href="\/favicon\.ico\?v=([0-9a-f]{12})"/)
-    expect(icon).not.toBeNull()
+    let icon = capture(html, /<link rel="icon" href="\/favicon\.ico\?v=([0-9a-f]{12})"/)
     // A URL with the current version is cached for good.
-    let versioned = await app.fetch(`/favicon.ico?v=${icon![1]}`)
+    let versioned = await app.fetch(`/favicon.ico?v=${icon}`)
     expect(versioned.headers.get('Cache-Control')).toBe('public, max-age=31536000, immutable')
     expect(favicon.headers.get('Cache-Control')).toBe('public, max-age=3600')
   })
@@ -210,15 +218,18 @@ describe('the site’s images', () => {
       ),
     )
     expect(response.status).toBe(303)
-    let { logo: savedLogo, icon, socialImage } = await savedConfig()
+    let saved = await savedConfig()
+    let savedLogo = defined(saved.logo, 'the logo')
+    let icon = defined(saved.icon, 'the icon')
+    let socialImage = defined(saved.socialImage, 'the social image')
     expect({ ...savedLogo, version: undefined }).toEqual({
       file: 'logo.png',
       width: 640,
       height: 160,
       version: undefined,
     })
-    expect(icon?.file).toBe('icon-512.png')
-    expect([socialImage?.file, socialImage?.width]).toEqual(['social.jpg', 1200])
+    expect(icon.file).toBe('icon-512.png')
+    expect([socialImage.file, socialImage.width]).toEqual(['social.jpg', 1200])
 
     let logoFile = await app.fetch('/site/logo.png')
     expect(logoFile.headers.get('Content-Type')).toBe('image/png')
@@ -233,19 +244,16 @@ describe('the site’s images', () => {
     let html = await (await app.fetch('/')).text()
     expect(html).toMatch(
       new RegExp(
-        `<span role="img" aria-label="Test Site"[^>]*mask-image: url\\(&quot;/site/logo\\.png\\?v=${savedLogo!.version}&quot;\\)`,
+        `<span role="img" aria-label="Test Site"[^>]*mask-image: url\\(&quot;/site/logo\\.png\\?v=${savedLogo.version}&quot;\\)`,
       ),
     )
     expect(html).toContain(
-      `<meta property="og:image" content="https://example.com/site/social.jpg?v=${socialImage!.version}">`,
+      `<meta property="og:image" content="https://example.com/site/social.jpg?v=${socialImage.version}">`,
     )
     expect(html).toContain('<meta property="og:image:alt" content="A red card">')
     expect(html).toContain('<meta property="og:image:width" content="1200">')
-    expect(html).toContain(`href="/favicon.ico?v=${icon!.version}"`)
-    let manifest = (await (await app.fetch('/site.webmanifest')).json()) as {
-      icons: { src: string }[]
-    }
-    expect(manifest.icons[0].src).toBe(`/site/icon-192.png?v=${icon!.version}`)
+    expect(html).toContain(`href="/favicon.ico?v=${icon.version}"`)
+    expect((await manifest()).icons[0]?.src).toBe(`/site/icon-192.png?v=${icon.version}`)
 
     // A PNG stays a PNG, and the JPEG it replaces goes.
     await save(imageForm({ socialImage: await png(1200, 630) }, { socialImageAlt: 'Red' }))
@@ -267,12 +275,10 @@ describe('the site’s images', () => {
   })
 
   it('makes the icon’s files from a square upload, and names the web app’s color', async () => {
-    type Manifest = { theme_color: string; background_color: string; icons: { src: string }[] }
-
     // LogSpace's icon is a dark gray circle.
-    let manifest = (await (await app.fetch('/site.webmanifest')).json()) as Manifest
-    expect([manifest.theme_color, manifest.background_color]).toEqual(['#161616', '#161616'])
-    expect(manifest.icons.length).toBe(2)
+    let { theme_color, background_color, icons } = await manifest()
+    expect([theme_color, background_color]).toEqual(['#161616', '#161616'])
+    expect(icons.length).toBe(2)
 
     expect((await save(imageForm({ icon: await jpeg(700, 700) }))).status).toBe(303)
     expect((await savedConfig()).icon?.file).toBe('icon-512.png')
@@ -291,8 +297,8 @@ describe('the site’s images', () => {
     expect(await new Bun.Image(favicon).metadata()).toMatchObject({ width: 32, height: 32 })
 
     // Without a color of its own, the web app's is white.
-    manifest = (await (await app.fetch('/site.webmanifest')).json()) as Manifest
-    expect([manifest.theme_color, manifest.background_color]).toEqual(['#ffffff', '#ffffff'])
+    let uploaded = await manifest()
+    expect([uploaded.theme_color, uploaded.background_color]).toEqual(['#ffffff', '#ffffff'])
   })
 
   it('refuses icons that aren’t square or big enough, SVGs, and WebP social images', async () => {
@@ -356,7 +362,7 @@ describe('a site that isn’t configured', () => {
     expect(html).toMatch(/<header[^]*>LogSpace<\/span><\/a>[^]*<\/header>/)
     // The feed isn't there yet.
     expect(html).not.toMatch(/rss\.xml/)
-    let datastar = html.match(/src="(\/assets\/datastar\.[^"]+)"/)![1]
+    let datastar = capture(html, /src="(\/assets\/datastar\.[^"]+)"/)
     for (let path of [
       datastar,
       '/favicon.ico',
@@ -369,7 +375,7 @@ describe('a site that isn’t configured', () => {
   })
 
   it('sends the admin to /admin/config, where the site URL is filled in', async () => {
-    let cookie = fresh.sessionCookie(await fresh.logIn())!
+    let cookie = defined(fresh.sessionCookie(await fresh.logIn()), 'a session cookie')
     let admin = await fresh.fetch('/admin', { headers: { Cookie: cookie } })
     expect(admin.status).toBe(302)
     expect(admin.headers.get('Location')).toBe('/admin/config')
@@ -385,7 +391,7 @@ describe('a site that isn’t configured', () => {
   })
 
   it('is public once its required settings are saved', async () => {
-    let cookie = fresh.sessionCookie(await fresh.logIn())!
+    let cookie = defined(fresh.sessionCookie(await fresh.logIn()), 'a session cookie')
     let { siteTitle, siteUrl, siteDescription } = TEST_SITE_CONFIG
     let response = await fresh.fetch('/admin/config', {
       method: 'POST',
@@ -408,7 +414,7 @@ describe('behind a reverse proxy', () => {
   afterAll(proxied.dispose)
 
   it('fills in the site URL with the protocol and host the browser used', async () => {
-    let cookie = proxied.sessionCookie(await proxied.logIn())!
+    let cookie = defined(proxied.sessionCookie(await proxied.logIn()), 'a session cookie')
     let html = await (
       await proxied.fetch('/admin/config', {
         headers: {

@@ -2,7 +2,8 @@
 // a database it made is upgraded in place.
 import { describe, expect, it } from 'bun:test'
 import { Database } from 'bun:sqlite'
-import { Effect, Layer, Redacted } from 'effect'
+import { BunFileSystem } from '@effect/platform-bun'
+import { Effect, Layer, Redacted, Schema } from 'effect'
 
 import { AppConfig } from '../src/config.ts'
 import { DatabaseLive, Migrations } from '../src/services/database.ts'
@@ -14,6 +15,7 @@ const migrate = (databasePath: string, dryRun = false) =>
       Effect.provide(
         Migrations.layer.pipe(
           Layer.provide(DatabaseLive),
+          Layer.provide(BunFileSystem.layer),
           Layer.provide(
             Layer.succeed(
               AppConfig,
@@ -70,10 +72,9 @@ describe('migrations', () => {
         batch: 1,
       },
     ])
-    let columns = db
-      .query("select name from pragma_table_info('posts')")
-      .all()
-      .map((row: any) => row.name)
+    let columns = Schema.decodeUnknownSync(Schema.Array(Schema.Struct({ name: Schema.String })))(
+      db.query("select name from pragma_table_info('posts')").all(),
+    ).map((row) => row.name)
     expect(columns).toContain('article_body')
     db.close()
   })

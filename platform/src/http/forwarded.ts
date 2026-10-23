@@ -7,8 +7,8 @@
 // host the app saw.)
 
 export interface ForwardedOrigin {
-  readonly protocol?: 'http' | 'https'
-  readonly host?: string
+  readonly protocol?: 'http' | 'https' | undefined
+  readonly host?: string | undefined
 }
 
 export function getForwardedOrigin(

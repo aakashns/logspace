@@ -1,15 +1,19 @@
 // What a link's page says about itself, for its preview card: its Open Graph / Twitter card
 // tags, else its <title> and meta description.
+import { Schema } from 'effect'
+
 import { clamp } from './format.ts'
 
-export interface LinkMetadata {
-  readonly title?: string
-  readonly description?: string
-  readonly image?: string
+// As it's cached (see queries/link-previews.ts).
+export const LinkMetadata = Schema.Struct({
+  title: Schema.optionalKey(Schema.String),
+  description: Schema.optionalKey(Schema.String),
+  image: Schema.optionalKey(Schema.String),
   // Sites asking for a small card (twitter:card "summary", e.g. profile pages with a square
   // avatar) get a thumbnail beside the text instead of a wide image above it.
-  readonly smallImage?: boolean
-}
+  smallImage: Schema.optionalKey(Schema.Boolean),
+})
+export type LinkMetadata = typeof LinkMetadata.Type
 
 export function parseLinkMetadata(html: string, pageUrl: string): LinkMetadata {
   let headEnd = html.search(/<\/head>/i)
@@ -17,7 +21,7 @@ export function parseLinkMetadata(html: string, pageUrl: string): LinkMetadata {
   let meta = new Map<string, string>()
   for (let [tag] of head.matchAll(/<meta\s[^>]*>/gi)) {
     let attributes = new Map<string, string>()
-    for (let [, name, , doubleQuoted, singleQuoted, bare] of tag.matchAll(
+    for (let [, name = '', , doubleQuoted, singleQuoted, bare = ''] of tag.matchAll(
       /([\w:-]+)\s*=\s*("([^"]*)"|'([^']*)'|([^\s"'>]+))/g,
     )) {
       attributes.set(name.toLowerCase(), doubleQuoted ?? singleQuoted ?? bare)
@@ -40,11 +44,12 @@ export function parseLinkMetadata(html: string, pageUrl: string): LinkMetadata {
     'twitter:image:src',
   )
 
+  let imageUrl = image && toHttpsUrl(image, pageUrl)
   return {
-    title: title ? clamp(title, 200) : undefined,
-    description: description ? clamp(description, 300) : undefined,
-    image: image ? toHttpsUrl(image, pageUrl) : undefined,
-    smallImage: meta.get('twitter:card') === 'summary' || undefined,
+    ...(title && { title: clamp(title, 200) }),
+    ...(description && { description: clamp(description, 300) }),
+    ...(imageUrl && { image: imageUrl }),
+    ...(meta.get('twitter:card') === 'summary' && { smallImage: true }),
   }
 }
 
@@ -66,9 +71,8 @@ const NAMED_ENTITIES: Record<string, string> = {
 
 function decodeEntities(text: string): string {
   return text.replace(/&(#x[\da-f]+|#\d+|\w+);/gi, (entity, code: string) => {
-    if (code[0] !== '#') return NAMED_ENTITIES[code.toLowerCase()] ?? entity
-    let point =
-      code[1].toLowerCase() === 'x' ? parseInt(code.slice(2), 16) : parseInt(code.slice(1), 10)
+    if (!code.startsWith('#')) return NAMED_ENTITIES[code.toLowerCase()] ?? entity
+    let point = /^#x/i.test(code) ? parseInt(code.slice(2), 16) : parseInt(code.slice(1), 10)
     return point > 0 && point <= 0x10ffff ? String.fromCodePoint(point) : entity
   })
 }

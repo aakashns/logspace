@@ -1,6 +1,10 @@
 {
   "compilerOptions": {
     "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "types": ["bun"],
     "module": "Preserve",

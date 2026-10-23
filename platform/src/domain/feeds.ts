@@ -1,7 +1,7 @@
 // The files the site serves for machines: sitemap.xml, rss.xml, and robots.txt. Pure: the
 // handlers in ../http/public.ts pass in the posts and the site's settings.
 import { routes } from '../routes.ts'
-import { getPostMeta, type Post } from './presentation.ts'
+import { getPostMeta, type Photo, type Post } from './presentation.ts'
 import type { SiteConfig } from './site.ts'
 
 // Text and attribute values in XML.
@@ -81,7 +81,7 @@ export function createRssFeed(items: readonly FeedItem[], site: SiteConfig): str
 // Photos link to the uploaded files rather than resized copies, as readers pick their own sizes.
 function renderPostHtml(post: Post, siteUrl: string, articleHtml = ''): string {
   let parts = post.captionHtml ? [post.captionHtml] : []
-  let image = (photo: { src: string; alt: string; width?: number; height?: number }) =>
+  let image = (photo: Photo) =>
     `<p><img src="${escapeXml(photo.src)}" alt="${escapeXml(photo.alt)}"${size(photo)}></p>`
   switch (post.type) {
     case 'photos':
@@ -104,7 +104,13 @@ function renderPostHtml(post: Post, siteUrl: string, articleHtml = ''): string {
   return absoluteUrls(parts.join('\n'), siteUrl)
 }
 
-function size({ width, height }: { width?: number; height?: number }): string {
+function size({
+  width,
+  height,
+}: {
+  width?: number | undefined
+  height?: number | undefined
+}): string {
   return width && height ? ` width="${width}" height="${height}"` : ''
 }
 

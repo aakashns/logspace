@@ -90,18 +90,14 @@ const logspace = Command.make('logspace', {}, () => runServer).pipe(
 
 // The old binary's spellings of help and version, which prints the version alone, for scripts.
 const argv = process.argv.slice(2)
-if (['version', '--version', '-v'].includes(argv[0] ?? '')) {
-  console.log(VERSION)
-  process.exit(0)
-}
 if (argv[0] === 'help') argv[0] = '--help'
+const program = ['version', '--version', '-v'].includes(argv[0] ?? '')
+  ? Console.log(VERSION)
+  : Command.runWith(logspace, { version: VERSION })(argv)
 
-Command.runWith(logspace, { version: VERSION })(argv).pipe(
-  Effect.catchTag('CommandError', (error) =>
-    Effect.flatMap(Console.error(`Error: ${error.message}`), () =>
-      Effect.sync(() => process.exit(1)),
-    ),
-  ),
+program.pipe(
+  // Printed with its message alone. It still fails the run, so the binary exits with 1.
+  Effect.tapErrorTag('CommandError', (error) => Console.error(`Error: ${error.message}`)),
   Effect.provide(BunServices.layer),
   BunRuntime.runMain,
 )

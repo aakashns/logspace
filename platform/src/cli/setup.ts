@@ -9,15 +9,12 @@
 // out. Existing Caddy site blocks for these domains are replaced. The app's port is PORT in the
 // env file (44100 when it isn't set), which Caddy is pointed at, so run it again after changing
 // it.
-import * as fs from 'node:fs'
-import * as os from 'node:os'
-import * as path from 'node:path'
-import { Console, Effect } from 'effect'
+import { Array as Arr, Console, Effect, FileSystem, Path } from 'effect'
 
 import { promptAdminPassword } from './admin-password.ts'
 import { addSite } from './caddyfile.ts'
 import { ENV_FILE, readEnvFile, setEnvVariable } from './env-file.ts'
-import { fail, IS_BINARY, requireRoot, run, VERSION } from './shell.ts'
+import { fail, IS_BINARY, reportFailures, requireRoot, run, VERSION } from './shell.ts'
 
 export const DOMAINS_FILE = '/etc/logspace.domains'
 export const SERVER_DATABASE_PATH = '/var/lib/logspace/app.sqlite'
@@ -62,10 +59,13 @@ export const setup = Effect.fn('setup')(function* (args: readonly string[]) {
   if (process.platform !== 'linux') {
     return yield* fail('setup installs LogSpace on a Linux server, with systemd')
   }
-  if (!IS_BINARY) return yield* fail('setup makes a service of the built binary: run it from there')
+  if (!IS_BINARY) {
+    return yield* fail('setup makes a service of the built binary: run it from there')
+  }
   yield* requireRoot
+  let fs = yield* FileSystem.FileSystem
 
-  let domains = args.length > 0 ? [...args] : savedDomains()
+  let domains = Arr.isReadonlyArrayNonEmpty(args) ? args : yield* savedDomains
   if (!domains) {
     return yield* fail(
       "Give the site's domain, then any that should redirect to it, " +
@@ -73,8 +73,9 @@ export const setup = Effect.fn('setup')(function* (args: readonly string[]) {
     )
   }
   for (let domain of domains) {
-    if (!/^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$/.test(domain))
+    if (!/^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$/.test(domain)) {
       return yield* fail(`Not a domain: ${domain}`)
+    }
   }
   // Checked before anything's changed.
   yield* run('caddy', 'version').pipe(
@@ -82,7 +83,7 @@ export const setup = Effect.fn('setup')(function* (args: readonly string[]) {
   )
 
   yield* createEnvFile
-  let env = readEnvFile()
+  let env = yield* readEnvFile
   let port = env.get('PORT') || String(DEFAULT_PORT)
   if (!/^[1-9]\d{0,4}$/.test(port) || Number(port) > 65535) {
     return yield* fail(`Not a port: PORT=${port} in ${ENV_FILE}`)
@@ -90,79 +91,92 @@ export const setup = Effect.fn('setup')(function* (args: readonly string[]) {
   yield* Console.log(`The app listens on port ${port}`)
   if (!env.get('ADMIN_PASSWORD') && process.stdin.isTTY) {
     yield* Console.log('Choose a password for /admin, at least 16 characters long.')
-    setEnvVariable('ADMIN_PASSWORD', yield* promptAdminPassword)
+    yield* setEnvVariable('ADMIN_PASSWORD', yield* promptAdminPassword)
   }
 
-  let binary = fs.realpathSync(process.execPath)
+  let binary = yield* fs.realPath(process.execPath)
   yield* Console.log(`Installing logspace.service, which runs ${binary}...`)
-  fs.writeFileSync(SERVICE_FILE, service(binary))
-  fs.chmodSync(SERVICE_FILE, 0o644)
+  yield* fs.writeFileString(SERVICE_FILE, service(binary))
+  yield* fs.chmod(SERVICE_FILE, 0o644)
   yield* run('systemctl', 'daemon-reload')
   yield* run('systemctl', 'enable', '--quiet', 'logspace')
   yield* run('systemctl', 'restart', 'logspace')
 
   yield* updateCaddyfile(domains, Number(port))
-  fs.writeFileSync(DOMAINS_FILE, `${domains.join(' ')}\n`)
+  yield* fs.writeFileString(DOMAINS_FILE, `${domains.join(' ')}\n`)
 
   yield* Console.log(`Done: LogSpace ${VERSION} is at https://${domains[0]}`)
-  if (!readEnvFile().get('ADMIN_PASSWORD')) {
+  if (!(yield* readEnvFile).get('ADMIN_PASSWORD')) {
     yield* Console.log('Set the password for /admin with: sudo logspace set-admin-password')
   }
-})
+}, reportFailures)
 
 // Whether the service setup installed runs this binary, so a new one there should set it up
 // again.
-export function runsService(binary: string): boolean {
-  if (!fs.existsSync(DOMAINS_FILE) || !fs.existsSync(SERVICE_FILE)) return false
-  let execStart = `ExecStart=${fs.realpathSync(binary)} start`
-  return fs.readFileSync(SERVICE_FILE, 'utf8').split('\n').includes(execStart)
-}
+export const runsService = Effect.fnUntraced(function* (binary: string) {
+  let fs = yield* FileSystem.FileSystem
+  if (!(yield* fs.exists(DOMAINS_FILE)) || !(yield* fs.exists(SERVICE_FILE))) return false
+  let execStart = `ExecStart=${yield* fs.realPath(binary)} start`
+  return (yield* fs.readFileString(SERVICE_FILE)).split('\n').includes(execStart)
+})
 
-function savedDomains(): string[] | undefined {
-  if (!fs.existsSync(DOMAINS_FILE)) return undefined
-  let domains = fs.readFileSync(DOMAINS_FILE, 'utf8').split(/\s+/).filter(Boolean)
-  return domains.length > 0 ? domains : undefined
-}
+// The domains the last setup was for.
+const savedDomains = Effect.gen(function* () {
+  let fs = yield* FileSystem.FileSystem
+  if (!(yield* fs.exists(DOMAINS_FILE))) return undefined
+  let domains = (yield* fs.readFileString(DOMAINS_FILE)).split(/\s+/).filter(Boolean)
+  return Arr.isArrayNonEmpty(domains) ? domains : undefined
+})
 
 // Created once, with a random session secret and the default port.
 const createEnvFile = Effect.gen(function* () {
-  if (fs.existsSync(ENV_FILE)) {
-    fs.chmodSync(ENV_FILE, 0o600)
-    return
-  }
+  let fs = yield* FileSystem.FileSystem
+  if (yield* fs.exists(ENV_FILE)) return yield* fs.chmod(ENV_FILE, 0o600)
   yield* Console.log(`Creating ${ENV_FILE}...`)
   let secret = crypto.getRandomValues(new Uint8Array(32)).toBase64()
   let env = `ADMIN_PASSWORD=\nAUTH_SESSION_SECRET=${secret}\nPORT=${DEFAULT_PORT}\n`
-  fs.writeFileSync(ENV_FILE, env, { mode: 0o600, flag: 'wx' })
+  yield* fs.writeFileString(ENV_FILE, env, { mode: 0o600, flag: 'wx' })
 })
 
 // Checks the new Caddyfile before it replaces the live one, and puts the old one back if Caddy
 // rejects it on reload.
-const updateCaddyfile = Effect.fnUntraced(function* (domains: string[], port: number) {
+const updateCaddyfile = Effect.fnUntraced(function* (
+  domains: Arr.NonEmptyReadonlyArray<string>,
+  port: number,
+) {
+  let fs = yield* FileSystem.FileSystem
+  let path = yield* Path.Path
   yield* Console.log(`Updating ${CADDYFILE}...`)
-  let existing = fs.existsSync(CADDYFILE) ? fs.readFileSync(CADDYFILE, 'utf8') : ''
+  let existing = (yield* fs.exists(CADDYFILE)) ? yield* fs.readFileString(CADDYFILE) : ''
   let result = addSite(existing, { domains, port })
   if (!result.ok) return yield* fail(result.error)
 
-  let dir = fs.mkdtempSync(path.join(os.tmpdir(), 'logspace-caddy-'))
-  let candidate = path.join(dir, 'Caddyfile')
-  fs.writeFileSync(candidate, result.caddyfile)
-  yield* run('caddy', 'validate', '--config', candidate, '--adapter', 'caddyfile').pipe(
-    Effect.ensuring(Effect.sync(() => fs.rmSync(dir, { recursive: true, force: true }))),
+  yield* Effect.scoped(
+    Effect.gen(function* () {
+      let dir = yield* fs.makeTempDirectoryScoped({ prefix: 'logspace-caddy-' })
+      let candidate = path.join(dir, 'Caddyfile')
+      yield* fs.writeFileString(candidate, result.caddyfile)
+      yield* run('caddy', 'validate', '--config', candidate, '--adapter', 'caddyfile')
+    }),
   )
 
   let backup = `${CADDYFILE}.bak`
-  fs.mkdirSync(path.dirname(CADDYFILE), { recursive: true })
-  fs.writeFileSync(backup, existing)
-  fs.writeFileSync(CADDYFILE, result.caddyfile)
-  fs.chmodSync(CADDYFILE, 0o644)
+  yield* fs.makeDirectory(path.dirname(CADDYFILE), { recursive: true })
+  yield* fs.writeFileString(backup, existing)
+  yield* fs.writeFileString(CADDYFILE, result.caddyfile)
+  yield* fs.chmod(CADDYFILE, 0o644)
   yield* run('systemctl', 'reload-or-restart', 'caddy').pipe(
-    Effect.catch((error) => {
-      fs.writeFileSync(CADDYFILE, existing)
-      return Effect.fail(
-        fail(`Caddy didn't take the new config, so the old one is back. ${error.message}`),
-      )
-    }),
+    Effect.catch((error) =>
+      fs
+        .writeFileString(CADDYFILE, existing)
+        .pipe(
+          Effect.andThen(
+            Effect.fail(
+              fail(`Caddy didn't take the new config, so the old one is back. ${error.message}`),
+            ),
+          ),
+        ),
+    ),
   )
   yield* Console.log(`The previous Caddyfile is in ${backup}`)
 })

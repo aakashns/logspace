@@ -1,16 +1,15 @@
 // What a post is made of (see docs/posts.md), and the checks a post goes through
 // before it's stored. Pure: storing posts is in ../commands and ../queries, showing them in
 // presentation.ts.
-import { Result, Schema } from 'effect'
+import { Array as Arr, Result, Schema } from 'effect'
+
+import { toIssues, type Issue } from './issues.ts'
 
 export const POST_TYPES = ['text', 'photos', 'video', 'article'] as const
 export type PostType = (typeof POST_TYPES)[number]
 
 // A problem with a post. `field` is the path to the value, like "photos.0.file".
-export interface PostIssue {
-  readonly field?: string
-  readonly message: string
-}
+export type PostIssue = Issue
 
 // Post ids are 10 lowercase letters and digits (see newPostId).
 export function isPostId(id: unknown): id is string {
@@ -22,9 +21,11 @@ export function newPostId(): string {
   let alphabet = '0123456789abcdefghijklmnopqrstuvwxyz'
   let id = ''
   while (id.length < 10) {
-    let [byte] = crypto.getRandomValues(new Uint8Array(1))
-    // 252 is the largest multiple of 36 that fits in a byte, so every character is equally likely.
-    if (byte < 252) id += alphabet[byte % 36]
+    for (let byte of crypto.getRandomValues(new Uint8Array(10 - id.length))) {
+      // 252 is the largest multiple of 36 that fits in a byte, so every character is equally
+      // likely.
+      if (byte < 252) id += alphabet.charAt(byte % 36)
+    }
   }
   return id
 }
@@ -110,8 +111,8 @@ const TextPost = Schema.Struct({
 const PhotosPost = Schema.Struct({
   ...basePost,
   type: Schema.Literal('photos'),
-  photos: Schema.Array(PhotoRecord).check(
-    valid((photos: readonly unknown[]) => photos.length > 0, 'Expected at least one photo'),
+  photos: Schema.Array(PhotoRecord).pipe(
+    Schema.refine(Arr.isReadonlyArrayNonEmpty, message('Expected at least one photo')),
   ),
 })
 
@@ -143,27 +144,23 @@ const ArticlePost = Schema.Struct({
 export type PostRecord = typeof PostRecord.Type
 export const PostRecord = Schema.Union([TextPost, PhotosPost, VideoPost, ArticlePost])
 
-const validators = {
-  text: Schema.toStandardSchemaV1(TextPost),
-  photos: Schema.toStandardSchemaV1(PhotosPost),
-  video: Schema.toStandardSchemaV1(VideoPost),
-  article: Schema.toStandardSchemaV1(ArticlePost),
-}
+// The type is checked first, so a post of no known type gets one issue about it, rather than one
+// for each type it might have been. The union then checks only the fields of the post's type.
+const TYPE_MESSAGE = 'Expected text, photos, video, or article'
+const decodeType = Schema.decodeUnknownResult(
+  Schema.Struct({
+    type: Schema.Literals(POST_TYPES)
+      .annotate(message(TYPE_MESSAGE))
+      .annotateKey({ messageMissingKey: TYPE_MESSAGE }),
+  }),
+)
+const decodePost = Schema.decodeUnknownResult(PostRecord, { errors: 'all' })
 
 // Checks one post, as the /admin post form submits it, reporting every problem at once.
 export function parsePostRecord(data: unknown): Result.Result<PostRecord, PostIssue[]> {
-  let type = (data as { type?: unknown } | null)?.type
-  if (!POST_TYPES.includes(type as PostType)) {
-    return Result.fail([{ field: 'type', message: 'Expected text, photos, video, or article' }])
-  }
-  let result = validators[type as PostType]['~standard'].validate(data)
-  if (result instanceof Promise) throw new Error('Post schemas are synchronous')
-  if (!result.issues) return Result.succeed(result.value as PostRecord)
-  return Result.fail(
-    result.issues.map((issue) => {
-      let path = (issue.path ?? []).map((key) => String(typeof key === 'object' ? key.key : key))
-      return { field: path.length > 0 ? path.join('.') : undefined, message: issue.message }
-    }),
+  return decodeType(data).pipe(
+    Result.flatMap(() => decodePost(data)),
+    Result.mapError((error) => toIssues(error.issue)),
   )
 }
 

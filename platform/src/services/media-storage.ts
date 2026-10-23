@@ -12,7 +12,7 @@
 // request fails with a 500 and the error is logged.
 import * as fsp from 'node:fs/promises'
 import * as path from 'node:path'
-import { Context, Effect, Layer } from 'effect'
+import { Clock, Context, Effect, Layer, Predicate } from 'effect'
 
 import { AppConfig } from '../config.ts'
 import { mimeType } from '../domain/post.ts'
@@ -79,7 +79,7 @@ function makeFsStorage(root: string): MediaStorage['Service'] {
           if (!stat.isFile()) return undefined
           return { blob, size: stat.size, type: blob.type, lastModified: stat.mtimeMs }
         } catch (error) {
-          if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined
+          if (isNotFound(error)) return undefined
           throw error
         }
       }),
@@ -102,8 +102,8 @@ function makeFsStorage(root: string): MediaStorage['Service'] {
         let dir = file(prefix)
         let entries = await fsp
           .readdir(dir, { recursive: true, withFileTypes: true })
-          .catch((error: NodeJS.ErrnoException) => {
-            if (error.code === 'ENOENT') return []
+          .catch((error: unknown) => {
+            if (isNotFound(error)) return []
             throw error
           })
         let files = entries.filter((entry) => entry.isFile() && !entry.name.endsWith('.tmp'))
@@ -118,19 +118,24 @@ function makeFsStorage(root: string): MediaStorage['Service'] {
   })
 }
 
+const isNotFound = (error: unknown) =>
+  Predicate.hasProperty(error, 'code') && error.code === 'ENOENT'
+
 function makeMemoryStorage(): MediaStorage['Service'] {
   let files = new Map<string, StoredFile>()
   return MediaStorage.of({
     location: 'memory',
     get: (key) => Effect.sync(() => files.get(key)),
     has: (key) => Effect.sync(() => files.has(key)),
-    put: (key, data) =>
-      Effect.promise(async () => {
-        // Copied, so the stored file doesn't depend on the upload staying around.
-        let bytes = new Uint8Array(data instanceof Blob ? await data.arrayBuffer() : data)
-        let blob = new Blob([bytes], { type: typeOf(key) })
-        files.set(key, { blob, size: blob.size, type: blob.type, lastModified: Date.now() })
-      }),
+    put: Effect.fnUntraced(function* (key, data) {
+      // Copied, so the stored file doesn't depend on the upload staying around.
+      let bytes = new Uint8Array(
+        data instanceof Blob ? yield* Effect.promise(() => data.arrayBuffer()) : data,
+      )
+      let blob = new Blob([bytes], { type: typeOf(key) })
+      let lastModified = yield* Clock.currentTimeMillis
+      files.set(key, { blob, size: blob.size, type: blob.type, lastModified })
+    }),
     remove: (key) => Effect.sync(() => void files.delete(key)),
     list: (prefix) =>
       Effect.sync(() =>

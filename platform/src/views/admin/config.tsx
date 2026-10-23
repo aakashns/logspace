@@ -16,11 +16,11 @@ export interface ConfigPageProps {
   // What was typed, and the images that are saved.
   readonly values: SiteText
   readonly images: SiteImages
-  readonly issues?: readonly SiteConfigIssue[]
+  readonly issues?: readonly SiteConfigIssue[] | undefined
   // Set on the page shown after saving.
-  readonly saved?: boolean
+  readonly saved?: boolean | undefined
   // Set until the site's required settings are saved, when its public pages aren't shown.
-  readonly unconfigured?: boolean
+  readonly unconfigured?: boolean | undefined
 }
 
 const LABELS: Record<keyof SiteConfig, string> = {
@@ -163,12 +163,12 @@ function ImageField(props: {
   kind: SiteImageKind
   label: string
   hint: string
-  invalid?: 'true'
+  invalid?: 'true' | undefined
   preview: Child
   // Shows the preview on a checkerboard, so its transparent parts can be seen.
-  checkered?: boolean
+  checkered?: boolean | undefined
   // Defaults to whether there's a preview.
-  removable?: boolean
+  removable?: boolean | undefined
 }): Html {
   let { kind, label, hint, invalid, preview, checkered, removable = preview !== null } = props
   let id = `config-${kind}`

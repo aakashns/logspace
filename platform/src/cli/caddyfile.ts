@@ -1,9 +1,10 @@
 // Adds the site's blocks to a Caddyfile for `logspace setup`, replacing any it already has for the
 // same domains, and leaving everything else as it is.
+import type { Array as Arr } from 'effect'
 
 export type CaddySite = {
   // The site's domain, then any domains that redirect to it.
-  domains: string[]
+  domains: Arr.NonEmptyReadonlyArray<string>
   // The port the app listens on.
   port: number
 }
