@@ -178,8 +178,8 @@ export function HomePage() {
               </li>
               <li>
                 <strong>Single binary.</strong> Runs as one program and keeps
-                your posts in a SQLite database. Store media on the server’s
-                disk or in any S3-compatible storage.
+                your posts in a SQLite database, and your photos and videos on
+                the server’s disk.
               </li>
             </ul>
           </section>

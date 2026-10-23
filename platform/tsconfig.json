@@ -1,21 +1,20 @@
 {
   "compilerOptions": {
     "strict": true,
-    "lib": ["ES2024", "DOM", "DOM.Iterable"],
-    "types": ["node"],
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "types": ["bun"],
+    "module": "Preserve",
+    "moduleResolution": "bundler",
     "target": "ESNext",
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
-    "rewriteRelativeImportExtensions": true,
     "verbatimModuleSyntax": true,
     "isolatedModules": true,
     "skipLibCheck": true,
+    "noEmit": true,
+    // Pages are TSX rendered straight to HTML strings by src/jsx (no virtual DOM).
     "jsx": "react-jsx",
-    "jsxImportSource": "remix/component",
-    "noEmit": true
+    "jsxImportSource": "#jsx"
   },
-  // These have their own, with Bun's types (see binary/tsconfig.json).
-  "exclude": ["dist", "binary/build.ts", "binary/smoke-test.ts", "binary/setup-test.ts"]
+  "exclude": ["dist", "node_modules"]
 }

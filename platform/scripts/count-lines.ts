@@ -11,16 +11,13 @@ type Kind = 'source' | 'test' | 'config'
 // The first pattern a file matches says what it is.
 const KINDS: [RegExp, Kind][] = [
   [
-    /\.test\.tsx?$|^platform\/test\/|^platform\/binary\/(smoke-test|setup-test|fake-s3)\.ts$/,
+    /\.test\.tsx?$|^platform\/test\/|^platform\/scripts\/(smoke-test|setup-test|bench)\.ts$/,
     'test',
   ],
-  [
-    /^platform\/(app\/|binary\/.*\.ts$|server\.ts$|db\/migrations\/.*\.sql$)|^platform\/scripts\/|^install\.sh$/,
-    'source',
-  ],
+  [/^platform\/(src\/|db\/migrations\/.*\.sql$)|^platform\/scripts\/|^install\.sh$/, 'source'],
   [/\.(json|toml)$|^\.github\/|\.gitignore$/, 'config'],
 ]
-const SKIPPED = /\.lock$|\/test\/content\/|\.woff2$/
+const SKIPPED = /\.lock$|\/test\/content\/|\.woff2$|datastar\.js$/
 
 let verbose = process.argv[2] === '-v'
 let root = fileURLToPath(new URL('../../', import.meta.url))

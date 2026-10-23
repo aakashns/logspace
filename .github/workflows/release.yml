@@ -74,14 +74,14 @@ jobs:
       # Installs sharp's native addon for this runner's platform, which the binary embeds.
       - run: bun install --frozen-lockfile
       - run: bun run build
-      - run: bun binary/smoke-test.ts dist/logspace
+      - run: bun scripts/smoke-test.ts dist/logspace
       # Sets the runner up as a server with `logspace setup`, behind Caddy from Ubuntu's packages.
       - name: Test logspace setup
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq caddy
-          bun binary/setup-test.ts dist/logspace
+          bun scripts/setup-test.ts dist/logspace
       # Named as `logspace upgrade` looks for it.
       - run: mv dist/logspace dist/logspace-${{ matrix.target }}
       - uses: actions/upload-artifact@v7

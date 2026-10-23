@@ -3,38 +3,68 @@
   "plugins": ["typescript", "unicorn", "oxc"],
   "categories": { "correctness": "error" },
   "env": { "builtin": true },
+  // Vendored, minified.
+  "ignorePatterns": ["public/datastar.js"],
+  // The layers of src/ (see README.md), kept apart: each may only import the ones below it.
   "overrides": [
     {
-      "files": ["app/data/**", "app/lib/**"],
-      "rules": { "no-restricted-imports": ["error", { "patterns": ["**/actions/**", "**/ui/**"] }] }
-    },
-    {
-      "files": [
-        "app/data/image-sources.ts",
-        "app/data/posts/model.ts",
-        "app/data/posts/presentation.ts"
-      ],
+      // Pure: no database, storage, sharp, HTTP, or pages.
+      "files": ["src/domain/**"],
       "rules": {
         "no-restricted-imports": [
           "error",
           {
             "patterns": [
-              "**/actions/**",
-              "**/ui/**",
+              "**/services/**",
+              "**/commands/**",
+              "**/queries/**",
+              "**/http/**",
+              "**/views/**",
+              "**/cli/**",
+              "effect/sql",
               "sharp",
-              "../*.ts",
-              "!../image-sources.ts",
-              "./store.ts",
-              "./mutations.ts"
+              "node:fs*"
             ]
           }
         ]
       }
     },
     {
-      "files": ["app/actions/public/**", "app/ui/public/**"],
+      // The read side never writes.
+      "files": ["src/queries/**"],
       "rules": {
-        "no-restricted-imports": ["error", { "patterns": ["**/data/**", "node:*", "sharp"] }]
+        "no-restricted-imports": [
+          "error",
+          { "patterns": ["**/commands/**", "**/http/**", "**/views/**", "**/cli/**"] }
+        ]
+      }
+    },
+    {
+      "files": ["src/commands/**", "src/services/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          { "patterns": ["**/http/**", "**/views/**", "**/cli/**"] }
+        ]
+      }
+    },
+    {
+      // Pages render what they're given; they don't fetch or write.
+      "files": ["src/views/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              "**/services/**",
+              "**/commands/**",
+              "**/http/**",
+              "**/cli/**",
+              "effect/sql",
+              "sharp"
+            ]
+          }
+        ]
       }
     }
   ]
