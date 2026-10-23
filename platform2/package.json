@@ -1,0 +1,37 @@
+{
+  "name": "logspace2",
+  "version": "0.1.2",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#jsx/*": "./src/jsx/*.ts"
+  },
+  "scripts": {
+    "dev": "NODE_ENV=development bun --watch src/main.ts start",
+    "start": "NODE_ENV=production bun src/main.ts start",
+    "build": "bun scripts/build.ts",
+    "test": "bun test",
+    "typecheck": "bun check",
+    "lint": "oxlint",
+    "format": "bun fmt",
+    "format:check": "bun fmt --check",
+    "bench": "bun scripts/bench.ts",
+    "count-lines": "bun scripts/count-lines.ts"
+  },
+  "dependencies": {
+    "@effect/platform-bun": "4.0.6",
+    "@effect/sql-sqlite-bun": "4.0.6",
+    "@tanstack/markdown": "^1.0.0",
+    "effect": "4.0.6",
+    "sharp": "^0.35.5"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.4",
+    "autocannon": "^8",
+    "oxlint": "^1.88.0"
+  },
+  "engines": {
+    "bun": ">=1.4.4"
+  },
+  "packageManager": "bun@1.4.4"
+}

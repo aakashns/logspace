@@ -1,0 +1,58 @@
+[
+  {
+    "id": "drdp3ei6fd",
+    "type": "photos",
+    "date": "2026-10-16T18:42:00+05:30",
+    "city": "Ooty",
+    "caption": "Caught the last light on the ridge trail this evening. Worth every switchback.",
+    "photos": [
+      {
+        "file": "hike-1.jpg",
+        "alt": "River winding through a valley between cliffs"
+      },
+      {
+        "file": "hike-2.jpg",
+        "alt": "Desert canyon with layered red rock"
+      },
+      {
+        "file": "hike-3.jpg",
+        "alt": "Snowy mountain peak above a forest"
+      }
+    ]
+  },
+  {
+    "id": "xf6ddthtoo",
+    "type": "text",
+    "date": "2026-10-15T21:10:00+05:30",
+    "city": "Bengaluru",
+    "caption": "Rebuilt this site on Remix 3 over the weekend. No build step, Web APIs everywhere, and the whole page ships almost no JavaScript.\n\nhttps://remix.run"
+  },
+  {
+    "id": "t83tytis1i",
+    "type": "article",
+    "date": "2026-10-14T09:15:00+05:30",
+    "city": "Bengaluru",
+    "caption": "New post: what a year of building in public taught me about shipping small.",
+    "article": {
+      "title": "A year of building in public",
+      "summary": "Notes on writing weekly updates, why tiny releases beat big launches, and the surprising upside of sharing work before it feels ready.",
+      "cover": {
+        "file": "cover.jpg",
+        "alt": "Laptop and notebook on a wooden desk"
+      }
+    }
+  },
+  {
+    "id": "steq6e0rsh",
+    "type": "video",
+    "date": "2026-10-11T07:30:00+05:30",
+    "city": "Bengaluru",
+    "caption": "Five seconds of the garden waking up 🌸",
+    "video": {
+      "file": "flower.mp4",
+      "poster": "poster.jpg",
+      "width": 64,
+      "height": 36
+    }
+  }
+]

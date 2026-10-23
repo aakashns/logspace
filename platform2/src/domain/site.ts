@@ -1,0 +1,121 @@
+// The site's configuration: what's particular to this site, like its title, the home page's
+// introduction, and its logo and icon. It's set at /admin/config and stored in the `config`
+// table, one row per setting (images as JSON). The title, URL, and description are required:
+// until they're saved the site isn't configured, and its public pages send visitors to
+// /admin/login. Any other setting that's never been saved has its default.
+import { Option, Result, Schema } from 'effect'
+
+// The settings typed into the /admin/config form.
+export interface SiteText {
+  // Shown in the browser tab, link previews, the RSS feed, and as the author of the posts.
+  readonly siteTitle: string
+  // Where the site is served, like "https://example.com", with no path or trailing slash. For
+  // canonical URLs, the sitemap, the RSS feed, link previews, and share links.
+  readonly siteUrl: string
+  // For search results and link previews of pages that have no description of their own.
+  readonly siteDescription: string
+  // The introduction at the top of the home page. Either can be empty.
+  readonly heroHeading: string
+  readonly heroSubheading: string
+  // Describes the social preview image, for people who can't see it. Needed when there's one.
+  readonly socialImageAlt: string
+}
+
+// The file pages link to for one of the site's images (in media storage, at /site/<file>), its
+// size in pixels, and a hash of it for its URLs. The icon also has the color it's on where it
+// can't be transparent, a hex color like "#1a2b3c".
+export const SiteImage = Schema.Struct({
+  file: Schema.String,
+  width: Schema.Int.check(Schema.isGreaterThan(0)),
+  height: Schema.Int.check(Schema.isGreaterThan(0)),
+  version: Schema.String,
+  color: Schema.optionalKey(Schema.String.check(Schema.isPattern(/^#[0-9a-f]{6}$/))),
+})
+export type SiteImage = typeof SiteImage.Type
+
+export const SITE_IMAGE_KINDS = ['logo', 'icon', 'socialImage'] as const
+export type SiteImageKind = (typeof SITE_IMAGE_KINDS)[number]
+
+// The images uploaded at /admin/config. Without a logo the navbar shows the site's title, and
+// without an icon the site has LogSpace's.
+export type SiteImages = { readonly [K in SiteImageKind]?: SiteImage }
+
+export type SiteConfig = SiteText & SiteImages
+
+export const REQUIRED_SETTINGS = ['siteTitle', 'siteUrl', 'siteDescription'] as const
+export type RequiredSetting = (typeof REQUIRED_SETTINGS)[number]
+
+// The config as it's saved, which a site that isn't configured yet lacks some of.
+export type SavedSiteConfig = Omit<SiteConfig, RequiredSetting> &
+  Partial<Pick<SiteConfig, RequiredSetting>>
+
+export const DEFAULT_SITE_CONFIG: SavedSiteConfig = {
+  heroHeading: 'Hello, world!',
+  heroSubheading: 'Welcome to my LogSpace.',
+  socialImageAlt: '',
+}
+
+export const TEXT_SETTINGS = [
+  ...REQUIRED_SETTINGS,
+  'heroHeading',
+  'heroSubheading',
+  'socialImageAlt',
+] as const satisfies readonly (keyof SiteText)[]
+
+// Whether every required setting has been saved.
+export function isSiteConfigured(config: SavedSiteConfig): config is SiteConfig {
+  return REQUIRED_SETTINGS.every((key) => config[key])
+}
+
+// A problem with the /admin/config form.
+export interface SiteConfigIssue {
+  readonly field?: keyof SiteConfig
+  readonly message: string
+}
+
+const required = (message: string) =>
+  Schema.String.check(Schema.makeFilter((value: string) => value.trim() !== '', { message }))
+
+// An http or https origin. The site's pages are at the root of it, so it can't have a path.
+function isSiteUrl(value: string): boolean {
+  let url = URL.parse(value)
+  return (
+    url !== null && (url.protocol === 'https:' || url.protocol === 'http:') && url.origin === value
+  )
+}
+
+const SiteTextSchema = Schema.toStandardSchemaV1(
+  Schema.Struct({
+    siteTitle: required('The site needs a title'),
+    siteUrl: Schema.String.check(
+      Schema.makeFilter(isSiteUrl, {
+        message:
+          'Expected the address the site is served at, with no path, like "https://example.com"',
+      }),
+    ),
+    siteDescription: required('The site needs a description'),
+    heroHeading: Schema.String,
+    heroSubheading: Schema.String,
+    socialImageAlt: Schema.String,
+  }),
+)
+
+// Checks the settings typed into the form.
+export function parseSiteText(text: SiteText): Result.Result<SiteText, SiteConfigIssue[]> {
+  let result = SiteTextSchema['~standard'].validate(text)
+  if (result instanceof Promise) throw new Error('The site text schema is synchronous')
+  if (!result.issues) return Result.succeed(result.value as SiteText)
+  return Result.fail(
+    result.issues.map((issue) => {
+      let [key] = issue.path ?? []
+      let field = typeof key === 'object' ? key.key : key
+      return { field: field as keyof SiteConfig | undefined, message: issue.message }
+    }),
+  )
+}
+
+// A saved image setting, or undefined if it isn't valid JSON for one, so a mangled row is
+// ignored like a missing one.
+const decodeSiteImageOption = Schema.decodeUnknownOption(Schema.fromJsonString(SiteImage))
+export const decodeSiteImage = (json: string): SiteImage | undefined =>
+  Option.getOrUndefined(decodeSiteImageOption(json))
