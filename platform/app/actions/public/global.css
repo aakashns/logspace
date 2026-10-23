@@ -1,8 +1,0 @@
-/*
- * Global stylesheet linked from the document head. The layer order is declared once here:
- * `reset` and `theme` come before Remix's `rmx` layer so `css(...)` styles always win.
- */
-@layer reset, theme, rmx;
-
-@import './reset.css';
-@import './theme.css';

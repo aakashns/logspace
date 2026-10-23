@@ -1,0 +1,160 @@
+/*
+ * The page around every page's content (see ../document.tsx and ../controls.tsx): the navbar,
+ * its buttons and their tooltips, and the content column.
+ */
+@layer components {
+  /*
+   * The bar spans the full width and stays pinned while scrolling; its contents line up with the
+   * centered content column. The 56px height includes the bottom border (border-box sizing).
+   */
+  .navbar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    height: 3.5rem;
+    border-bottom: 1px solid var(--border);
+    background-color: color-mix(in oklch, var(--background) 75%, transparent);
+    backdrop-filter: blur(12px);
+  }
+
+  .navbar-content {
+    max-width: var(--content-width);
+    height: 100%;
+    margin-inline: auto;
+    padding-inline: 1rem;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .navbar-title {
+    display: block;
+    min-width: 0;
+  }
+
+  .nav-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  main {
+    max-width: var(--content-width);
+    margin-inline: auto;
+    padding-inline: 1rem;
+  }
+
+  /* The site's logo (a mask filled with the text color, so it follows the theme), or its title. */
+  .site-logo {
+    display: block;
+    background-color: currentColor;
+    mask-size: contain;
+    mask-repeat: no-repeat;
+    mask-position: left center;
+  }
+
+  .site-title {
+    display: block;
+    font-family: var(--font-heading);
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  /* A round icon button in the navbar, like the theme toggle and the admin logout button. */
+  .nav-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 9999px;
+    transition: background-color 150ms;
+
+    &:hover {
+      background-color: var(--control-hover);
+    }
+    &:active {
+      background-color: var(--control-active);
+    }
+    &:focus-visible {
+      outline: 2px solid var(--ring);
+      outline-offset: 2px;
+    }
+    & svg {
+      width: 1.25rem;
+      height: 1.25rem;
+    }
+  }
+
+  /*
+   * A small label below a button, shown on mouse hover and keyboard focus, with CSS alone. It's
+   * right-aligned with the button so it stays on screen at the right edge of the navbar.
+   */
+  .tooltip {
+    position: relative;
+    display: inline-flex;
+
+    & > [data-tooltip] {
+      position: absolute;
+      top: calc(100% + 0.375rem);
+      right: 0;
+      z-index: 20;
+      padding: 0.25rem 0.5rem;
+      border-radius: 0.375rem;
+      background-color: var(--foreground);
+      color: var(--background);
+      font-size: 0.75rem;
+      line-height: 1.4;
+      white-space: nowrap;
+      pointer-events: none;
+      opacity: 0;
+      transform: translateY(-0.125rem);
+      transition:
+        opacity 100ms,
+        transform 100ms;
+    }
+
+    /* Only real hover: on touch screens a tap leaves :hover stuck on. */
+    @media (hover: hover) {
+      &:hover > [data-tooltip] {
+        opacity: 1;
+        transform: none;
+        transition-delay: 300ms;
+      }
+    }
+    &:has(:focus-visible) > [data-tooltip] {
+      opacity: 1;
+      transform: none;
+      transition-delay: 300ms;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      & > [data-tooltip] {
+        transform: none;
+      }
+    }
+  }
+
+  /*
+   * Shown only in the light or the dark theme, whether picked with the toggle (a class on <html>)
+   * or by the system.
+   */
+  :root.dark .in-light-theme {
+    display: none;
+  }
+  .in-dark-theme {
+    display: none;
+  }
+  :root.dark .in-dark-theme {
+    display: block;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not(.light) .in-light-theme {
+      display: none;
+    }
+    :root:not(.light) .in-dark-theme {
+      display: block;
+    }
+  }
+}

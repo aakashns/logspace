@@ -18,15 +18,15 @@ DATABASE_PATH=/absolute/path/to/logspace-data/app.sqlite
 MEDIA_DIR=/absolute/path/to/logspace-data/media
 ```
 
-Both secrets need at least 16 characters; `openssl rand -base64 32` generates one. Run `bun run dev`, open [localhost:44100/admin](http://localhost:44100/admin), and configure your site. The server restarts on changes; reload the browser.
+Both secrets need at least 16 characters; `openssl rand -base64 32` generates one. Run `bun run dev`, open [localhost:44100/admin](http://localhost:44100/admin), and configure your site. The server restarts on changes; reload the browser. To start with some posts, run `bun scripts/seed.ts`, which replaces the database's posts with the ones the tests use.
 
 ```sh
 bun run typecheck && bun run lint && bun run format:check
 bun run test
-bun run build && bun binary/smoke-test.ts dist/logspace
+bun run build && bun scripts/smoke-test.ts dist/logspace
 ```
 
-Tests use temporary data. See [platform/AGENTS.md](platform/AGENTS.md) for architecture and conventions, and [posts.md](platform/docs/posts.md) for the post format.
+Tests use temporary data. The app is [Bun](https://bun.com), [Effect](https://effect.website), and [Datastar](https://data-star.dev): [platform/README.md](platform/README.md) is a tour of the code, [platform/AGENTS.md](platform/AGENTS.md) has the conventions, and [posts.md](platform/docs/posts.md) the post format.
 
 ## Website
 

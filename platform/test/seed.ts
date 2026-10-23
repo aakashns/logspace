@@ -1,20 +1,19 @@
-import * as fsp from 'node:fs/promises'
-import * as path from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { openLazyFile } from 'remix/fs'
-
-import { saveSiteConfig, type SiteText } from '../app/data/config.ts'
-import { db, migrateDatabase } from '../app/data/db.ts'
-import { mediaStorage, savePostFile } from '../app/data/media.ts'
-import { isPostFileName, isPostId, parsePostRecords } from '../app/data/posts/model.ts'
-import { toPostRow } from '../app/data/posts/store.ts'
-import { posts } from '../app/data/tables.ts'
-
 // The sample posts the tests run on, one of each type, in test/content: posts.json has the posts
-// (in the format of docs/posts.md) and posts/<id>/ each post's media files. An article's body is
-// kept in article.md in its folder rather than in posts.json, since Markdown is easier to read in
-// a file of its own than in a JSON string.
-export const TEST_CONTENT_DIR = fileURLToPath(new URL('content/', import.meta.url))
+// and posts/<id>/ each post's media files. An article's body is kept in article.md in its folder
+// rather than in posts.json, since Markdown is easier to read in a file of its own.
+import * as fs from 'node:fs/promises'
+import * as path from 'node:path'
+import { Effect } from 'effect'
+import { SqlClient } from 'effect/sql'
+
+import { PostFiles } from '../src/commands/post-files.ts'
+import { SiteConfigCommands } from '../src/commands/site-config.ts'
+import { toPostRow } from '../src/domain/post-rows.ts'
+import { isPostFileName, isPostId, parsePostRecord, type PostRecord } from '../src/domain/post.ts'
+import type { SiteText } from '../src/domain/site.ts'
+import { DataVersion } from '../src/services/data-version.ts'
+
+export const TEST_CONTENT_DIR = path.join(import.meta.dir, 'content')
 
 // The site config the tests run with.
 export const TEST_SITE_CONFIG: SiteText = {
@@ -26,39 +25,47 @@ export const TEST_SITE_CONFIG: SiteText = {
   socialImageAlt: '',
 }
 
-// bun run test uses an in-memory database; this creates its tables, saves TEST_SITE_CONFIG, and
-// replaces every post with the sample posts, so a beforeEach can run it to start each test afresh.
-export async function seedDatabase() {
-  await migrateDatabase()
-  await saveSiteConfig(TEST_SITE_CONFIG)
-  for (let { id } of await db.findMany(posts)) await db.delete(posts, id)
-  await db.createMany(posts, (await readTestPosts()).map(toPostRow))
-}
+// Saves TEST_SITE_CONFIG and replaces every post with the sample posts, so a beforeEach can run
+// it to start each test afresh.
+export const seedDatabase = Effect.gen(function* () {
+  let sql = yield* SqlClient.SqlClient
+  yield* (yield* SiteConfigCommands).save(TEST_SITE_CONFIG)
+  let rows = (yield* Effect.promise(readTestPosts)).map(toPostRow)
+  yield* sql.withTransaction(
+    Effect.gen(function* () {
+      yield* sql`delete from posts`
+      yield* sql`insert into posts ${sql.insert(rows.map((row) => ({ ...row })))}`
+    }),
+  )
+  yield* (yield* DataVersion).changed
+}).pipe(Effect.orDie)
 
-// Copies the sample posts' media files into media storage (memory storage under bun run test).
-export async function seedMedia(storage = mediaStorage) {
-  // Saving an image records its size in the database.
-  await migrateDatabase()
+// Copies the sample posts' media files into media storage.
+export const seedMedia = Effect.gen(function* () {
+  let files = yield* PostFiles
   let postsDir = path.join(TEST_CONTENT_DIR, 'posts')
-  for (let id of await fsp.readdir(postsDir)) {
+  for (let id of yield* Effect.promise(() => fs.readdir(postsDir))) {
     if (!isPostId(id)) continue
-    for (let name of await fsp.readdir(path.join(postsDir, id))) {
+    for (let name of yield* Effect.promise(() => fs.readdir(path.join(postsDir, id)))) {
       if (!isPostFileName(name) || name === 'article.md') continue
-      await savePostFile(id, name, openLazyFile(path.join(postsDir, id, name)), storage)
+      yield* files.save(id, name, Bun.file(path.join(postsDir, id, name)))
     }
   }
-}
+})
 
 // Throws, naming the post and field, if posts.json is invalid.
-export async function readTestPosts() {
-  let records = JSON.parse(await fsp.readFile(path.join(TEST_CONTENT_DIR, 'posts.json'), 'utf8'))
-  return parsePostRecords(
-    await Promise.all(
-      records.map(async (record: Record<string, any>) => {
-        if (record.type !== 'article' || 'body' in record.article) return record
+export async function readTestPosts(): Promise<PostRecord[]> {
+  let records = await Bun.file(path.join(TEST_CONTENT_DIR, 'posts.json')).json()
+  return Promise.all(
+    records.map(async (record: Record<string, any>) => {
+      if (record.type === 'article' && !('body' in record.article)) {
         let file = path.join(TEST_CONTENT_DIR, 'posts', record.id, 'article.md')
-        return { ...record, article: { ...record.article, body: await fsp.readFile(file, 'utf8') } }
-      }),
-    ),
+        record = { ...record, article: { ...record.article, body: await Bun.file(file).text() } }
+      }
+      let result = parsePostRecord(record)
+      if (result._tag === 'Failure')
+        throw new Error(`Invalid test post ${record.id}: ${JSON.stringify(result.failure)}`)
+      return result.success
+    }),
   )
 }

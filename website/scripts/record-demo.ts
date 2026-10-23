@@ -83,7 +83,7 @@ try {
   await hold(3200);
   await page.evaluate(() => window.scrollTo({ top: 650, behavior: "smooth" }));
   await hold(2800);
-  await page.locator('a[data-post-link][href="/posts/mirastory1"]').click();
+  await page.locator('a.post-link[href="/posts/mirastory1"]').click();
   await expect(
     page.getByRole("heading", { name: "The long way around" }),
   ).toBeVisible();

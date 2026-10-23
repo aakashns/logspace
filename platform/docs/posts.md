@@ -4,7 +4,7 @@ Posts appear on the home page, newest first, and each one has its own page at `/
 They're written and edited at `/admin` and stored in the database; their media (photos, videos,
 posters, covers) is stored in media storage, under keys like `posts/<id>/photo.jpg`. This is what a
 post is made of. The `/admin` post form has these fields and checks them the same way
-(`parsePostRecord` in `app/data/posts/model.ts`), and the test posts in `test/content/posts.json` are written
+(`parsePostRecord` in `src/domain/post.ts`), and the test posts in `test/content/posts.json` are written
 in this format.
 
 Every post has:
@@ -34,7 +34,7 @@ link previews show and article links open.
 
 Just a caption, like a tweet. If it contains a link, the first link gets a preview card with the
 page's title, description, and image. Previews are fetched in the background the first time a
-link is seen and cached in `tmp/link-previews.json`; until then the card shows just the domain.
+link is seen and cached in `link-previews.json` in `CACHE_DIR`; until then the card shows just the domain.
 
 ```json
 {
@@ -100,7 +100,7 @@ HTML in the Markdown is shown as text, not rendered.
   …).
 - Use MP4 (H.264) for videos so they play everywhere.
 - Uploads can be up to 100 MB each and 120 MB in one save (`MAX_UPLOAD_*` in
-  `app/lib/constants.ts`); upload bigger sets over more than one save.
+  `src/domain/constants.ts`); upload bigger sets over more than one save.
 - A post's files are only served once it's published. Files uploaded with a form that wasn't saved
   are kept, so the form comes back with their names filled in, but a new post that's never
   published leaves them unserved in storage.
