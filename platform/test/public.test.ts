@@ -180,7 +180,7 @@ describe('feeds and files for machines', () => {
     expect(response.headers.get('Content-Type')).toMatch(/application\/manifest\+json/)
     let manifest = (await response.json()) as { name: string; icons: unknown[] }
     expect(manifest.name).toBe('Test Site')
-    expect(manifest.icons.length).toBe(3)
+    expect(manifest.icons.length).toBe(2)
   })
 
   it('robots.txt points to the sitemap', async () => {

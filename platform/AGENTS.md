@@ -20,7 +20,7 @@ bun run count-lines
   and how pages show them
 - `src/commands/` is every write (one method per change), and `src/queries/` every read, from
   read models kept in memory until the data changes (`src/services/data-version.ts`)
-- `src/services/` talks to the world: SQLite, media files, sharp
+- `src/services/` talks to the world: SQLite, media files, images (Bun.Image)
 - `src/http/` has the routes (`public.tsx`, `admin.tsx`, each with its route table at the bottom)
   and the middleware around them; `src/views/` the pages, rendered by `src/jsx/` to strings
 - `src/main.ts` is the binary's command line (`start`, `setup`, `set-admin-password`, `migrate`,

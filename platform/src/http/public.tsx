@@ -123,11 +123,10 @@ const robots = Effect.map(siteConfig, (site) => feedResponse(createRobotsTxt(sit
 const manifest = Effect.gen(function* () {
   let site = yield* siteConfig
   let color = yield* (yield* SiteFiles).iconColor(site)
-  let icon = (file: string, size: number, purpose?: string) => ({
+  let icon = (file: string, size: number) => ({
     src: getIconHref(site, file),
     sizes: `${size}x${size}`,
     type: 'image/png',
-    purpose,
   })
   let manifest = {
     name: site.siteTitle,
@@ -135,11 +134,7 @@ const manifest = Effect.gen(function* () {
     display: 'browser',
     background_color: color,
     theme_color: color,
-    icons: [
-      icon('icon-192.png', 192),
-      icon('icon-512.png', 512),
-      icon('icon-maskable-512.png', 512, 'maskable'),
-    ],
+    icons: [icon('icon-192.png', 192), icon('icon-512.png', 512)],
   }
   return feedResponse(JSON.stringify(manifest, null, 2), 'application/manifest+json')
 })

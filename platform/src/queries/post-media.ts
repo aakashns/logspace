@@ -42,7 +42,7 @@ export class PostMedia extends Context.Service<
 
       // Made from the photo only if it's the version asked for: while a photo is being replaced,
       // a request for the old version could otherwise store the new one under the old's URL. A
-      // photo sharp can't decode has no resized copies, and pages that ask get a 404.
+      // photo Bun can't decode has no resized copies, and pages that ask get a 404.
       let make = (id: string, name: string, width: number, version: string, key: string) =>
         Effect.gen(function* () {
           let file = yield* storage.get(mediaKeys.postFile(id, name))
