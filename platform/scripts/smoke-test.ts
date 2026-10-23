@@ -1,7 +1,7 @@
 // Runs a built binary as a server would, in an empty folder with no node_modules, and checks what
-// needs its embedded files: migrations, pages, Datastar, and sharp (resizing a photo, and making
-// the icons from an uploaded image). Then it installs it with install.sh and upgrades it, from
-// pretend releases. CI runs it on every binary it releases.
+// needs its embedded files: migrations, pages, Datastar, the default icon, and Bun.Image (resizing
+// a photo, and making the icons from an uploaded image). Then it installs it with install.sh and
+// upgrades it, from pretend releases. CI runs it on every binary it releases.
 //
 //   bun scripts/smoke-test.ts dist/logspace
 import * as fs from 'node:fs/promises'
@@ -65,14 +65,16 @@ try {
   })) {
     config.set(name, value)
   }
-  config.set('icon', Bun.file(photo), 'icon.jpg')
+  // The icon has to be square.
+  let icon = await new Bun.Image(photo).resize(512, 512).png().bytes()
+  config.set('icon', new File([new Uint8Array(icon)], 'icon.png', { type: 'image/png' }))
   let saved = await fetch(`${base}/admin/config`, {
     method: 'POST',
     headers: { Cookie: cookie },
     body: config,
     redirect: 'manual',
   })
-  check(saved.status === 303, 'the settings save, with an icon made by sharp')
+  check(saved.status === 303, 'the settings save, with an icon made by Bun.Image')
   let favicon = await fetch(`${base}/favicon.ico`)
   check(favicon.headers.get('Content-Type') === 'image/x-icon', 'the favicon is served')
 
@@ -103,7 +105,7 @@ try {
   check(datastar && (await fetch(base + datastar)).ok, 'Datastar is served')
   let resized = html.match(/srcset="([^" ]+)/)?.[1].replaceAll('&amp;', '&')
   let webp = resized ? await fetch(base + resized) : undefined
-  check(webp?.headers.get('Content-Type') === 'image/webp', 'a resized copy is made by sharp')
+  check(webp?.headers.get('Content-Type') === 'image/webp', 'a resized copy is made by Bun.Image')
 } finally {
   server.kill()
   await server.exited

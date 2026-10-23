@@ -3,7 +3,6 @@
 import { afterAll, beforeEach, describe, expect, it } from 'bun:test'
 import { Effect } from 'effect'
 import { SqlClient } from 'effect/sql'
-import sharp from 'sharp'
 
 import { isSiteConfigured } from '../src/domain/site.ts'
 import { SiteConfigQueries } from '../src/queries/site-config.ts'
@@ -33,24 +32,18 @@ function imageForm(files: Record<string, File>, fields: Record<string, string> =
   return form
 }
 
-async function png(width: number, height: number) {
-  let background = { r: 200, g: 40, b: 40, alpha: 1 }
-  let data = await sharp({ create: { width, height, channels: 4, background } })
-    .png()
-    .toBuffer()
-  return new File([new Uint8Array(data)], 'image.png', { type: 'image/png' })
-}
+// Test images: a photo from the test content, stretched to the size.
+const PHOTO = Bun.file(`${import.meta.dir}/content/posts/t83tytis1i/cover.jpg`)
 
-async function jpeg(width: number, height: number) {
-  let background = { r: 40, g: 40, b: 200 }
-  let data = await sharp({ create: { width, height, channels: 3, background } })
-    .jpeg()
-    .toBuffer()
-  return new File([new Uint8Array(data)], 'image.jpg', { type: 'image/jpeg' })
+async function image(format: 'png' | 'jpeg' | 'webp', width: number, height: number) {
+  let data = await new Bun.Image(await PHOTO.bytes()).resize(width, height)[format]().bytes()
+  return new File([new Uint8Array(data)], `image.${format}`, { type: `image/${format}` })
 }
+const png = (width: number, height: number) => image('png', width, height)
+const jpeg = (width: number, height: number) => image('jpeg', width, height)
 
 async function imageSize(response: Response) {
-  let { width, height, format } = await sharp(await response.bytes()).metadata()
+  let { width, height, format } = await new Bun.Image(await response.bytes()).metadata()
   return { width, height, format }
 }
 
@@ -182,7 +175,6 @@ describe('the site’s images', () => {
     for (let [file, size] of [
       ['icon-192.png', 192],
       ['icon-512.png', 512],
-      ['icon-maskable-512.png', 512],
     ] as const) {
       expect(await imageSize(await app.fetch(`/site/${file}`))).toEqual({
         width: size,
@@ -209,15 +201,7 @@ describe('the site’s images', () => {
   })
 
   it('uploads a logo, icon, and social image, which pages use, and removes them', async () => {
-    // An SVG that tries to run a script: it's drawn as a PNG, so the script never reaches a page.
-    let logo = new File(
-      [
-        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 100"><script>alert(1)</script>' +
-          '<rect width="400" height="100"/></svg>',
-      ],
-      'logo.svg',
-      { type: 'image/svg+xml' },
-    )
+    let logo = await png(800, 200)
     let defaultFavicon = await (await app.fetch('/favicon.ico')).bytes()
     let response = await save(
       imageForm(
@@ -282,56 +266,50 @@ describe('the site’s images', () => {
     expect(await (await app.fetch('/favicon.ico')).bytes()).toEqual(defaultFavicon)
   })
 
-  it('puts the home screen icons on the color the icon is, and keeps the rest transparent', async () => {
-    // The color of a pixel of one of the site's images, with its alpha.
-    let pixel = async (path: string, x: number, y: number) => {
-      let { data, info } = await sharp(await (await app.fetch(path)).bytes())
-        .ensureAlpha()
-        .raw()
-        .toBuffer({ resolveWithObject: true })
-      let i = (y * info.width + x) * 4
-      return [...data.subarray(i, i + 4)]
-    }
-    type Manifest = { theme_color: string; background_color: string }
+  it('makes the icon’s files from a square upload, and names the web app’s color', async () => {
+    type Manifest = { theme_color: string; background_color: string; icons: { src: string }[] }
 
     // LogSpace's icon is a dark gray circle.
     let manifest = (await (await app.fetch('/site.webmanifest')).json()) as Manifest
     expect([manifest.theme_color, manifest.background_color]).toEqual(['#161616', '#161616'])
+    expect(manifest.icons.length).toBe(2)
 
-    // A dark blue circle on a transparent background, with a small white mark.
-    let svg =
-      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">' +
-      '<circle cx="256" cy="256" r="200" fill="#1d3557"/><rect x="226" y="226" width="60" height="60" fill="#fff"/></svg>'
-    expect(
-      (await save(imageForm({ icon: new File([svg], 'icon.svg', { type: 'image/svg+xml' }) })))
-        .status,
-    ).toBe(303)
-    expect((await savedConfig()).icon?.color).toBe('#1d3557')
-
-    let dark = [0x1d, 0x35, 0x57, 255]
-    expect(await pixel('/apple-touch-icon.png', 0, 0)).toEqual(dark)
-    expect(await pixel('/site/icon-maskable-512.png', 0, 0)).toEqual(dark)
-    expect(await pixel('/site/icon-maskable-512.png', 256, 256)).toEqual([255, 255, 255, 255])
-    for (let file of ['icon-192.png', 'icon-512.png'])
-      expect((await pixel(`/site/${file}`, 0, 0))[3]).toBe(0)
+    expect((await save(imageForm({ icon: await jpeg(700, 700) }))).status).toBe(303)
+    expect((await savedConfig()).icon?.file).toBe('icon-512.png')
+    for (let [path, size] of [
+      ['/apple-touch-icon.png', 180],
+      ['/site/icon-192.png', 192],
+      ['/site/icon-512.png', 512],
+    ] as const) {
+      expect(await imageSize(await app.fetch(path))).toEqual({
+        width: size,
+        height: size,
+        format: 'png',
+      })
+    }
     let favicon = (await (await app.fetch('/favicon.ico')).bytes()).subarray(22)
-    let { data } = await sharp(favicon).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
-    expect(data[3]).toBe(0)
+    expect(await new Bun.Image(favicon).metadata()).toMatchObject({ width: 32, height: 32 })
 
+    // Without a color of its own, the web app's is white.
     manifest = (await (await app.fetch('/site.webmanifest')).json()) as Manifest
-    expect([manifest.theme_color, manifest.background_color]).toEqual(['#1d3557', '#1d3557'])
+    expect([manifest.theme_color, manifest.background_color]).toEqual(['#ffffff', '#ffffff'])
   })
 
-  it('puts an icon with no opaque pixels on white', async () => {
-    let data = await sharp({
-      create: { width: 64, height: 64, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0.5 } },
+  it('refuses icons that aren’t square or big enough, SVGs, and WebP social images', async () => {
+    let svg = new File(['<svg xmlns="http://www.w3.org/2000/svg"/>'], 'logo.svg', {
+      type: 'image/svg+xml',
     })
-      .png()
-      .toBuffer()
-    expect(
-      (await save(imageForm({ icon: new File([new Uint8Array(data)], 'icon.png') }))).status,
-    ).toBe(303)
-    expect((await savedConfig()).icon?.color).toBe('#ffffff')
+    for (let [field, file, message] of [
+      ['icon', await png(600, 512), /Icon: The icon must be square, at least 512 × 512 pixels\./],
+      ['icon', await png(256, 256), /Icon: The icon must be square, at least 512 × 512 pixels\./],
+      ['logo', svg, /Logo: That file isn’t an image\./],
+      ['socialImage', await image('webp', 1200, 630), /Upload a PNG or JPEG image\./],
+    ] as const) {
+      let response = await save(imageForm({ [field]: file }, { socialImageAlt: 'Alt text' }))
+      expect([field, response.status]).toEqual([field, 400])
+      expect(await response.text()).toMatch(message)
+    }
+    expect(await savedConfig()).toEqual(TEST_SITE_CONFIG)
   })
 
   it('rejects an upload that isn’t an image, and a social image without alt text', async () => {

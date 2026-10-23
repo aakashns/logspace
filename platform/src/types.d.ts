@@ -7,6 +7,10 @@ declare module '*.css' {
   const text: string
   export default text
 }
+declare module '*.png' {
+  const path: string
+  export default path
+}
 declare module '*.woff2' {
   const path: string
   export default path
@@ -15,11 +19,6 @@ declare module '*.woff2' {
 declare module '*/datastar.js' {
   const path: string
   export default path
-}
-// sharp's native files, embedded in the binary (see scripts/build.ts).
-declare module 'logspace:sharp-files' {
-  const files: { embedded: string; layout: string }[]
-  export default files
 }
 // The load generator scripts/bench.ts uses, which has no types of its own.
 declare module 'autocannon'

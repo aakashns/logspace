@@ -1,7 +1,6 @@
 // Regressions for what a security and correctness review of this app found.
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test'
 import { Effect } from 'effect'
-import sharp from 'sharp'
 
 import { PostCommands } from '../src/commands/posts.ts'
 import { isUploadableFileName, mimeType } from '../src/domain/post.ts'
@@ -86,13 +85,10 @@ describe('found in review', () => {
     await fresh.dispose()
   })
 
-  it('answers a resized copy of a photo sharp can’t decode with a 404, not a 500', async () => {
+  it('answers a resized copy of a photo Bun can’t decode with a 404, not a 500', async () => {
     let id = 'truncated1'
-    let jpeg = await sharp({
-      create: { width: 2000, height: 1500, channels: 3, background: '#468' },
-    })
-      .jpeg()
-      .toBuffer()
+    let photo = Bun.file(`${import.meta.dir}/content/posts/t83tytis1i/cover.jpg`)
+    let png = await new Bun.Image(await photo.bytes()).resize(2000, 1500).png().bytes()
     let cookie = app.sessionCookie(await app.logIn())!
     let body = new FormData()
     for (let [name, value] of Object.entries({
@@ -108,7 +104,7 @@ describe('found in review', () => {
     // Enough of the file to read its size, but not its pixels.
     body.append(
       'photo_upload',
-      new File([jpeg.subarray(0, Math.floor(jpeg.length * 0.6))], 'cut.jpg'),
+      new File([new Uint8Array(png.subarray(0, Math.floor(png.length * 0.6)))], 'cut.png'),
     )
     expect(
       (await app.fetch('/admin/posts/new', { method: 'POST', headers: { Cookie: cookie }, body }))
@@ -116,7 +112,7 @@ describe('found in review', () => {
     ).toBe(303)
     let html = await (await app.fetch(`/posts/${id}`)).text()
     let src = html.match(/srcset="([^" ]+)/)?.[1].replaceAll('&amp;', '&')
-    expect(src).toMatch(/\/posts\/truncated1\/cut\.jpg\?w=/)
+    expect(src).toMatch(/\/posts\/truncated1\/cut\.png\?w=/)
     expect((await app.fetch(src!)).status).toBe(404)
   })
 

@@ -16,7 +16,7 @@ export interface ImageInfo {
 export const IMAGE_WIDTHS = [320, 400, 480, 600, 680, 800, 960, 1160, 1400, 1600]
 
 // Files that can be resized. GIFs (which may be animated) and other images are served as they are.
-const RESIZABLE = /\.(jpe?g|png|webp|avif|tiff?)$/i
+const RESIZABLE = /\.(jpe?g|png|webp)$/i
 
 export function isResizableImage(name: string): boolean {
   return RESIZABLE.test(name)

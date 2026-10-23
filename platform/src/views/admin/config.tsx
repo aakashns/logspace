@@ -35,7 +35,8 @@ const LABELS: Record<keyof SiteConfig, string> = {
   socialImageAlt: 'Social preview image alt text',
 }
 
-const ACCEPT = 'image/png,image/jpeg,image/webp,image/avif,image/gif,image/svg+xml'
+const ACCEPT = 'image/png,image/jpeg,image/webp'
+const SOCIAL_ACCEPT = 'image/png,image/jpeg'
 
 // /admin/config, with the submission's problems if it was rejected.
 export function ConfigPage(props: ConfigPageProps): Html {
@@ -106,7 +107,7 @@ export function ConfigPage(props: ConfigPageProps): Html {
           kind="logo"
           label={LABELS.logo}
           invalid={invalid('logo')}
-          hint="Shown in the navbar instead of the site title, in the text color, so use one color on a transparent background. SVG or PNG."
+          hint="Shown in the navbar instead of the site title, in the text color, so use one color on a transparent background. A PNG is best."
           preview={images.logo ? <SiteLogo site={site} height="2rem" /> : null}
           checkered
         />
@@ -114,7 +115,7 @@ export function ConfigPage(props: ConfigPageProps): Html {
           kind="icon"
           label={LABELS.icon}
           invalid={invalid('icon')}
-          hint="The favicon and home screen icon. A square image, at least 512 × 512 pixels, or an SVG. Without one, the site has LogSpace’s."
+          hint="The favicon and home screen icon. A square PNG, JPEG, or WebP, at least 512 × 512 pixels. Without one, the site has LogSpace’s."
           preview={<img src={getIconHref(site, 'icon-192.png')} alt="" width="64" height="64" />}
           checkered
           removable={images.icon !== undefined}
@@ -123,7 +124,7 @@ export function ConfigPage(props: ConfigPageProps): Html {
           kind="socialImage"
           label={LABELS.socialImage}
           invalid={invalid('socialImage')}
-          hint="Shown in link previews of pages without an image of their own, ideally 1200 × 630 pixels."
+          hint="Shown in link previews of pages without an image of their own. A PNG or JPEG, ideally 1200 × 630 pixels."
           preview={
             images.socialImage ? (
               <img
@@ -180,7 +181,7 @@ function ImageField(props: {
         id={id}
         name={kind}
         type="file"
-        accept={ACCEPT}
+        accept={kind === 'socialImage' ? SOCIAL_ACCEPT : ACCEPT}
         aria-invalid={invalid}
         class="file-input"
       />

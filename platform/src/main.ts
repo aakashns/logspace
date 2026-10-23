@@ -1,6 +1,6 @@
 // The logspace binary's command line. Its default command, start, runs the server; the others set
 // up and maintain a server it runs on. Each command's module is imported when it's run, so the
-// others don't load the server or sharp.
+// others don't load the server or the image codecs.
 import { BunRuntime, BunServices } from '@effect/platform-bun'
 import { Console, Effect, Option } from 'effect'
 import { Argument, Command, Flag } from 'effect/cli'

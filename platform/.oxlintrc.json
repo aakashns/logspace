@@ -8,7 +8,7 @@
   // The layers of src/ (see README.md), kept apart: each may only import the ones below it.
   "overrides": [
     {
-      // Pure: no database, storage, sharp, HTTP, or pages.
+      // Pure: no database, storage, images, HTTP, or pages.
       "files": ["src/domain/**"],
       "rules": {
         "no-restricted-imports": [
@@ -22,7 +22,6 @@
               "**/views/**",
               "**/cli/**",
               "effect/sql",
-              "sharp",
               "node:fs*"
             ]
           }
@@ -60,8 +59,7 @@
               "**/commands/**",
               "**/http/**",
               "**/cli/**",
-              "effect/sql",
-              "sharp"
+              "effect/sql"
             ]
           }
         ]
