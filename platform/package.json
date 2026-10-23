@@ -15,7 +15,6 @@
     "lint": "oxlint",
     "format": "bun fmt",
     "format:check": "bun fmt --check",
-    "bench": "bun scripts/bench.ts",
     "new-id": "bun -e \"let a = '0123456789abcdefghijklmnopqrstuvwxyz', id = ''; while (id.length < 10) { let [b] = crypto.getRandomValues(new Uint8Array(1)); if (b < 252) id += a[b % 36] } console.log(id)\"",
     "count-lines": "bun scripts/count-lines.ts"
   },
@@ -27,7 +26,6 @@
   },
   "devDependencies": {
     "@types/bun": "^1.4.4",
-    "autocannon": "^8",
     "oxlint": "^1.88.0"
   },
   "engines": {

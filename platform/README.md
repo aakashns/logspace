@@ -21,7 +21,6 @@ bun run test         # in-memory database and media
 bun run typecheck && bun run lint && bun run format:check
 bun run build && bun scripts/smoke-test.ts dist/logspace
 bun scripts/seed.ts  # fills DATABASE_PATH and MEDIA_DIR with the test posts
-bun scripts/bench.ts # requests a second, latency, and memory, on the test posts
 ```
 
 The server is configured with environment variables: `PORT`, `DATABASE_PATH`, `MEDIA_DIR`,
