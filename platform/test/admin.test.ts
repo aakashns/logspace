@@ -8,13 +8,17 @@ import { PostCommands } from '../src/commands/posts.ts'
 import type { Post } from '../src/domain/presentation.ts'
 import { PostQueries } from '../src/queries/posts.ts'
 import { MediaStorage, mediaKeys } from '../src/services/media-storage.ts'
-import { makeTestApp } from './app.ts'
+import { capture, defined, makeTestApp } from './app.ts'
 
 const app = makeTestApp()
 const posts = () => app.run(Effect.flatMap(PostQueries, (queries) => queries.all))
 const findPost = async (id: string) => (await posts()).find((post) => post.id === id)
+const firstPost = async () => defined((await posts())[0], 'a post')
 const samplePost = async <T extends Post['type']>(type: T) =>
-  (await posts()).find((post) => post.type === type) as Extract<Post, { type: T }>
+  defined(
+    (await posts()).find((post): post is Extract<Post, { type: T }> => post.type === type),
+    `a ${type} post`,
+  )
 const hasPostFile = (id: string, name: string) =>
   app.run(Effect.flatMap(MediaStorage, (storage) => storage.has(mediaKeys.postFile(id, name))))
 const savePostFile = (id: string, name: string, file: Blob) =>
@@ -57,7 +61,7 @@ describe('logging in', () => {
     expect(setCookie).toMatch(/SameSite=Lax/i)
     expect(setCookie).toMatch(/Path=\/admin/i)
 
-    let cookie = app.sessionCookie(response)!
+    let cookie = defined(app.sessionCookie(response), 'a session cookie')
     let page = await app.fetch('/admin', { headers: { Cookie: cookie } })
     let html = await page.text()
     expect(page.status).toBe(200)
@@ -76,7 +80,7 @@ describe('logging in', () => {
   })
 
   it('rejects a tampered session cookie', async () => {
-    let cookie = app.sessionCookie(await app.logIn())!
+    let cookie = defined(app.sessionCookie(await app.logIn()), 'a session cookie')
     let tampered = cookie.slice(0, -2) + (cookie.endsWith('A') ? 'BB' : 'AA')
     expect((await app.fetch('/admin', { headers: { Cookie: tampered } })).status).toBe(302)
     // Or one made up to look logged in, signed with the wrong secret.
@@ -85,10 +89,7 @@ describe('logging in', () => {
   })
 
   it('rejects admin logins posted from other sites', async () => {
-    for (let headers of [
-      { 'Sec-Fetch-Site': 'cross-site' },
-      { Origin: 'https://evil.example' },
-    ] as Record<string, string>[]) {
+    for (let headers of [{ 'Sec-Fetch-Site': 'cross-site' }, { Origin: 'https://evil.example' }]) {
       let response = await app.logIn(undefined, headers)
       expect(response.status).toBe(403)
       expect(app.sessionCookie(response)).toBeUndefined()
@@ -120,7 +121,7 @@ describe('admin post pages', () => {
     })
 
   it('need an admin login', async () => {
-    let [post] = await posts()
+    let post = await firstPost()
     for (let path of ['/admin/posts/new', `/admin/posts/${post.id}/edit`]) {
       let response = await app.fetch(path)
       expect([path, response.status, response.headers.get('Location')]).toEqual([
@@ -179,7 +180,7 @@ describe('admin post pages', () => {
       ['hike-3.jpg', 'Peak'],
       ['', ''],
       ['hike-1.jpg', 'River'],
-    ]) {
+    ] as const) {
       body.append('photo_file', file)
       body.append('photo_alt', alt)
     }
@@ -229,12 +230,11 @@ describe('admin post pages', () => {
 
   it('creates a new post, once', async () => {
     let page = await (await app.adminFetch('/admin/posts/new')).text()
-    let id = page.match(/<input [^>]*name="id"[^>]*value="([0-9a-z]{10})"/)?.[1]
-    expect(id).toBeDefined()
+    let id = capture(page, /<input [^>]*name="id"[^>]*value="([0-9a-z]{10})"/)
     let submit = () =>
       app.adminFetch('/admin/posts/new', {
         method: 'POST',
-        body: textPostForm({ id: id!, caption: 'A brand new post' }),
+        body: textPostForm({ id, caption: 'A brand new post' }),
       })
     let response = await submit()
     expect(response.status).toBe(303)
@@ -296,7 +296,7 @@ describe('admin post pages', () => {
       '## Rewritten\n\nWith ![a desk](desk.jpg) in it.',
     )
     // Stored in its own column, for search, rather than in the details JSON.
-    let [row] = await app.run(
+    let rows = await app.run(
       Effect.flatMap(
         SqlClient.SqlClient,
         (sql) =>
@@ -306,6 +306,7 @@ describe('admin post pages', () => {
           }>`select article_body, details from posts where id = ${post.id}`,
       ).pipe(Effect.orDie),
     )
+    let row = defined(rows[0], 'the post’s row')
     expect(row.article_body).toBe('## Rewritten\n\nWith ![a desk](desk.jpg) in it.')
     expect(row.details).not.toMatch(/Rewritten/)
     let page = await (await app.fetch(`/posts/${post.id}`)).text()
@@ -356,7 +357,7 @@ describe('admin post pages', () => {
     let html = await (await app.adminFetch(`/admin/posts/${post.id}/edit`)).text()
     let textarea = (name: string) =>
       unescapeHtml(
-        html.match(new RegExp(`<textarea [^>]*name="${name}"[^>]*>\\n([^<]*)</textarea>`))![1],
+        capture(html, new RegExp(`<textarea [^>]*name="${name}"[^>]*>\\n([^<]*)</textarea>`)),
       )
     expect(
       (await save('Second', { caption: textarea('caption'), body: textarea('article_body') }))
@@ -525,7 +526,7 @@ describe('admin post pages', () => {
   })
 
   it('doesn’t let a resubmitted new post form replace the published post’s files', async () => {
-    let [post] = await posts()
+    let post = await firstPost()
     await savePostFile(post.id, 'same.jpg', new File(['original'], 'same.jpg'))
     let response = await app.adminFetch('/admin/posts/new', {
       method: 'POST',

@@ -2,7 +2,7 @@ import type { Html } from '#jsx/jsx-runtime'
 
 import { routes } from '../../routes.ts'
 
-export function LoginPage(props: { error?: string; enabled: boolean }): Html {
+export function LoginPage(props: { error?: string | undefined; enabled: boolean }): Html {
   let { error, enabled } = props
   return (
     <section class="admin-page">

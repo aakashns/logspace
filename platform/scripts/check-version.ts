@@ -34,10 +34,15 @@ if (base) {
 }
 console.log(version.join('.'))
 
-function parseVersion(packageJson: string): number[] | undefined {
-  let { version } = JSON.parse(packageJson) as { version?: unknown }
-  if (typeof version !== 'string' || !/^\d+\.\d+\.\d+$/.test(version)) return undefined
-  return version.split('.').map(Number)
+function parseVersion(packageJson: string): [number, number, number] | undefined {
+  let parsed: unknown = JSON.parse(packageJson)
+  let version =
+    typeof parsed === 'object' && parsed !== null && 'version' in parsed
+      ? parsed.version
+      : undefined
+  let [, major, minor, patch] = /^(\d+)\.(\d+)\.(\d+)$/.exec(String(version)) ?? []
+  if (major === undefined || minor === undefined || patch === undefined) return undefined
+  return [Number(major), Number(minor), Number(patch)]
 }
 
 function fail(message: string): never {

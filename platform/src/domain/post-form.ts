@@ -4,20 +4,30 @@ import { isUploadableFileName, type PostIssue } from './post.ts'
 // A post as the form shows it: the format of a PostRecord, except that what was typed is kept as
 // is (a width can be "abc") so a rejected submission comes back unchanged.
 export type PostFormValues = {
-  id: string
-  type: string
-  date: string
-  city?: string
-  caption?: string
-  photos?: PhotoValues[]
-  video?: { file?: string; poster?: string; width?: number | string; height?: number | string }
-  article?: { title?: string; summary?: string; body?: string; cover?: PhotoValues }
+  readonly id: string
+  readonly type: string
+  readonly date: string
+  readonly city?: string
+  readonly caption?: string
+  readonly photos?: readonly PhotoValues[]
+  readonly video?: {
+    readonly file?: string
+    readonly poster?: string
+    readonly width?: number | string
+    readonly height?: number | string
+  }
+  readonly article?: {
+    readonly title?: string
+    readonly summary?: string
+    readonly body?: string
+    readonly cover?: PhotoValues
+  }
 }
 
 // A photo's size is read from its file, so only a video has width and height fields.
 export interface PhotoValues {
-  file?: string
-  alt?: string
+  readonly file?: string
+  readonly alt?: string
 }
 
 // A submitted post form: the post, the files chosen with it, and problems already found.
@@ -76,57 +86,71 @@ export function readPostForm(formData: FormData, id: string, type?: string): Pos
   let local = text('date')
   // datetime-local leaves out the seconds when they're zero.
   if (/T\d{2}:\d{2}$/.test(local)) local += ':00'
-  let values: PostFormValues = {
+  let city = optional('city')
+  let caption = markdown('caption')
+  let base = {
     id,
     type: type ?? text('type'),
     date: local + text('offset'),
-    city: optional('city'),
-    caption: markdown('caption'),
+    ...(city !== undefined && { city }),
   }
+  let withCaption = { ...base, ...(caption !== undefined && { caption }) }
 
-  switch (values.type) {
-    case 'text':
-      // Kept even when empty, so the error says that text posts need one.
-      values.caption ??= ''
-      break
-    case 'photos': {
-      let all = (name: string) => formData.getAll(name).map((value) => String(value).trim())
-      let [files, alts] = ['file', 'alt'].map((field) => all(`photo_${field}`))
-      // Every row has a file input, so they line up with the rows.
-      let rowUploads = formData.getAll('photo_upload')
-      let rows = files.map((file, i) => ({
-        file: upload(rowUploads[i]) ?? file,
-        alt: alts[i] ?? '',
-      }))
-      // Photos added several at once go after the rest, without alt text.
-      let added = formData
-        .getAll('photo_uploads')
-        .map((value) => ({ file: upload(value) ?? '', alt: '' }))
-      values.photos = [...rows, ...added].filter((photo) => photo.file !== '')
-      break
-    }
-    case 'video':
-      values.video = {
-        file: file('video_'),
-        poster: upload(formData.get('video_poster_upload')) ?? optional('video_poster'),
-        width: size(text('video_width')),
-        height: size(text('video_height')),
+  let readPost = (): PostFormValues => {
+    switch (base.type) {
+      case 'text':
+        // Kept even when empty, so the error says that text posts need one.
+        return { ...base, caption: caption ?? '' }
+      case 'photos': {
+        let all = (name: string) => formData.getAll(name).map((value) => String(value).trim())
+        let alts = all('photo_alt')
+        // Every row has a file input, so they line up with the rows.
+        let rowUploads = formData.getAll('photo_upload')
+        let rows = all('photo_file').map((file, i) => ({
+          file: upload(rowUploads[i]) ?? file,
+          alt: alts[i] ?? '',
+        }))
+        // Photos added several at once go after the rest, without alt text.
+        let added = formData
+          .getAll('photo_uploads')
+          .map((value) => ({ file: upload(value) ?? '', alt: '' }))
+        return {
+          ...withCaption,
+          photos: [...rows, ...added].filter((photo) => photo.file !== ''),
+        }
       }
-      break
-    case 'article': {
-      let cover = { file: file('cover_'), alt: text('cover_alt') }
-      values.article = {
-        title: text('article_title'),
-        summary: text('article_summary'),
-        body: markdown('article_body') ?? '',
-        cover: cover.file ? cover : undefined,
+      case 'video': {
+        let videoFile = file('video_')
+        let poster = upload(formData.get('video_poster_upload')) ?? optional('video_poster')
+        let width = size(text('video_width'))
+        let height = size(text('video_height'))
+        return {
+          ...withCaption,
+          video: {
+            file: videoFile,
+            ...(poster !== undefined && { poster }),
+            ...(width !== undefined && { width }),
+            ...(height !== undefined && { height }),
+          },
+        }
       }
-      // Files for the body are named in its Markdown rather than in a field.
-      for (let value of formData.getAll('article_uploads')) upload(value)
-      break
+      case 'article': {
+        let cover = { file: file('cover_'), alt: text('cover_alt') }
+        let article = {
+          title: text('article_title'),
+          summary: text('article_summary'),
+          body: markdown('article_body') ?? '',
+          ...(cover.file !== '' && { cover }),
+        }
+        // Files for the body are named in its Markdown rather than in a field.
+        for (let value of formData.getAll('article_uploads')) upload(value)
+        return { ...withCaption, article }
+      }
+      default:
+        return withCaption
     }
   }
-  return { post: stripUndefined(values), uploads, issues }
+  return { post: readPost(), uploads, issues }
 }
 
 // The name an uploaded file is saved under: its own, without any folders (some browsers send
@@ -137,11 +161,10 @@ function uploadName(name: string): string {
 
 // The form's starting date for a new post: now, at the UTC offset of the newest post, which is
 // most likely where the next one is written.
-export function newPostDate(newestDate: string | undefined, now = Date.now()): string {
-  let offset = newestDate?.match(/[+-]\d{2}:\d{2}$/)?.[0] ?? '+00:00'
-  let [hours, minutes] = offset.slice(1).split(':').map(Number)
-  let sign = offset.startsWith('-') ? -1 : 1
-  let local = new Date(now + sign * (hours * 60 + minutes) * 60_000)
+export function newPostDate(newestDate: string | undefined, now: number): string {
+  let [offset = '+00:00', sign, hours, minutes] = newestDate?.match(/([+-])(\d{2}):(\d{2})$/) ?? []
+  let offsetMinutes = (sign === '-' ? -1 : 1) * (Number(hours ?? 0) * 60 + Number(minutes ?? 0))
+  let local = new Date(now + offsetMinutes * 60_000)
   return local.toISOString().slice(0, 16) + ':00' + offset
 }
 
@@ -150,8 +173,4 @@ export type InvalidCheck = (field: string) => 'true' | undefined
 
 export function invalidCheck(issues: readonly PostIssue[]): InvalidCheck {
   return (field) => (issues.some((issue) => issue.field === field) ? 'true' : undefined)
-}
-
-function stripUndefined<T extends object>(value: T): T {
-  return JSON.parse(JSON.stringify(value))
 }

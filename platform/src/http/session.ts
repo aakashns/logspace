@@ -7,7 +7,7 @@
 // HttpOnly, SameSite=Lax, Secure in production, and sent only to /admin, so public pages never
 // receive it.
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto'
-import { Context, Effect, Layer, Redacted, Schema } from 'effect'
+import { Context, Effect, Layer, Option, Redacted, Schema } from 'effect'
 import { HttpServerRequest, HttpServerResponse } from 'effect/http'
 
 import { AppConfig } from '../config.ts'
@@ -16,14 +16,18 @@ const COOKIE_NAME = 'admin_session'
 const MAX_AGE = 60 * 60 * 24 * 30
 const MIN_SECRET_LENGTH = 16
 
-export interface Session {
+export const Session = Schema.Struct({
   // A new id on login guards against session fixation.
-  readonly id: string
+  id: Schema.String,
   // The password's fingerprint, once logged in.
-  readonly auth?: string
+  auth: Schema.optionalKey(Schema.String),
   // A note for the next page, like "the settings were saved", which reading clears.
-  readonly flash?: string
-}
+  flash: Schema.optionalKey(Schema.String),
+})
+export type Session = typeof Session.Type
+
+// The cookie's payload, base64url JSON.
+const decodePayload = Schema.decodeUnknownOption(Schema.fromJsonString(Session))
 
 // Someone who isn't logged in as admin asked for an admin page.
 export class NotLoggedIn extends Schema.TaggedError<NotLoggedIn>()('NotLoggedIn', {}) {}
@@ -63,12 +67,9 @@ export class AdminAuth extends Context.Service<
         let expected = sign(payload)
         let given = Buffer.from(signature, 'base64url')
         if (given.length !== expected.length || !timingSafeEqual(given, expected)) return undefined
-        try {
-          let session = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'))
-          return typeof session?.id === 'string' ? session : undefined
-        } catch {
-          return undefined
-        }
+        return Option.getOrUndefined(
+          decodePayload(Buffer.from(payload, 'base64url').toString('utf8')),
+        )
       }
 
       let session = Effect.map(

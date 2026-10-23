@@ -25,8 +25,10 @@ export class DataVersion extends Context.Service<
       let sql = yield* SqlClient.SqlClient
       let writes = 0
       let externalVersion = sql<{ data_version: number }>`PRAGMA data_version`.pipe(
-        Effect.map(([row]) => row.data_version),
         Effect.orDie,
+        Effect.flatMap(([row]) =>
+          row ? Effect.succeed(row.data_version) : Effect.die('PRAGMA data_version gave no row'),
+        ),
       )
       return DataVersion.of({
         current: Effect.map(externalVersion, (version) => `${writes}:${version}`),

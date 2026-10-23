@@ -38,17 +38,9 @@ export class AppConfig extends Context.Service<
           Bun.isStandaloneExecutable ? ('production' as const) : ('development' as const),
         ),
       )
-      let mediaStorage = Config.String('MEDIA_STORAGE').pipe(
+      // fs (the default, files in MEDIA_DIR) or memory.
+      let mediaStorage = Config.Literals(['fs', 'memory'], 'MEDIA_STORAGE').pipe(
         Config.withDefault('fs'),
-        Config.mapEffect((value) =>
-          value === 'fs' || value === 'memory'
-            ? Effect.succeed(value as 'fs' | 'memory')
-            : Effect.die(
-                new Error(
-                  `MEDIA_STORAGE=${value} isn't supported: use fs (the default, files in MEDIA_DIR) or memory`,
-                ),
-              ),
-        ),
       )
       let resolve = (name: string, fallback: string) =>
         Config.String(name).pipe(

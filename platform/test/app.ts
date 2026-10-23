@@ -50,7 +50,7 @@ export function makeTestApp(config: Partial<AppConfig['Service']> = {}) {
     seedDatabase: () => runtime.runPromise(seedDatabase),
     // Copies the test content's media into storage.
     seedMedia: () => runtime.runPromise(seedMedia),
-    logIn: (password = ADMIN_PASSWORD, headers?: HeadersInit) =>
+    logIn: (password = ADMIN_PASSWORD, headers: HeadersInit = {}) =>
       app.fetch('/admin/login', {
         method: 'POST',
         headers,
@@ -64,7 +64,7 @@ export function makeTestApp(config: Partial<AppConfig['Service']> = {}) {
         ?.split(';')[0],
     // A request with a new admin session.
     adminFetch: async (path: string, init?: RequestInit) => {
-      let cookie = app.sessionCookie(await app.logIn())!
+      let cookie = defined(app.sessionCookie(await app.logIn()), 'a session cookie')
       return app.fetch(path, { ...init, headers: { Cookie: cookie, ...init?.headers } })
     },
     dispose: async () => {
@@ -73,4 +73,17 @@ export function makeTestApp(config: Partial<AppConfig['Service']> = {}) {
     },
   }
   return app
+}
+
+// A value the test needs, which fails it if it's missing.
+export function defined<T>(value: T | null | undefined, what: string): T {
+  if (value === null || value === undefined) throw new Error(`Expected ${what}`)
+  return value
+}
+
+// What the first group of `pattern` matches in `text`, which fails the test if it doesn't match.
+export function capture(text: string, pattern: RegExp): string {
+  let group = pattern.exec(text)?.[1]
+  if (group === undefined) throw new Error(`Expected ${pattern} to match`)
+  return group
 }

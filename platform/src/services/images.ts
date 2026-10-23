@@ -2,7 +2,7 @@
 // icon, and social preview image into the files the site serves. Bun.Image does its work on a
 // worker thread, so a big photo's resize doesn't hold up other requests.
 import { readFileSync } from 'node:fs'
-import { Context, Effect, Layer, Schema } from 'effect'
+import { Context, Effect, Layer, Predicate, Schema } from 'effect'
 
 import type { ImageInfo } from '../domain/images.ts'
 import type { SiteImage, SiteImageKind } from '../domain/site.ts'
@@ -74,14 +74,10 @@ export class Images extends Context.Service<
       )
       return Images.of({
         readInfo: (bytes) =>
-          Effect.promise(async () => {
-            try {
-              let { width, height } = await new Bun.Image(bytes).metadata()
-              return { width, height, version: hash(bytes) }
-            } catch {
-              return undefined
-            }
-          }),
+          Effect.tryPromise(() => new Bun.Image(bytes).metadata()).pipe(
+            Effect.map(({ width, height }) => ({ width, height, version: hash(bytes) })),
+            Effect.orElseSucceed(() => undefined),
+          ),
         resize: (bytes, width) =>
           Effect.tryPromise({
             try: () =>
@@ -91,15 +87,7 @@ export class Images extends Context.Service<
                 .bytes(),
             catch: (cause) => new ImageUnreadable({ cause }),
           }),
-        processSiteImage: (kind, bytes) =>
-          Effect.tryPromise({
-            try: () => processSiteImage(kind, bytes),
-            catch: (error) => error,
-          }).pipe(
-            Effect.catch((error) =>
-              error instanceof SiteImageRejected ? Effect.fail(error) : Effect.die(error),
-            ),
-          ),
+        processSiteImage,
         defaultIcons,
       })
     }),
@@ -124,42 +112,46 @@ const DEFAULT_ICON_COLOR = '#161616'
 
 // Uploads are checked, not fixed: an icon that isn't square or big enough is refused, not cropped
 // or padded, and the images are only resized and re-encoded.
-async function processSiteImage(kind: SiteImageKind, bytes: Uint8Array) {
-  let { format, width, height } = await inspect(kind, bytes)
-  try {
-    switch (kind) {
-      case 'logo': {
-        // Shown in the navbar as a mask filled with the text color, so it follows the theme.
-        let image = new Bun.Image(bytes)
-        if (height > LOGO_HEIGHT) {
-          image.resize(Math.round((width * LOGO_HEIGHT) / height), LOGO_HEIGHT)
-        }
-        return await single('logo.png', await image.png().bytes())
+const processSiteImage = Effect.fnUntraced(function* (kind: SiteImageKind, bytes: Uint8Array) {
+  let { format, width, height } = yield* inspect(kind, bytes)
+  switch (kind) {
+    case 'logo': {
+      // Shown in the navbar as a mask filled with the text color, so it follows the theme.
+      let image = new Bun.Image(bytes)
+      if (height > LOGO_HEIGHT) {
+        image.resize(Math.round((width * LOGO_HEIGHT) / height), LOGO_HEIGHT)
       }
-      case 'icon':
-        if (width !== height || width < ICON_SIZE) {
-          throw new SiteImageRejected({
-            message: `The icon must be square, at least ${ICON_SIZE} × ${ICON_SIZE} pixels.`,
-          })
-        }
-        return await makeIcons(bytes)
-      case 'socialImage': {
-        // A PNG stays one, so text in it stays sharp, and a JPEG stays a JPEG.
-        let image = new Bun.Image(bytes).resize(SOCIAL_IMAGE_WIDTH, undefined, {
-          withoutEnlargement: true,
-        })
-        return format === 'png'
-          ? await single('social.png', await image.png().bytes())
-          : await single('social.jpg', await image.jpeg({ quality: 85 }).bytes())
-      }
+      return yield* single('logo.png', yield* decode(() => image.png().bytes()))
     }
-  } catch (error) {
-    // Its header was fine, but not the rest of it (a file cut short).
-    if (isImageError(error))
-      throw new SiteImageRejected({ message: 'That image couldn’t be read.' })
-    throw error
+    case 'icon':
+      if (width !== height || width < ICON_SIZE) {
+        return yield* new SiteImageRejected({
+          message: `The icon must be square, at least ${ICON_SIZE} × ${ICON_SIZE} pixels.`,
+        })
+      }
+      return yield* decode(() => makeIcons(bytes))
+    case 'socialImage': {
+      // A PNG stays one, so text in it stays sharp, and a JPEG stays a JPEG.
+      let image = new Bun.Image(bytes).resize(SOCIAL_IMAGE_WIDTH, undefined, {
+        withoutEnlargement: true,
+      })
+      return format === 'png'
+        ? yield* single('social.png', yield* decode(() => image.png().bytes()))
+        : yield* single('social.jpg', yield* decode(() => image.jpeg({ quality: 85 }).bytes()))
+    }
   }
-}
+})
+
+// Bun.Image's work on an upload whose header was fine. If the rest of it isn't (a file cut
+// short), the upload is refused; any other failure is a defect.
+const decode = <A>(work: () => Promise<A>) =>
+  Effect.tryPromise({ try: work, catch: (cause) => new ImageUnreadable({ cause }) }).pipe(
+    Effect.catchTag('ImageUnreadable', ({ cause }) =>
+      isImageError(cause)
+        ? Effect.fail(new SiteImageRejected({ message: 'That image couldn’t be read.' }))
+        : Effect.die(cause),
+    ),
+  )
 
 // The icon's files, from a square image at least ICON_SIZE across.
 async function makeIcons(source: Uint8Array, color?: string): Promise<ProcessedSiteImage> {
@@ -187,40 +179,42 @@ async function makeIcons(source: Uint8Array, color?: string): Promise<ProcessedS
 }
 
 // The upload's upright size and format, if it's one the site image can be.
-async function inspect(kind: SiteImageKind, bytes: Uint8Array) {
-  let metadata
-  try {
-    metadata = await new Bun.Image(bytes).metadata()
-  } catch {
-    throw new SiteImageRejected({ message: 'That file isn’t an image.' })
-  }
+const inspect = Effect.fnUntraced(function* (kind: SiteImageKind, bytes: Uint8Array) {
+  let metadata = yield* Effect.tryPromise({
+    try: () => new Bun.Image(bytes).metadata(),
+    catch: () => new SiteImageRejected({ message: 'That file isn’t an image.' }),
+  })
   let formats = FORMATS[kind]
   if (!formats.includes(metadata.format)) {
-    throw new SiteImageRejected({
+    return yield* new SiteImageRejected({
       message: `Upload a ${formats.map((format) => format.toUpperCase()).join(' or ')} image.`,
     })
   }
   return metadata
-}
+})
 
 function isImageError(error: unknown): boolean {
-  let code = (error as { code?: unknown } | null)?.code
-  return typeof code === 'string' && code.startsWith('ERR_IMAGE_')
+  return (
+    Predicate.hasProperty(error, 'code') &&
+    typeof error.code === 'string' &&
+    error.code.startsWith('ERR_IMAGE_')
+  )
 }
 
-async function single(name: string, bytes: Uint8Array): Promise<ProcessedSiteImage> {
-  let { width, height } = await new Bun.Image(bytes).metadata()
-  return {
-    image: { file: name, width, height, version: hash(bytes) },
-    files: [
-      {
-        name,
-        bytes: new Uint8Array(bytes),
-        type: name.endsWith('.png') ? 'image/png' : 'image/jpeg',
-      },
-    ],
-  }
-}
+// One file, made by this app, so reading it back can't fail.
+const single = (name: string, bytes: Uint8Array) =>
+  Effect.promise(() => new Bun.Image(bytes).metadata()).pipe(
+    Effect.map(({ width, height }): ProcessedSiteImage => ({
+      image: { file: name, width, height, version: hash(bytes) },
+      files: [
+        {
+          name,
+          bytes: new Uint8Array(bytes),
+          type: name.endsWith('.png') ? 'image/png' : 'image/jpeg',
+        },
+      ],
+    })),
+  )
 
 // An ICO file holding one PNG, which every browser since IE 11 reads.
 function toIco(png: Uint8Array, size: number): Uint8Array<ArrayBuffer> {

@@ -20,5 +20,3 @@ declare module '*/datastar.js' {
   const path: string
   export default path
 }
-// The load generator scripts/bench.ts uses, which has no types of its own.
-declare module 'autocannon'

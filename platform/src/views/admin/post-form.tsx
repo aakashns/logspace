@@ -19,7 +19,7 @@ export interface PostFormProps {
   readonly values: PostFormValues
   // The post's files in media storage.
   readonly files: readonly { name: string; size: number }[]
-  readonly issues?: readonly PostIssue[]
+  readonly issues?: readonly PostIssue[] | undefined
 }
 
 // Blank photo rows shown after a post's photos, for adding more.
@@ -426,7 +426,7 @@ function UploadField(props: {
   name: string
   id: string
   accept: string
-  hint?: string
+  hint?: string | undefined
 }): Html {
   let { label, name, id, accept, hint } = props
   return (

@@ -35,7 +35,11 @@ export const pageContext = Effect.gen(function* () {
 
 // A page's response. Trusted Types are required too: Datastar makes its own policy, and no other
 // script can write HTML into the page.
-export function pageResponse(page: PageContext, html: Html, options?: { status?: number }) {
+export function pageResponse(
+  page: PageContext,
+  html: Html,
+  options?: { status?: number | undefined },
+) {
   let csp =
     "frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'; " +
     `script-src 'nonce-${page.nonce}'; trusted-types datastar; require-trusted-types-for 'script'`

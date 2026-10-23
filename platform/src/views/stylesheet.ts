@@ -23,11 +23,9 @@ export async function loadStylesheets(): Promise<Stylesheets> {
 }
 
 export async function buildStylesheets(): Promise<Stylesheets> {
-  let [site, admin] = await Promise.all(
-    ['site.css', 'admin.css'].map(async (name) =>
-      minify(await joinImports(path.join(import.meta.dir, 'styles', name))),
-    ),
-  )
+  let build = async (name: string) =>
+    minify(await joinImports(path.join(import.meta.dir, 'styles', name)))
+  let [site, admin] = await Promise.all([build('site.css'), build('admin.css')])
   return { site: await embedFonts(site), admin }
 }
 
@@ -35,7 +33,7 @@ async function embedFonts(css: string): Promise<string> {
   for (let href of EMBEDDED_FONTS) {
     let font = await Bun.file(path.join(ROOT, 'public', href)).bytes()
     let dataUrl = `url("data:font/woff2;base64,${font.toBase64()}")`
-    let embedded = css.replace(/url\("?([^")]+)"?\)/g, (match, url) =>
+    let embedded = css.replace(/url\("?([^")]+)"?\)/g, (match, url: string) =>
       url === href ? dataUrl : match,
     )
     if (embedded === css) throw new Error(`The stylesheet doesn't reference ${href}`)
@@ -47,11 +45,16 @@ async function embedFonts(css: string): Promise<string> {
 // The file with each `@import './file.css';` replaced by that file.
 async function joinImports(file: string): Promise<string> {
   let css = await Bun.file(file).text()
-  let imports = [...css.matchAll(/@import '([^']+)';/g)]
-  let joined = await Promise.all(
-    imports.map((match) => joinImports(path.join(path.dirname(file), match[1]))),
+  let imports = await Promise.all(
+    css.matchAll(/@import '([^']+)';/g).map(async ([statement, name = '']) => ({
+      statement,
+      css: await joinImports(path.join(path.dirname(file), name)),
+    })),
   )
-  return imports.reduce((result, match, i) => result.replace(match[0], () => joined[i]), css)
+  return imports.reduce(
+    (result, { statement, css: joined }) => result.replace(statement, () => joined),
+    css,
+  )
 }
 
 // Comments and whitespace out. Not a CSS parser: it's only for these stylesheets, which have no

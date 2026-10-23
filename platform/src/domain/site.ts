@@ -5,6 +5,8 @@
 // /admin/login. Any other setting that's never been saved has its default.
 import { Option, Result, Schema } from 'effect'
 
+import { toIssues } from './issues.ts'
+
 // The settings typed into the /admin/config form.
 export interface SiteText {
   // Shown in the browser tab, link previews, the RSS feed, and as the author of the posts.
@@ -84,7 +86,7 @@ function isSiteUrl(value: string): boolean {
   )
 }
 
-const SiteTextSchema = Schema.toStandardSchemaV1(
+const decodeSiteText = Schema.decodeUnknownResult(
   Schema.Struct({
     siteTitle: required('The site needs a title'),
     siteUrl: Schema.String.check(
@@ -98,24 +100,41 @@ const SiteTextSchema = Schema.toStandardSchemaV1(
     heroSubheading: Schema.String,
     socialImageAlt: Schema.String,
   }),
+  { errors: 'all' },
 )
 
 // Checks the settings typed into the form.
 export function parseSiteText(text: SiteText): Result.Result<SiteText, SiteConfigIssue[]> {
-  let result = SiteTextSchema['~standard'].validate(text)
-  if (result instanceof Promise) throw new Error('The site text schema is synchronous')
-  if (!result.issues) return Result.succeed(result.value as SiteText)
-  return Result.fail(
-    result.issues.map((issue) => {
-      let [key] = issue.path ?? []
-      let field = typeof key === 'object' ? key.key : key
-      return { field: field as keyof SiteConfig | undefined, message: issue.message }
-    }),
+  return Result.mapError(decodeSiteText(text), (error) =>
+    toIssues(error.issue).map(({ field, message }) =>
+      isSiteConfigField(field) ? { field, message } : { message },
+    ),
   )
 }
 
-// A saved image setting, or undefined if it isn't valid JSON for one, so a mangled row is
-// ignored like a missing one.
-const decodeSiteImageOption = Schema.decodeUnknownOption(Schema.fromJsonString(SiteImage))
-export const decodeSiteImage = (json: string): SiteImage | undefined =>
-  Option.getOrUndefined(decodeSiteImageOption(json))
+// The settings of the /admin/config form, which its issues can be about.
+export const SITE_CONFIG_FIELDS = [...TEXT_SETTINGS, ...SITE_IMAGE_KINDS] as const
+
+function isSiteConfigField(field: string | undefined): field is keyof SiteConfig {
+  return SITE_CONFIG_FIELDS.some((key) => key === field)
+}
+
+// The config as it's saved, from the `config` table's rows. A setting that's never been saved
+// has its default, and an image whose row is mangled is left out, like a missing one.
+export function fromConfigRows(rows: ReadonlyMap<string, string>): SavedSiteConfig {
+  let config: { -readonly [K in keyof SavedSiteConfig]: SavedSiteConfig[K] } = {
+    ...DEFAULT_SITE_CONFIG,
+  }
+  for (let key of TEXT_SETTINGS) {
+    let value = rows.get(key)
+    if (value !== undefined) config[key] = value
+  }
+  for (let kind of SITE_IMAGE_KINDS) {
+    let image = Option.getOrUndefined(decodeSiteImage(rows.get(kind) ?? ''))
+    if (image) config[kind] = image
+  }
+  return config
+}
+
+// A saved image setting, or none if it isn't valid JSON for one.
+const decodeSiteImage = Schema.decodeUnknownOption(Schema.fromJsonString(SiteImage))

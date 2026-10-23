@@ -2,7 +2,7 @@
 // natively; the limits are checked against Content-Length before a byte of the body is read, and
 // against the parsed files for a body sent without one. The login form, which anyone can send,
 // gets a much smaller limit (see LOGIN_FORM_LIMIT).
-import { Effect, Schema } from 'effect'
+import { Effect, Schema, Stream } from 'effect'
 import { HttpServerRequest } from 'effect/http'
 
 import {
@@ -24,10 +24,11 @@ export const readForm = Effect.fnUntraced(function* (limit = MAX_UPLOAD_TOTAL_SI
   let header = request.headers['content-length']
   if (header !== undefined && !(Number(header) <= limit)) return yield* new UploadTooLarge()
   let web = yield* HttpServerRequest.toWeb(request).pipe(Effect.mapError(() => new MalformedForm()))
-  if (header === undefined && web.body) {
-    let body = yield* Effect.promise(() => readAtMost(web.body!, limit))
-    if (!body) return yield* new UploadTooLarge()
-    web = new Request(web.url, { method: web.method, headers: web.headers, body })
+  let { body } = web
+  if (header === undefined && body) {
+    let read = yield* readAtMost(body, limit)
+    if (!read) return yield* new UploadTooLarge()
+    web = new Request(web.url, { method: web.method, headers: web.headers, body: read })
   }
   let form = yield* Effect.tryPromise({
     try: () => web.formData(),
@@ -46,20 +47,19 @@ export const readForm = Effect.fnUntraced(function* (limit = MAX_UPLOAD_TOTAL_SI
   return form
 })
 
-// A body's bytes, or undefined (having stopped reading) once there are more than `limit`.
-async function readAtMost(body: ReadableStream<Uint8Array>, limit: number) {
-  let chunks: Uint8Array[] = []
+// A body's bytes, or undefined (having stopped reading) once there are more than `limit`. A body
+// that breaks off (the browser went away) isn't a form.
+const readAtMost = Effect.fnUntraced(function* (body: ReadableStream<Uint8Array>, limit: number) {
   let size = 0
-  for await (let chunk of body) {
-    size += chunk.byteLength
-    if (size > limit) {
-      await body.cancel().catch(() => {})
-      return undefined
-    }
-    chunks.push(chunk)
-  }
-  return Buffer.concat(chunks)
-}
+  let chunks = yield* Stream.fromReadableStream({
+    evaluate: () => body,
+    onError: () => new MalformedForm(),
+  }).pipe(
+    Stream.takeUntil((chunk) => (size += chunk.byteLength) > limit),
+    Stream.runCollect,
+  )
+  return size > limit ? undefined : Buffer.concat(chunks)
+})
 
 // The most a login form can be: a password, with room to spare.
 export const LOGIN_FORM_LIMIT = 16 * 1024

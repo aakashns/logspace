@@ -15,7 +15,7 @@ import type { Stylesheets } from './stylesheet.ts'
 export interface PageContext {
   readonly site: SavedSiteConfig
   // The user's saved theme; undefined follows the system preference.
-  readonly theme?: 'light' | 'dark'
+  readonly theme?: 'light' | 'dark' | undefined
   // The Content-Security-Policy nonce for this response, which Datastar runs its expressions
   // with (see http/security.ts).
   readonly nonce: string
@@ -29,12 +29,12 @@ export interface DocumentProps {
   readonly meta: PageMeta
   // The page's main image, usually what Lighthouse calls the Largest Contentful Paint, which is
   // fetched before anything else (see getPriorityImage).
-  readonly preloadImage?: PreloadImage
+  readonly preloadImage?: PreloadImage | undefined
   // Extra navbar buttons, shown at the far right after the theme toggle.
-  readonly navActions?: Child
+  readonly navActions?: Child | undefined
   // Adds the admin pages' styles.
-  readonly admin?: boolean
-  readonly children?: Child
+  readonly admin?: boolean | undefined
+  readonly children?: Child | undefined
 }
 
 export function Document(props: DocumentProps): Html {

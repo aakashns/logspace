@@ -1,7 +1,7 @@
 // The app's icons, drawn on a 24 × 24 grid in the text color.
 import type { Html } from '#jsx/jsx-runtime'
 
-type IconProps = { class?: string }
+type IconProps = { class?: string | undefined }
 
 const stroke = { fill: 'none', stroke: 'currentColor', 'stroke-width': '1.5' }
 

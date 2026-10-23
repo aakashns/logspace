@@ -7,7 +7,9 @@
 //   queries/ (the read side):  SiteConfigQueries, PostQueries, SiteFiles, PostMedia, LinkPreviews
 //   commands/ (the write side): PostFiles, PostCommands, SiteConfigCommands
 //   http/ (the routes):         PublicRoutes, AdminRoutes, and AppMiddleware around them all
+import { BunFileSystem } from '@effect/platform-bun'
 import { Effect, Layer } from 'effect'
+import { FetchHttpClient } from 'effect/http'
 
 import { PostFiles } from './commands/post-files.ts'
 import { PostCommands } from './commands/posts.ts'
@@ -29,9 +31,13 @@ import { MediaStorage } from './services/media-storage.ts'
 
 const Infrastructure = Layer.mergeAll(DataVersion.layer, Migrations.layer).pipe(
   Layer.provideMerge(Layer.mergeAll(DatabaseLive, MediaStorage.layer, Images.layer)),
+  Layer.provideMerge(BunFileSystem.layer),
 )
 
-const Queries = Layer.mergeAll(PostMedia.layer, LinkPreviews.layer).pipe(
+const Queries = Layer.mergeAll(
+  PostMedia.layer,
+  LinkPreviews.layer.pipe(Layer.provide(FetchHttpClient.layer)),
+).pipe(
   Layer.provideMerge(Layer.mergeAll(SiteConfigQueries.layer, PostQueries.layer, SiteFiles.layer)),
 )
 

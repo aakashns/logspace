@@ -2,9 +2,9 @@
 import * as assert from 'node:assert/strict'
 import { describe, it } from 'bun:test'
 
-import { addSite } from '../src/cli/caddyfile.ts'
+import { addSite, type CaddySite } from '../src/cli/caddyfile.ts'
 
-const SITE = { domains: ['example.com', 'www.example.com'], port: 44100 }
+const SITE: CaddySite = { domains: ['example.com', 'www.example.com'], port: 44100 }
 const BLOCKS = `example.com {
 	encode zstd gzip
 	reverse_proxy localhost:44100
@@ -15,7 +15,7 @@ www.example.com {
 }
 `
 
-function caddyfile(existing: string, site = SITE) {
+function caddyfile(existing: string, site: CaddySite = SITE) {
   let result = addSite(existing, site)
   assert.ok(result.ok, result.ok ? '' : result.error)
   return result.caddyfile

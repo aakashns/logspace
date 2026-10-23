@@ -13,8 +13,8 @@ export function FieldRow(props: { children: Child }): Html {
 export function Field(props: {
   label: string
   for: string
-  hint?: string
-  size?: FieldSize
+  hint?: string | undefined
+  size?: FieldSize | undefined
   children: Child
 }): Html {
   return (
@@ -30,12 +30,12 @@ export interface InputProps {
   label: string
   name: string
   id: string
-  value?: string
-  invalid?: 'true'
-  hint?: string
+  value?: string | undefined
+  invalid?: 'true' | undefined
+  hint?: string | undefined
 }
 
-export function TextField(props: InputProps & { size?: FieldSize }): Html {
+export function TextField(props: InputProps & { size?: FieldSize | undefined }): Html {
   let { label, name, id, value, invalid, hint, size } = props
   return (
     <Field label={label} for={id} hint={hint} size={size}>
@@ -45,7 +45,9 @@ export function TextField(props: InputProps & { size?: FieldSize }): Html {
 }
 
 // `monospace` suits long Markdown, where the markup should stand out.
-export function TextareaField(props: InputProps & { rows: number; monospace?: boolean }): Html {
+export function TextareaField(
+  props: InputProps & { rows: number; monospace?: boolean | undefined },
+): Html {
   let { label, name, id, value, invalid, hint, rows, monospace } = props
   return (
     <Field label={label} for={id} hint={hint}>

@@ -7,7 +7,7 @@ import { Caption, PostMedia, PostMeta } from './post.tsx'
 
 export interface FeedItem {
   readonly post: Post
-  readonly preview?: LinkPreview
+  readonly preview?: LinkPreview | undefined
 }
 
 // A timeline of posts modeled on an X profile, minus the avatar and name: each post shows its

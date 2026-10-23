@@ -41,7 +41,15 @@ bun run count-lines
 - Write services with `Context.Service` and a `layer`, and functions with `Effect.fn` (or
   `Effect.fnUntraced` on hot paths). Expected failures are `Schema.TaggedError`s that callers
   handle; unexpected ones (storage, the database) are defects, a logged 500
-- Check unknown input at the boundary with `Schema`, and use specific types inside
+- Check unknown input at the boundary with `Schema` (JSON, cookies, files, other sites), and use
+  specific types inside. Types are checked, never asserted: no casts (`as const` is fine), `any`,
+  or `!` (`bun run lint` checks). The compiler has `noUncheckedIndexedAccess` and
+  `exactOptionalPropertyTypes` on: data with a schema leaves an optional key out rather than
+  setting it to undefined, and props that callers fill from maybe-missing values are
+  `?: T | undefined`
+- Time comes from `Clock` or `DateTime`, files and processes from `FileSystem` and
+  `ChildProcessSpawner`, and other sites from `HttpClient`, except where Bun's own APIs are the
+  point (media storage serves `BunFile`s with sendfile)
 - The layers stay apart: `domain/` imports nothing below it, queries never import commands, and
   views never import services; `bun run lint` checks
 - The only browser JavaScript is Datastar, in `src/views/controls.tsx`. Its expressions are

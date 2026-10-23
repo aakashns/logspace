@@ -1,5 +1,7 @@
 // Posts as pages show them, with their media's URLs and their captions rendered. Pure: the read
 // model (../queries/posts.ts) makes these from stored posts once per change, so pages only render.
+import { Array as Arr } from 'effect'
+
 import { routes } from '../routes.ts'
 import { FULL_WIDTH_IMAGE_SIZES, HALF_WIDTH_IMAGE_SIZES } from './constants.ts'
 import { clamp } from './format.ts'
@@ -13,10 +15,10 @@ interface BasePost {
   readonly id: string
   // ISO 8601 with the UTC offset of where it was posted; the post shows that local time.
   readonly date: string
-  readonly city?: string
-  readonly caption?: string
+  readonly city?: string | undefined
+  readonly caption?: string | undefined
   // The caption as HTML (see renderCaption).
-  readonly captionHtml?: string
+  readonly captionHtml?: string | undefined
 }
 
 export interface TextPost extends BasePost {
@@ -26,7 +28,7 @@ export interface TextPost extends BasePost {
 
 export interface PhotosPost extends BasePost {
   readonly type: 'photos'
-  readonly photos: readonly Photo[]
+  readonly photos: Arr.NonEmptyReadonlyArray<Photo>
 }
 
 export interface VideoPost extends BasePost {
@@ -41,7 +43,7 @@ export interface ArticlePost extends BasePost {
     readonly title: string
     readonly summary: string
     readonly body: string
-    readonly cover?: Photo
+    readonly cover?: Photo | undefined
   }
 }
 
@@ -52,9 +54,9 @@ export interface ArticlePost extends BasePost {
 export interface Photo {
   readonly src: string
   readonly alt: string
-  readonly width?: number
-  readonly height?: number
-  readonly srcset?: string
+  readonly width?: number | undefined
+  readonly height?: number | undefined
+  readonly srcset?: string | undefined
 }
 
 // A video's width and height are given in the post (they can't be read from the file), or else
@@ -62,10 +64,10 @@ export interface Photo {
 // it was uploaded, for link previews.
 export interface Video {
   readonly src: string
-  readonly poster?: string
-  readonly posterImage?: string
-  readonly width?: number
-  readonly height?: number
+  readonly poster?: string | undefined
+  readonly posterImage?: string | undefined
+  readonly width?: number | undefined
+  readonly height?: number | undefined
 }
 
 // The size and version of one of a post's images, by file name.
@@ -93,7 +95,7 @@ export function toPost(post: PostRecord, image: ImageLookup = () => undefined): 
     case 'text':
       return { ...base, type: 'text', caption: post.caption }
     case 'photos':
-      return { ...base, type: 'photos', photos: post.photos.map(photo) }
+      return { ...base, type: 'photos', photos: Arr.map(post.photos, photo) }
     case 'video': {
       let { file, poster, width, height } = post.video
       let info = poster ? image(poster) : undefined
@@ -134,14 +136,22 @@ export interface PageMeta {
   // Path of the page's canonical URL, like "/posts/fc7p7vjhx6".
   readonly path: string
   // Shown before the site title in the <title>; the home page has none.
-  readonly title?: string
-  readonly description?: string
+  readonly title?: string | undefined
+  readonly description?: string | undefined
   // Site-relative or absolute URL of the image shown when the page is shared.
-  readonly image?: { url: string; alt?: string; width?: number; height?: number }
+  readonly image?: MetaImage | undefined
   // For posts: when it was published, and the kind of schema.org object it is.
-  readonly published?: { date: string; kind: 'BlogPosting' | 'SocialMediaPosting' }
+  readonly published?:
+    { readonly date: string; readonly kind: 'BlogPosting' | 'SocialMediaPosting' } | undefined
   // Keeps the page out of search results (e.g. "not found" pages).
-  readonly noindex?: boolean
+  readonly noindex?: boolean | undefined
+}
+
+export interface MetaImage {
+  readonly url: string
+  readonly alt?: string | undefined
+  readonly width?: number | undefined
+  readonly height?: number | undefined
 }
 
 // What the post's page tells search engines and link previews: an article's title, summary, and
@@ -150,7 +160,7 @@ export function getPostMeta(post: Post): PageMeta {
   let path = routes.post(post.id)
   let text = post.caption ? captionText(post.caption).trim() : ''
   let caption = text.replace(/\s+/g, ' ')
-  let firstLine = text.split('\n')[0]
+  let [firstLine = ''] = text.split('\n')
   let published = {
     date: post.date,
     kind: post.type === 'article' ? ('BlogPosting' as const) : ('SocialMediaPosting' as const),
@@ -176,15 +186,15 @@ export function getPostMeta(post: Post): PageMeta {
   }
 }
 
-function toImage(photo: Photo): PageMeta['image'] {
+function toImage(photo: Photo): MetaImage {
   return { url: photo.src, alt: photo.alt, width: photo.width, height: photo.height }
 }
 
 // An image to preload, with the srcset and sizes of its <img> so the same copy is fetched.
 export interface PreloadImage {
   readonly href: string
-  readonly srcset?: string
-  readonly sizes?: string
+  readonly srcset?: string | undefined
+  readonly sizes?: string | undefined
 }
 
 // The image that's likely the largest thing on screen when `post` is the first post shown (in

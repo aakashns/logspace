@@ -88,10 +88,10 @@ export class SiteConfigCommands extends Context.Service<
           )
         }
         let saved = yield* queries.saved
-        let current: Partial<Record<SiteImageKind, SiteImage>> = {
-          logo: saved.logo,
-          icon: saved.icon,
-          socialImage: saved.socialImage,
+        let current: { [K in SiteImageKind]?: SiteImage } = {}
+        for (let kind of SITE_IMAGE_KINDS) {
+          let image = saved[kind]
+          if (image) current[kind] = image
         }
         let hasSocialImage =
           processed.has('socialImage') || (current.socialImage && !removals.includes('socialImage'))
@@ -115,7 +115,7 @@ export class SiteConfigCommands extends Context.Service<
         for (let kind of removals) {
           let image = current[kind]
           if (image) yield* removeImageFiles(image)
-          current[kind] = undefined
+          delete current[kind]
         }
         yield* save({ ...parsed.success, ...current })
       })

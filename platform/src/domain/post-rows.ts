@@ -1,6 +1,8 @@
 // How a post is stored in the `posts` table (see db/migrations). The fields every post has get
 // their own columns; its photos, video, or article is JSON in `details`, except that an article's
 // body has its own column, `article_body`, for search.
+import { Predicate, Result, Schema } from 'effect'
+
 import { parsePostRecord, type PostRecord } from './post.ts'
 
 export interface PostRow {
@@ -39,16 +41,34 @@ export function fromPostRow({
   details,
   article_body,
 }: PostRow): PostRecord {
-  let post = { id, type, date, ...JSON.parse(details) }
-  if (city !== null) post.city = city
-  if (caption !== null) post.caption = caption
-  if (article_body !== null) post.article = { ...post.article, body: article_body }
-  let result = parsePostRecord(post)
-  if (result._tag === 'Success') return result.success
-  let issues = result.failure.map(
+  let parsed = decodeDetails(details).pipe(
+    Result.mapError(() => [{ field: 'details', message: 'Expected a JSON object' }]),
+    Result.flatMap((stored) =>
+      parsePostRecord({
+        id,
+        type,
+        date,
+        ...stored,
+        ...(city !== null && { city }),
+        ...(caption !== null && { caption }),
+        ...(article_body !== null && {
+          article: {
+            ...(Predicate.isObject(stored.article) && stored.article),
+            body: article_body,
+          },
+        }),
+      }),
+    ),
+  )
+  if (Result.isSuccess(parsed)) return parsed.success
+  let issues = parsed.failure.map(
     (issue) => `  ${[`post "${id}"`, issue.field].filter(Boolean).join(', ')}: ${issue.message}`,
   )
   throw new Error(`Invalid posts:\n${issues.join('\n')}`)
 }
+
+const decodeDetails = Schema.decodeUnknownResult(
+  Schema.fromJsonString(Schema.Record(Schema.String, Schema.Unknown)),
+)
 
 export const POST_COLUMNS = 'id, type, date, city, caption, details, article_body'

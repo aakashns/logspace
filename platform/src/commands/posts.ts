@@ -1,6 +1,6 @@
 // Publishing, editing, and deleting posts: the write side for posts. Media storage and the
 // database can't change together, so each command says what's left when one step fails.
-import { Context, Effect, Layer, Option } from 'effect'
+import { Context, DateTime, Effect, Layer, Option } from 'effect'
 import { SqlClient } from 'effect/sql'
 
 import { fromPostRow, POST_COLUMNS, toPostRow, type PostRow } from '../domain/post-rows.ts'
@@ -119,7 +119,8 @@ export class PostCommands extends Context.Service<
         yield* saveUploads(submission, id)
         let record = yield* check({ ...submission, post: { ...submission.post, id } })
         let { id: _, ...row } = toPostRow(record)
-        yield* sql`update posts set ${sql.update({ ...row, updated_at: new Date().toISOString() })} where id = ${id}`.pipe(
+        let updated_at = DateTime.formatIso(yield* DateTime.now)
+        yield* sql`update posts set ${sql.update({ ...row, updated_at })} where id = ${id}`.pipe(
           Effect.orDie,
         )
         yield* versions.changed

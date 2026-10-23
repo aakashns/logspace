@@ -22,17 +22,20 @@ export function raw(html: string): Html {
   return new Html(html)
 }
 
-export function Fragment(props: { children?: Child }): Html {
+export function Fragment(props: { children?: Child | undefined }): Html {
   return new Html(renderChildren(props.children))
 }
 
-export function jsx(type: string | Component<any>, props: Record<string, unknown>): Html {
+// An element's props: its attributes, and what's inside it.
+type ElementProps = { children?: Child | undefined } & Record<string, unknown>
+
+export function jsx<P>(type: string | Component<P>, props: P & ElementProps): Html {
   if (typeof type === 'function') return type(props)
 
   let { children, ...attributes } = props
   let html = `<${type}${renderAttributes(attributes)}>`
   if (VOID_ELEMENTS.has(type)) return new Html(html)
-  return new Html(`${html}${renderChildren(children as Child)}</${type}>`)
+  return new Html(`${html}${renderChildren(children)}</${type}>`)
 }
 
 export { jsx as jsxs, jsx as jsxDEV }
@@ -75,7 +78,7 @@ const TEXT_SPECIAL_ALL = /[&<>]/g
 const ATTRIBUTE_SPECIAL = /[&<>"]/
 const ATTRIBUTE_SPECIAL_ALL = /[&<>"]/g
 const ESCAPES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }
-const escapeChar = (char: string) => ESCAPES[char]
+const escapeChar = (char: string) => ESCAPES[char] ?? char
 
 const VOID_ELEMENTS = new Set([
   'area',
@@ -101,6 +104,6 @@ export namespace JSX {
   // Any element with any attributes: pages are checked by their tests and by eye, and a strict
   // DOM typing would add more code than this whole runtime.
   export interface IntrinsicElements {
-    [tag: string]: { children?: Child } & Record<string, unknown>
+    [tag: string]: ElementProps
   }
 }
