@@ -97,9 +97,6 @@ export function HomePage() {
             <a href={`${github}/releases`} target="_blank">
               Changelog
             </a>
-            <a href={github} target="_blank">
-              GitHub
-            </a>
           </nav>
         </header>
         <main id="main">
