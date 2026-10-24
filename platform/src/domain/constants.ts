@@ -27,3 +27,6 @@ export const MAX_UPLOAD_FILES = 100
 // between a photo's resized copies (see images.ts).
 export const FULL_WIDTH_IMAGE_SIZES = '(min-width: 38rem) 36rem, calc(100vw - 2rem)'
 export const HALF_WIDTH_IMAGE_SIZES = '(min-width: 38rem) 18rem, calc(50vw - 1rem)'
+// The home page's banner, which spans the screen on phones and the column with its padding on
+// wider screens (see .banner in pages.css).
+export const BANNER_IMAGE_SIZES = '(min-width: 38rem) 38rem, 100vw'

@@ -1,7 +1,8 @@
 // Where uploaded media is kept: posts' photos, videos, and posters under posts/<id>/<file>, their
-// resized copies under variants/<id>/<file>/<width>-<version>.webp, and the site's logo, icon,
-// and banner image under site/<file>. Keys are always built from a checked post id and
-// file name (see isPostFileName in domain/post.ts), so none can point outside its folder.
+// resized copies under variants/<id>/<file>/<width>-<version>.webp, the site's logo, icon, and
+// banner image under site/<file>, and the banner's resized copies under site-variants/<file>/.
+// Keys are always built from a checked post id and file name (see isPostFileName in
+// domain/post.ts), or a site image's file name, so none can point outside its folder.
 //
 // The fs backend keeps each key as a file of that name under MEDIA_DIR, written with Bun's file
 // APIs. Files are written beside their destination and renamed into place, so a reader never sees
@@ -25,6 +26,8 @@ export const mediaKeys = {
   variants: (id: string, name: string) => `variants/${id}/${name}/`,
   postVariants: (id: string) => `variants/${id}/`,
   siteFile: (name: string) => `site/${name}`,
+  // The banner image's resized copies, each <width>-<version>.webp (see queries/site-files.ts).
+  siteVariants: (name: string) => `site-variants/${name}/`,
 }
 
 // A stored file. `blob` is read lazily: for the fs backend it's a BunFile, which Bun can send

@@ -6,6 +6,7 @@ import { SqlClient } from 'effect/sql'
 
 import { isSiteConfigured } from '../src/domain/site.ts'
 import { SiteConfigQueries } from '../src/queries/site-config.ts'
+import { MediaStorage, mediaKeys } from '../src/services/media-storage.ts'
 import { capture, defined, makeTestApp } from './app.ts'
 import { TEST_SITE_CONFIG } from './seed.ts'
 
@@ -229,15 +230,15 @@ describe('the site’s images', () => {
       version: undefined,
     })
     expect(icon.file).toBe('icon-512.png')
-    expect([bannerImage.file, bannerImage.width]).toEqual(['banner.jpg', 1500])
+    expect([bannerImage.file, bannerImage.width]).toEqual(['banner.jpg', 1200])
 
     let logoFile = await app.fetch('/site/logo.png')
     expect(logoFile.headers.get('Content-Type')).toBe('image/png')
     expect(await imageSize(logoFile)).toEqual({ width: 640, height: 160, format: 'png' })
     expect(await (await app.fetch('/favicon.ico')).bytes()).not.toEqual(defaultFavicon)
     expect(await imageSize(await app.fetch('/site/banner.jpg'))).toEqual({
-      width: 1500,
-      height: 500,
+      width: 1200,
+      height: 400,
       format: 'jpeg',
     })
 
@@ -251,21 +252,50 @@ describe('the site’s images', () => {
       `<meta property="og:image" content="https://example.com/site/banner.jpg?v=${bannerImage.version}">`,
     )
     expect(html).toContain('<meta property="og:image:alt" content="A red card">')
-    expect(html).toContain('<meta property="og:image:width" content="1500">')
-    // The banner is at the top of the home page, and fetched first.
-    let banner = `/site/banner.jpg?v=${bannerImage.version}`
+    expect(html).toContain('<meta property="og:image:width" content="1200">')
+    // The banner is at the top of the home page as WebP copies that fit the screen, and fetched
+    // first.
+    let v = bannerImage.version
+    let banner = `/site/banner.jpg?v=${v}`
+    let srcset = [320, 400, 480, 600, 680, 800, 960, 1160]
+      .map((width) => `/site/banner.jpg?w=${width}&amp;v=${v} ${width}w`)
+      .concat(`/site/banner.jpg?w=1400&amp;v=${v} 1200w`)
+      .join(', ')
+    let sizes = '(min-width: 38rem) 38rem, 100vw'
     expect(html).toContain(
-      `<img src="${banner}" alt="A red card" width="1500" height="500" fetchpriority="high" class="banner">`,
+      `<img src="${banner}" srcset="${srcset}" sizes="${sizes}" alt="A red card" width="1200" height="400" fetchpriority="high" class="banner">`,
     )
-    expect(html).toContain(`<link rel="preload" as="image" href="${banner}" fetchpriority="high">`)
+    expect(html).toContain(
+      `<link rel="preload" as="image" href="${banner}" imagesrcset="${srcset}" imagesizes="${sizes}" fetchpriority="high">`,
+    )
+    let copy = await app.fetch(`/site/banner.jpg?w=600&v=${v}`)
+    expect(copy.headers.get('Cache-Control')).toBe('public, max-age=31536000, immutable')
+    expect(await imageSize(copy)).toEqual({ width: 600, height: 200, format: 'webp' })
+    expect(await imageSize(await app.fetch(`/site/banner.jpg?w=1400&v=${v}`))).toEqual({
+      width: 1200,
+      height: 400,
+      format: 'webp',
+    })
+    // Only at the widths in srcset, the current version, and for the banner.
+    for (let url of [
+      `/site/banner.jpg?w=801&v=${v}`,
+      `/site/banner.jpg?w=800&v=000000000000`,
+      `/site/logo.png?w=800&v=${savedLogo.version}`,
+    ]) {
+      expect((await app.fetch(url)).status).toBe(404)
+    }
     expect(html).toContain(`href="/favicon.ico?v=${icon.version}"`)
     expect((await manifest()).icons[0]?.src).toBe(`/site/icon-192.png?v=${icon.version}`)
 
-    // A PNG stays a PNG, and the JPEG it replaces goes.
+    // A PNG stays a PNG, and the JPEG it replaces goes, with its copies.
     await save(imageForm({ bannerImage: await png(1200, 630) }, { bannerImageAlt: 'Red' }))
     expect((await savedConfig()).bannerImage?.file).toBe('banner.png')
     expect((await app.fetch('/site/banner.jpg')).status).toBe(404)
     expect((await app.fetch('/site/banner.png')).status).toBe(200)
+    let copies = await app.run(
+      Effect.flatMap(MediaStorage, (storage) => storage.list(mediaKeys.siteVariants('banner.jpg'))),
+    )
+    expect(copies).toEqual([])
 
     let removed = imageForm({})
     for (let kind of ['logo', 'icon', 'bannerImage']) removed.set(`${kind}Remove`, 'on')

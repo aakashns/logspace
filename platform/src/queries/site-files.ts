@@ -1,9 +1,10 @@
 // The files the site serves for its images: the icons (favicon, home screen and manifest icons),
-// the logo, and the banner image. Icons are made from LogSpace's mark until an icon is
-// uploaded.
+// the logo, and the banner image, with the banner's resized copies. Icons are made from
+// LogSpace's mark until an icon is uploaded.
 import { Context, Effect, Layer } from 'effect'
 
 import { FALLBACK_ICON_BACKGROUND } from '../domain/constants.ts'
+import { IMAGE_WIDTHS, getSrcset } from '../domain/images.ts'
 import type { SiteImage, SiteImages } from '../domain/site.ts'
 import { routes } from '../routes.ts'
 import { DEFAULT_ICON_VERSION, ICON_FILES, Images } from '../services/images.ts'
@@ -18,6 +19,14 @@ export class SiteFiles extends Context.Service<
       name: string,
       images: SiteImages,
     ) => Effect.Effect<{ file: StoredFile; version: string } | undefined>
+    // The banner image resized to one of IMAGE_WIDTHS, as WebP, if `name` and `version` are its
+    // current ones. Copies are made the first time each is asked for, like a post's photos'.
+    readonly resized: (
+      name: string,
+      width: number,
+      version: string,
+      images: SiteImages,
+    ) => Effect.Effect<StoredFile | undefined>
     // The color behind the icon where it can't be transparent, for the web app manifest.
     readonly iconColor: (images: SiteImages) => Effect.Effect<string>
   }
@@ -26,7 +35,7 @@ export class SiteFiles extends Context.Service<
     SiteFiles,
     Effect.gen(function* () {
       let storage = yield* MediaStorage
-      let { defaultIcons } = yield* Images
+      let { defaultIcons, resize } = yield* Images
       let stored = (name: string, version: string) =>
         Effect.map(storage.get(mediaKeys.siteFile(name)), (file) => file && { file, version })
 
@@ -42,6 +51,21 @@ export class SiteFiles extends Context.Service<
           }
           let image = [images.logo, images.bannerImage].find((image) => image?.file === name)
           return image ? yield* stored(name, image.version) : undefined
+        }),
+        // Unlike PostMedia, two requests for a copy that isn't made yet both make it: there's
+        // only one banner, and its copies are each asked for about once.
+        resized: Effect.fn('SiteFiles.resized')(function* (name, width, version, { bannerImage }) {
+          if (bannerImage?.file !== name || bannerImage.version !== version) return undefined
+          if (!IMAGE_WIDTHS.includes(width)) return undefined
+          let key = `${mediaKeys.siteVariants(name)}${width}-${version}.webp`
+          let existing = yield* storage.get(key)
+          if (existing) return existing
+          let file = yield* storage.get(mediaKeys.siteFile(name))
+          if (!file) return undefined
+          let bytes = new Uint8Array(yield* Effect.promise(() => file.blob.arrayBuffer()))
+          // The app made the banner, so Bun can read it.
+          yield* storage.put(key, yield* Effect.orDie(resize(bytes, width)))
+          return yield* storage.get(key)
         }),
         iconColor: (images) =>
           images.icon
@@ -69,4 +93,9 @@ export function getIconHref(images: SiteImages, name: string): string {
 // The URL of the logo or banner image.
 export function getSiteImageHref(image: SiteImage): string {
   return `${routes.siteFile(image.file)}?v=${image.version}`
+}
+
+// The banner image's resized copies, for srcset.
+export function getBannerSrcset(image: SiteImage): string {
+  return getSrcset(routes.siteFile(image.file), image.file, image)
 }
