@@ -15,7 +15,7 @@ import {
 import { DraftChanges } from '../services/draft-changes.ts'
 import { MediaStorage, mediaKeys } from '../services/media-storage.ts'
 import { PostNotFound, PostRejected } from './errors.ts'
-import { PostFiles } from './post-files.ts'
+import { makePostFiles } from './post-files.ts'
 
 // A post as the /admin post form submitted it (see domain/post-form.ts).
 export interface PostSubmission {
@@ -67,7 +67,7 @@ export class PostCommands extends Context.Service<
     PostCommands,
     Effect.gen(function* () {
       let sql = yield* SqlClient.SqlClient
-      let files = yield* PostFiles
+      let files = yield* makePostFiles()
       let storage = yield* MediaStorage
       let draftChanges = yield* DraftChanges
       // One owner, one shared draft: serialize all post mutations, including cleanup.

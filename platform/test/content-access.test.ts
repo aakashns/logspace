@@ -2,7 +2,6 @@ import { afterAll, beforeEach, describe, expect, it, spyOn } from 'bun:test'
 import { Effect } from 'effect'
 import { SqlClient } from 'effect/sql'
 
-import { PostFiles } from '../src/commands/post-files.ts'
 import { PostCommands, type PostSubmission } from '../src/commands/posts.ts'
 import { SiteConfigCommands } from '../src/commands/site-config.ts'
 import type { ComposeValues } from '../src/domain/compose.ts'
@@ -43,7 +42,7 @@ const photoExists = (id: string) =>
   app.run(Effect.flatMap(MediaStorage, (storage) => storage.has(mediaKeys.postFile(id, 'a.jpg'))))
 
 // A mutation has reached its actual filesystem step before the competing request starts.
-function barrier<A extends readonly unknown[]>(original: (...args: A) => Effect.Effect<void>) {
+function barrier<A extends readonly unknown[], B>(original: (...args: A) => Effect.Effect<B>) {
   let entered = Promise.withResolvers<void>()
   let release = Promise.withResolvers<void>()
   return {
@@ -53,7 +52,7 @@ function barrier<A extends readonly unknown[]>(original: (...args: A) => Effect.
       Effect.gen(function* () {
         entered.resolve()
         yield* Effect.promise(() => release.promise)
-        yield* original(...args)
+        return yield* original(...args)
       }),
   }
 }
@@ -61,11 +60,11 @@ function barrier<A extends readonly unknown[]>(original: (...args: A) => Effect.
 describe('post mutations share the draft and media boundary', () => {
   it('cannot publish between a media-removal check and the removal', async () => {
     let commands = await app.run(PostCommands)
-    let files = await app.run(PostFiles)
+    let storage = await app.run(MediaStorage)
     let id = 'racepost01'
     await app.run(commands.updateFiles(values(id, ['a.jpg']), [upload], []))
-    let gate = barrier(files.remove)
-    let mock = spyOn(files, 'remove').mockImplementation(gate.run)
+    let gate = barrier(storage.remove)
+    let mock = spyOn(storage, 'remove').mockImplementationOnce(gate.run)
     try {
       let update = app.run(Effect.exit(commands.updateFiles(values(id), [], ['a.jpg'])))
       await gate.entered
@@ -97,10 +96,10 @@ describe('post mutations share the draft and media boundary', () => {
 
   it('a publish holding the lock rejects later media updates and discard without touching files', async () => {
     let commands = await app.run(PostCommands)
-    let files = await app.run(PostFiles)
+    let storage = await app.run(MediaStorage)
     let id = 'racepost02'
-    let gate = barrier(files.save)
-    let mock = spyOn(files, 'save').mockImplementation(gate.run)
+    let gate = barrier(storage.put)
+    let mock = spyOn(storage, 'put').mockImplementationOnce(gate.run)
     try {
       let published = app.run(commands.publish({ ...submission(id), uploads: [upload] }))
       await gate.entered
@@ -120,11 +119,11 @@ describe('post mutations share the draft and media boundary', () => {
   for (let action of ['discard', 'replace'] as const) {
     it(`${action} retires the draft before late uploads or publication, including text-only drafts`, async () => {
       let commands = await app.run(PostCommands)
-      let files = await app.run(PostFiles)
+      let storage = await app.run(MediaStorage)
       let id = 'racepost03'
       await app.run(commands.saveDraft(values(id)))
-      let gate = barrier(files.removeAll)
-      let mock = spyOn(files, 'removeAll').mockImplementation(gate.run)
+      let gate = barrier(storage.list)
+      let mock = spyOn(storage, 'list').mockImplementationOnce(gate.run)
       try {
         let retire = app.run(
           action === 'discard'
@@ -162,11 +161,11 @@ describe('post mutations share the draft and media boundary', () => {
 
   it('serializes edit/delete and refuses reuse while deleted files are being cleaned up', async () => {
     let commands = await app.run(PostCommands)
-    let files = await app.run(PostFiles)
+    let storage = await app.run(MediaStorage)
     let id = 'racepost06'
     await app.run(commands.publish({ ...submission(id), uploads: [upload] }))
-    let gate = barrier(files.removeAll)
-    let mock = spyOn(files, 'removeAll').mockImplementation(gate.run)
+    let gate = barrier(storage.list)
+    let mock = spyOn(storage, 'list').mockImplementationOnce(gate.run)
     try {
       let removed = app.run(commands.delete(id))
       await gate.entered

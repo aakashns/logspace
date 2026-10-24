@@ -18,6 +18,8 @@ bun run count-lines
 ## Where things go
 
 - `src/app.ts` wires every service and the routes; read it first
+- `src/server.ts` serves the app with Bun and owns shutdown ordering, shared by the CLI and
+  browser tests
 - `src/domain/` is pure (no database, files, or HTTP): what posts and settings are, their checks,
   and how pages show them
 - `src/commands/` is every write (one method per change), and `src/queries/` every read, straight
@@ -71,8 +73,11 @@ path says otherwise.
 - Handlers read the request, call queries or one command, and pick a response; a change of more
   than one step is one command
 - Write services with `Context.Service` and a `layer`, and functions with `Effect.fn` (or
-  `Effect.fnUntraced` on hot paths). Expected failures are `Schema.TaggedError`s that callers
-  handle; unexpected ones (storage, the database) are defects, a logged 500
+  `Effect.fnUntraced` on hot paths). Services own shared state, resources, or application APIs;
+  stateless helpers don't need their own service or layer. Wire dependencies in `app.ts` with
+  `Layer.provide`, merge independent services with `Layer.mergeAll`, and use `provideMerge` only
+  when callers need the dependency in the output too. Expected failures are `Schema.TaggedError`s
+  that callers handle; unexpected ones (storage, the database) are defects, a logged 500
 - Check unknown input at the boundary with `Schema` (JSON, cookies, files, other sites), and use
   specific types inside. Types are checked, never asserted: no casts (`as const` is fine), `any`,
   or `!` (`bun run lint` checks). The compiler has `noUncheckedIndexedAccess` and
