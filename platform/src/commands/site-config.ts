@@ -61,6 +61,11 @@ export class SiteConfigCommands extends Context.Service<
           (name) => storage.remove(mediaKeys.siteFile(name)),
           { discard: true },
         )
+      // The banner's resized copies, made from a version of it that's gone.
+      let removeVariants = (image: SiteImage) =>
+        Effect.flatMap(storage.list(mediaKeys.siteVariants(image.file)), (files) =>
+          Effect.forEach(files, (file) => storage.remove(file.key), { discard: true }),
+        )
 
       // Uploads are turned into the files they're served as first, but only stored once
       // everything is valid. An image's old files are removed after its new ones are stored, and
@@ -107,11 +112,15 @@ export class SiteConfigCommands extends Context.Service<
           if (previous && !upload.files.some((file) => file.name === previous.file)) {
             yield* removeImageFiles(previous)
           }
+          if (previous) yield* removeVariants(previous)
           current[kind] = upload.image
         }
         for (let kind of removals) {
           let image = current[kind]
-          if (image) yield* removeImageFiles(image)
+          if (image) {
+            yield* removeImageFiles(image)
+            yield* removeVariants(image)
+          }
           delete current[kind]
         }
         yield* save({ ...parsed.success, ...current })

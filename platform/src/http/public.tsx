@@ -3,7 +3,7 @@
 import { Effect } from 'effect'
 import { HttpRouter, HttpServerResponse } from 'effect/http'
 
-import { FEED_LENGTH } from '../domain/constants.ts'
+import { BANNER_IMAGE_SIZES, FEED_LENGTH } from '../domain/constants.ts'
 import { createRobotsTxt, createRssFeed, createSitemap, type FeedItem } from '../domain/feeds.ts'
 import { getPostMeta, getPriorityImage } from '../domain/presentation.ts'
 import { isSiteConfigured, type SiteConfig } from '../domain/site.ts'
@@ -11,7 +11,7 @@ import { LinkPreviews } from '../queries/link-previews.ts'
 import { PostMedia } from '../queries/post-media.ts'
 import { PostQueries } from '../queries/posts.ts'
 import { SiteConfigQueries } from '../queries/site-config.ts'
-import { getIconHref, getSiteImageHref, SiteFiles } from '../queries/site-files.ts'
+import { getBannerSrcset, getIconHref, getSiteImageHref, SiteFiles } from '../queries/site-files.ts'
 import { routes } from '../routes.ts'
 import { Document } from '../views/document.tsx'
 import { HomePage } from '../views/home.tsx'
@@ -35,6 +35,8 @@ const home = Effect.gen(function* () {
   let site = yield* siteConfig
   let posts = yield* (yield* PostQueries).all
   let previews = yield* LinkPreviews
+  let { bannerImage } = site
+  let bannerSrcset = bannerImage && getBannerSrcset(bannerImage)
   let items = yield* Effect.forEach(posts, (post) =>
     Effect.map(previews.forPost(post), (preview) => ({ post, preview })),
   )
@@ -45,8 +47,12 @@ const home = Effect.gen(function* () {
       meta={{ path: routes.home() }}
       // The banner, when there's one, is at the top, above the first post.
       preloadImage={
-        site.bannerImage
-          ? { href: getSiteImageHref(site.bannerImage) }
+        bannerImage
+          ? {
+              href: getSiteImageHref(bannerImage),
+              srcset: bannerSrcset || undefined,
+              sizes: bannerSrcset ? BANNER_IMAGE_SIZES : undefined,
+            }
           : posts[0] && getPriorityImage(posts[0])
       }
     >
@@ -145,14 +151,22 @@ const manifest = Effect.gen(function* () {
 })
 
 // One of the site's image files. A URL with its current version is cached for a year, since a
-// new upload gets a new one; anything else for an hour. They're served before the site is
-// configured too, for the admin pages.
+// new upload gets a new one; anything else for an hour. The banner's resized copies, with `w` as
+// well, only have URLs with a version. They're served before the site is configured too, for the
+// admin pages.
 const siteFile = (name: string) =>
   Effect.gen(function* () {
     let saved = yield* (yield* SiteConfigQueries).saved
+    let { searchParams } = yield* requestUrl
+    let version = searchParams.get('v')
+    let width = searchParams.get('w')
+    if (version !== null && width !== null) {
+      let variant = yield* (yield* SiteFiles).resized(name, Number(width), version, saved)
+      return variant ? yield* fileResponse(variant, IMMUTABLE) : notFound()
+    }
     let found = yield* (yield* SiteFiles).get(name, saved)
     if (!found) return notFound()
-    let current = (yield* requestUrl).searchParams.get('v') === found.version
+    let current = version === found.version
     return yield* fileResponse(found.file, current ? IMMUTABLE : 'public, max-age=3600')
   })
 

@@ -98,9 +98,10 @@ export class Images extends Context.Service<
 const LOGO_HEIGHT = 160
 // The icon is at least this many pixels square.
 const ICON_SIZE = 512
-// The banner image is at most this wide, an X header's width: twice the home page's column, and
-// more than link previews show.
-const BANNER_WIDTH = 1500
+// The banner image is at most this wide, the width link previews are made for. The home page
+// shows WebP copies of it resized to fit the screen (see queries/site-files.ts), so this one is
+// mostly what link previews fetch.
+const BANNER_WIDTH = 1200
 // What each site image can be uploaded as. Bun.Image reads GIFs too, but not SVGs, which couldn't
 // be served from the site's own origin anyway: they can run scripts.
 const FORMATS: Record<SiteImageKind, readonly string[]> = {
@@ -132,13 +133,17 @@ const processSiteImage = Effect.fnUntraced(function* (kind: SiteImageKind, bytes
       }
       return yield* decode(() => makeIcons(bytes))
     case 'bannerImage': {
-      // A PNG stays one, so text in it stays sharp, and a JPEG stays a JPEG.
+      // A PNG stays one, so text in it stays sharp, and a JPEG stays a JPEG: some sites' link
+      // previews don't show WebP. A progressive JPEG shows a blurry whole while it loads.
       let image = new Bun.Image(bytes).resize(BANNER_WIDTH, undefined, {
         withoutEnlargement: true,
       })
       return format === 'png'
         ? yield* single('banner.png', yield* decode(() => image.png().bytes()))
-        : yield* single('banner.jpg', yield* decode(() => image.jpeg({ quality: 85 }).bytes()))
+        : yield* single(
+            'banner.jpg',
+            yield* decode(() => image.jpeg({ quality: 80, progressive: true }).bytes()),
+          )
     }
   }
 })
