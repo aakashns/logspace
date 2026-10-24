@@ -1,30 +1,23 @@
 // How dates, sizes, and text read on pages.
 
-// "16 Oct 2026, 6:42 PM" in the time zone of the timestamp's own UTC offset, i.e. the local time
-// where it was posted, whatever time zone the server runs in.
+// "16 Oct 2026, 1:12 PM UTC". Pages show UTC, since without JavaScript the server can't know the
+// reader's time zone; <time datetime> has the exact moment for anything that can.
 export function formatPostDate(iso: string): string {
-  let offset = iso.match(/[+-]\d{2}:\d{2}$/)?.[0] ?? 'UTC'
-  let format = formats.get(offset)
-  if (!format) {
-    // Assembled from parts because en-GB, which has this day-month-year order, spells September
-    // "Sept" and uses a 24-hour clock.
-    format = new Intl.DateTimeFormat('en-US', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      timeZone: offset,
-    })
-    formats.set(offset, format)
-  }
-  let parts = format.formatToParts(new Date(iso))
+  let parts = UTC_FORMAT.formatToParts(new Date(iso))
   let part = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value
-  return `${part('day')} ${part('month')} ${part('year')}, ${part('hour')}:${part('minute')} ${part('dayPeriod')}`
+  return `${part('day')} ${part('month')} ${part('year')}, ${part('hour')}:${part('minute')} ${part('dayPeriod')} UTC`
 }
 
-// Making an Intl.DateTimeFormat takes far longer than using one, and posts share a few offsets.
-const formats = new Map<string, Intl.DateTimeFormat>()
+// Assembled from parts because en-GB, which has this day-month-year order, spells September
+// "Sept" and uses a 24-hour clock. Made once, since making one takes far longer than using it.
+const UTC_FORMAT = new Intl.DateTimeFormat('en-US', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+  timeZone: 'UTC',
+})
 
 // "3 MB", or "12 KB" for anything under a megabyte (at least 1 KB).
 export function formatSize(bytes: number): string {

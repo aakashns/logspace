@@ -17,6 +17,7 @@ import renameSocialImage from '../../db/migrations/0005_rename_social_image_to_b
 import createDrafts from '../../db/migrations/0006_create_drafts.sql' with { type: 'text' }
 import protectContentAccess from '../../db/migrations/0007_protect_content_access.sql' with { type: 'text' }
 import dropDrafts from '../../db/migrations/0008_drop_drafts.sql' with { type: 'text' }
+import datesInUtc from '../../db/migrations/0009_dates_in_utc.sql' with { type: 'text' }
 import { AppConfig } from '../config.ts'
 
 const MIGRATIONS = [
@@ -28,6 +29,7 @@ const MIGRATIONS = [
   { id: '0006', name: 'create_drafts', sql: createDrafts },
   { id: '0007', name: 'protect_content_access', sql: protectContentAccess },
   { id: '0008', name: 'drop_drafts', sql: dropDrafts },
+  { id: '0009', name: 'dates_in_utc', sql: datesInUtc },
 ]
 
 const JOURNAL = 'data_table_migrations'

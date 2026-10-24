@@ -23,7 +23,7 @@ if (
 }
 // The morning after the latest post, in Portland, whenever the demo is made: it's when the
 // composer's post is dated.
-setSystemTime(new Date("2026-10-24T10:05:00-07:00"));
+setSystemTime(new Date("2026-10-24T17:05:00Z"));
 const image = (name: string) => Bun.file(join(art, `${name}.png`));
 
 // Oldest first, as they were published.
@@ -31,7 +31,7 @@ const posts = [
   {
     id: "miranote01",
     type: "text",
-    date: "2026-10-14T09:00:00-07:00",
+    date: "2026-10-14T16:00:00Z",
     city: "Portland",
     caption:
       "A small rule for this week: make something before scrolling through anything.\n\nToday that was a very wonky drawing of my coffee cup. It counts.",
@@ -39,7 +39,7 @@ const posts = [
   {
     id: "mirastory1",
     type: "article",
-    date: "2026-10-18T11:20:00-07:00",
+    date: "2026-10-18T18:20:00Z",
     caption: "A few notes from a Sunday with nowhere to be.",
     article: {
       title: "A notebook, a long walk, and no plans",
@@ -55,7 +55,7 @@ const posts = [
   {
     id: "miracoast1",
     type: "photos",
-    date: "2026-10-21T18:40:00-07:00",
+    date: "2026-10-22T01:40:00Z",
     city: "Cannon Beach",
     caption:
       "A weekend at the coast. Wind, salt, and a lighthouse that looked exactly like the ones I drew as a kid.",
@@ -77,7 +77,7 @@ const posts = [
   {
     id: "miranote02",
     type: "text",
-    date: "2026-10-23T21:15:00-07:00",
+    date: "2026-10-24T04:15:00Z",
     city: "Portland",
     caption:
       "Finished the sketchbook I started in June. Every page, even the wonky ones.\n\nStarting a new one tomorrow ✏️",

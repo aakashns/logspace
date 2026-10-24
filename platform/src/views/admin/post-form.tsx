@@ -124,36 +124,23 @@ interface FieldsProps {
   invalid: InvalidCheck
 }
 
-// When and where it was posted. The date is entered as a local time plus a UTC offset, which the
-// form joins back into one ISO date (see readPostForm).
+// When and where it was posted. The date is in UTC, which readPostForm marks with a Z.
 function DateFields(props: FieldsProps): Html {
   let { values, invalid } = props
-  let [, local = '', offset] = values.date.match(/^(.*?)(Z|[+-]\d{2}:\d{2})?$/) ?? []
+  let date = values.date.replace(/Z$/, '')
   // Seconds are shown only when a post has them, since datetime-local rejects a time with seconds
   // unless step allows it.
-  let hasSeconds = !/T\d{2}:\d{2}(:00)?$/.test(local)
+  let hasSeconds = !/T\d{2}:\d{2}(:00)?$/.test(date)
   return (
     <FieldRow>
-      <Field label="Date" for="date" size="wide">
+      <Field label="Date (UTC)" for="date" size="wide">
         <input
           id="date"
           name="date"
           type="datetime-local"
           step={hasSeconds ? '1' : undefined}
           required
-          value={hasSeconds ? local : local.slice(0, 16)}
-          aria-invalid={invalid('date')}
-          class="input"
-        />
-      </Field>
-      <Field label="UTC offset" for="offset" size="small">
-        <input
-          id="offset"
-          name="offset"
-          required
-          pattern="Z|[+\-]\d{2}:\d{2}"
-          placeholder="+05:30"
-          value={offset === 'Z' ? '+00:00' : (offset ?? '')}
+          value={hasSeconds ? date : date.slice(0, 16)}
           aria-invalid={invalid('date')}
           class="input"
         />

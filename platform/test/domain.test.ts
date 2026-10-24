@@ -14,11 +14,11 @@ import { fromPostRow, toPostRow } from '../src/domain/post-rows.ts'
 import { isUploadableFileName, parsePostRecord, type PostRecord } from '../src/domain/post.ts'
 import { getPostMeta, toPost } from '../src/domain/presentation.ts'
 import { composePost, readComposeForm } from '../src/domain/compose.ts'
-import { dateAtOffset, offsetOf, readPostForm } from '../src/domain/post-form.ts'
+import { readPostForm } from '../src/domain/post-form.ts'
 import { formatPostDate } from '../src/domain/format.ts'
 
 const ID = 'fc7p7vjhx6'
-const DATE = '2026-10-16T18:42:00+05:30'
+const DATE = '2026-10-16T13:12:00Z'
 const text = { id: ID, type: 'text', date: DATE, caption: 'Hi' } satisfies PostRecord
 
 describe('parsePostRecord', () => {
@@ -36,10 +36,12 @@ describe('parsePostRecord', () => {
       message: expect.stringMatching(/Expected 10 lowercase letters and digits/),
     })
     expect(issues({ ...text, id: ID.toUpperCase() })[0]?.field).toBe('id')
-    expect(issues({ ...text, date: '2026-10-16' })[0]).toMatchObject({
-      field: 'date',
-      message: expect.stringMatching(/Expected a date/),
-    })
+    for (let date of ['2026-10-16', '2026-10-16T18:42:00+05:30']) {
+      expect(issues({ ...text, date })[0]).toMatchObject({
+        field: 'date',
+        message: expect.stringMatching(/Expected a UTC date/),
+      })
+    }
     expect(issues({ ...text, caption: ' ' })[0]?.message).toBe('Text posts need a caption')
     expect(issues({ ...text, type: 'poll' })[0]?.field).toBe('type')
     expect(issues({ ...text, type: 'photos', photos: [] })[0]?.message).toBe(
@@ -76,7 +78,7 @@ describe('parsePostRecord', () => {
 
   it('throws, naming the post and field, for a stored post that’s wrong', () => {
     let row = { ...toPostRow(text), date: 'yesterday' }
-    expect(() => fromPostRow(row)).toThrow(`post "${ID}", date: Expected a date`)
+    expect(() => fromPostRow(row)).toThrow(`post "${ID}", date: Expected a UTC date`)
   })
 })
 
@@ -282,9 +284,9 @@ describe('presentation', () => {
     expect(meta.published).toEqual({ date: DATE, kind: 'SocialMediaPosting' })
   })
 
-  it('shows the local time where a post was written', () => {
-    expect(formatPostDate('2026-09-16T18:42:00+05:30')).toBe('16 Sep 2026, 6:42 PM')
-    expect(formatPostDate('2026-10-16T00:05:00Z')).toBe('16 Oct 2026, 12:05 AM')
+  it('shows dates in UTC', () => {
+    expect(formatPostDate('2026-09-16T13:12:00Z')).toBe('16 Sep 2026, 1:12 PM UTC')
+    expect(formatPostDate('2026-10-16T00:05:00Z')).toBe('16 Oct 2026, 12:05 AM UTC')
   })
 })
 
@@ -294,15 +296,6 @@ describe('the composer', () => {
     for (let [name, value] of fields) data.append(name, value)
     return data
   }
-
-  it('dates a post now, at a UTC offset', () => {
-    let now = Date.parse('2026-10-16T12:00:05Z')
-    expect(dateAtOffset(now, offsetOf('2026-10-01T09:00:00+05:30'))).toBe(
-      '2026-10-16T17:30:05+05:30',
-    )
-    expect(dateAtOffset(now, '-07:00')).toBe('2026-10-16T05:00:05-07:00')
-    expect(dateAtOffset(now, offsetOf(undefined))).toBe('2026-10-16T12:00:05+00:00')
-  })
 
   it('makes a photos post with file names as alt text, renaming names already taken', () => {
     let { values, uploads } = readComposeForm(
@@ -360,8 +353,7 @@ describe('the post form', () => {
     let form = new FormData()
     for (let [name, value] of Object.entries({
       type: 'video',
-      date: '2026-10-16T18:42',
-      offset: '+05:30',
+      date: '2026-10-16T13:12',
       video_file: 'x.mp4',
       video_width: '640',
       video_height: 'tall',
@@ -374,7 +366,7 @@ describe('the post form', () => {
     expect(post).toEqual({
       id: ID,
       type: 'video',
-      date: '2026-10-16T18:42:00+05:30',
+      date: '2026-10-16T13:12:00Z',
       video: { file: 'x.mp4', poster: 'My-Poster.jpg', width: 640, height: 'tall' },
     })
     expect(uploads.map((upload) => upload.name)).toEqual(['My-Poster.jpg'])

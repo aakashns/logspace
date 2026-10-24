@@ -83,15 +83,15 @@ export function readPostForm(formData: FormData, id: string, type: string): Post
   }
   let file = (prefix: string) => upload(formData.get(`${prefix}upload`)) ?? text(`${prefix}file`)
 
-  let local = text('date')
-  // datetime-local leaves out the seconds when they're zero.
-  if (/T\d{2}:\d{2}$/.test(local)) local += ':00'
+  // The date is typed in UTC; datetime-local leaves out the seconds when they're zero.
+  let date = text('date')
+  if (/T\d{2}:\d{2}$/.test(date)) date += ':00'
   let city = optional('city')
   let caption = markdown('caption')
   let base = {
     id,
     type,
-    date: local + text('offset'),
+    date: date + 'Z',
     ...(city !== undefined && { city }),
   }
   let withCaption = { ...base, ...(caption !== undefined && { caption }) }
@@ -157,19 +157,6 @@ export function readPostForm(formData: FormData, id: string, type: string): Post
 // them), and with dashes for spaces, since Markdown can't name a file with spaces in it.
 export function uploadName(name: string): string {
   return (name.split(/[\\/]/).pop() ?? '').trim().replace(/\s+/g, '-')
-}
-
-// A date's UTC offset, like "+05:30"; "+00:00" for none.
-export function offsetOf(date: string | undefined): string {
-  return date?.match(/[+-]\d{2}:\d{2}$/)?.[0] ?? '+00:00'
-}
-
-// The time `now` (in milliseconds) as a post's date at a UTC offset like "+05:30", to the second.
-export function dateAtOffset(now: number, offset: string): string {
-  let [, sign, hours = '00', minutes = '00'] = offset.match(/^([+-])(\d{2}):(\d{2})$/) ?? []
-  let offsetMinutes = (sign === '-' ? -1 : 1) * (Number(hours) * 60 + Number(minutes))
-  let local = new Date(now + offsetMinutes * 60_000)
-  return local.toISOString().slice(0, 19) + (sign ? offset : '+00:00')
 }
 
 // aria-invalid for a field: "true" when one of the issues is about it.

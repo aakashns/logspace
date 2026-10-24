@@ -4,14 +4,13 @@
 // write, Datastar posts the form, and gets HTML for parts of the page: the media when files are
 // added or removed (the files are saved under the post's id right away), and the preview as you
 // type. Posting is a plain form submission, which publishes the post and goes to it.
-import { Clock, Effect } from 'effect'
+import { DateTime, Effect } from 'effect'
 import { HttpServerResponse } from 'effect/http'
 
 import type { Html } from '#jsx/jsx-runtime'
 import { PostCommands } from '../../commands/posts.ts'
 import { composePost, readComposeForm, type ComposeValues } from '../../domain/compose.ts'
 import { MAX_UPLOAD_FILE_SIZE, MAX_UPLOAD_TOTAL_SIZE } from '../../domain/constants.ts'
-import { dateAtOffset, offsetOf } from '../../domain/post-form.ts'
 import { newPostId, type PostIssue } from '../../domain/post.ts'
 import { LinkPreviews } from '../../queries/link-previews.ts'
 import { PostMedia } from '../../queries/post-media.ts'
@@ -49,12 +48,8 @@ const patch = (...patches: [id: string, html: Html, mode?: 'inner'][]) =>
     { contentType: 'text/event-stream' },
   )
 
-// Now, at the newest post's UTC offset, since the server can't know the browser's. The post's
-// edit page can change it.
-const newPostDate = Effect.gen(function* () {
-  let [newest] = yield* (yield* PostQueries).all
-  return dateAtOffset(yield* Clock.currentTimeMillis, offsetOf(newest?.date))
-})
+// Now, in UTC, to the second (a post's date has no milliseconds).
+const newPostDate = Effect.map(DateTime.now, (now) => DateTime.formatIso(now).slice(0, 19) + 'Z')
 
 // The composer for `values`, with its post as it'd be published now.
 const composerProps = (values: ComposeValues, issues?: readonly PostIssue[]) =>

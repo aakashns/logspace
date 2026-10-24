@@ -62,8 +62,9 @@ describe('migrations', () => {
       '0006_create_drafts',
       '0007_protect_content_access',
       '0008_drop_drafts',
+      '0009_dates_in_utc',
     ])
-    expect(await migrate(file)).toHaveLength(8)
+    expect(await migrate(file)).toHaveLength(9)
     expect(await migrate(file)).toEqual([])
 
     let db = new Database(file, { readonly: true })
@@ -118,6 +119,12 @@ describe('migrations', () => {
         checksum: 'd8748ce01622d2672faaa9eeedd06a65441bfc0cc3ef916d5018cc4f3902de38',
         batch: 1,
       },
+      {
+        id: '0009',
+        name: 'dates_in_utc',
+        checksum: 'd60ff9c3822efe688868b9efe801c12e1ad924066c39779e633532afbe0ee419',
+        batch: 1,
+      },
     ])
     let columns = Schema.decodeUnknownSync(Schema.Array(Schema.Struct({ name: Schema.String })))(
       db.query("select name from pragma_table_info('posts')").all(),
@@ -149,6 +156,33 @@ describe('migrations', () => {
     expect(db.query('select key, value from config order by key').all()).toEqual([
       { key: 'bannerImage', value: image },
       { key: 'bannerImageAlt', value: 'A card' },
+    ])
+    db.close()
+  })
+
+  it('converts post dates with a UTC offset to UTC', async () => {
+    let file = `/tmp/logspace2-migrations-utc-${process.pid}.sqlite`
+    for (let suffix of ['', '-wal', '-shm'])
+      await Bun.file(file + suffix)
+        .delete()
+        .catch(() => {})
+    await migrate(file)
+    // A database from before 0009, with dates as local times and their offsets.
+    let db = new Database(file)
+    db.run("delete from data_table_migrations where id = '0009'")
+    db.run(
+      "insert into posts (id, type, date, caption) values ('offset0001', 'text', " +
+        "'2026-10-16T18:42:00+05:30', 'Hi'), ('offset0002', 'text', '2026-10-16T18:42-07:00', " +
+        "'Hi'), ('offset0003', 'text', '2026-10-16T18:42:05Z', 'Hi')",
+    )
+    db.close()
+
+    expect(await migrate(file)).toEqual(['0009_dates_in_utc'])
+    db = new Database(file, { readonly: true })
+    expect(db.query('select id, date from posts order by id').all()).toEqual([
+      { id: 'offset0001', date: '2026-10-16T13:12:00Z' },
+      { id: 'offset0002', date: '2026-10-17T01:42:00Z' },
+      { id: 'offset0003', date: '2026-10-16T18:42:05Z' },
     ])
     db.close()
   })

@@ -114,7 +114,6 @@ describe('admin post pages', () => {
     new URLSearchParams({
       type: 'text',
       date: '2026-10-21T09:30',
-      offset: '+05:30',
       city: '',
       caption: 'Hello\r\nworld',
       ...fields,
@@ -150,6 +149,11 @@ describe('admin post pages', () => {
     // The type is shown but can't be changed, and only its fields are there.
     expect(html).not.toMatch(/<input [^>]*name="type"/)
     expect(html).toMatch(/Type: Photos/)
+    // The date is in UTC, with no offset.
+    expect(html).toMatch(
+      new RegExp(`<input [^>]*name="date"[^>]*value="${post.date.slice(0, 16)}"`),
+    )
+    expect(html).not.toMatch(/name="offset"/)
     expect(html).not.toMatch(/<input [^>]*name="video_file"/)
     expect(html).toMatch(new RegExp(`<input [^>]*name="city"[^>]*value="${post.city}"`))
     expect(html).toMatch(
@@ -169,7 +173,7 @@ describe('admin post pages', () => {
     let saved = await findPost(post.id)
     expect(saved?.caption).toBe('Hello\nworld')
     expect(saved?.city).toBe('Hanoi')
-    expect(saved?.date).toBe('2026-10-21T09:30:00+05:30')
+    expect(saved?.date).toBe('2026-10-21T09:30:00Z')
     expect(await (await app.fetch(`/posts/${post.id}`)).text()).toMatch(/Hanoi/)
   })
 
@@ -440,13 +444,10 @@ describe('admin post pages', () => {
     let video = await samplePost('video')
     let response = await app.adminFetch(`/admin/posts/${video.id}/edit`, {
       method: 'POST',
-      body: multipartForm(
-        { date: '2026-10-21T09:30', offset: '+05:30', video_file: 'flower.mp4' },
-        [
-          ['video_upload', new File(['new video'], 'garden.mp4')],
-          ['video_poster_upload', noFile()],
-        ],
-      ),
+      body: multipartForm({ date: '2026-10-21T09:30', video_file: 'flower.mp4' }, [
+        ['video_upload', new File(['new video'], 'garden.mp4')],
+        ['video_poster_upload', noFile()],
+      ]),
     })
     expect(response.status).toBe(303)
     let saved = await findPost(video.id)
@@ -459,7 +460,6 @@ describe('admin post pages', () => {
       body: multipartForm(
         {
           date: '2026-10-21T09:30',
-          offset: '+05:30',
           article_title: article.article.title,
           article_summary: article.article.summary,
           article_body: 'A chart:\n\n![Chart](chart.png)',
@@ -567,7 +567,7 @@ describe('the composer', () => {
       /<form method="post" action="\/admin\/posts\/new" enctype="multipart\/form-data"/,
     )
     expect(html).toMatch(/<input type="hidden" name="post_id" value="[0-9a-z]{10}"/)
-    expect(html).not.toMatch(/name="(date|city|offset)"/)
+    expect(html).not.toMatch(/name="(date|city)"/)
     expect(html).toMatch(/<input type="file" name="image_uploads" accept="image\/\*" multiple/)
     let datastar = capture(html, /<script type="module" src="(\/assets\/datastar\.[0-9a-f]+\.js)"/)
     expect((await app.fetch(datastar)).status).toBe(200)
@@ -652,7 +652,7 @@ describe('the composer', () => {
     expect(await findPost('composer05')).toBeUndefined()
   })
 
-  it('publishes a photos post dated now, at the newest post’s offset, with file names as alt text', async () => {
+  it('publishes a photos post dated now, in UTC, with file names as alt text', async () => {
     let id = 'composer06'
     await composerPost('/admin/posts/new/media', [
       ['post_id', id],
@@ -671,7 +671,7 @@ describe('the composer', () => {
     expect(post.caption).toBe('Up top')
     expect(post.city).toBeUndefined()
     expect(post.type === 'photos' && post.photos.map((photo) => photo.alt)).toEqual(['peak.jpg'])
-    expect(post.date).toMatch(/\+05:30$/)
+    expect(post.date).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/)
     expect(Math.abs(Date.parse(post.date) - before)).toBeLessThan(5_000)
     expect((await app.fetch(`/posts/${id}/peak.jpg`)).status).toBe(200)
     // It's published, so the composer can't change its files.
