@@ -49,8 +49,9 @@ The platform (the app, in `platform/`) is built with:
 - **[Effect v4](https://effect.website)** for structure: services share resources and application
   APIs, stateless operations are Effect functions, every expected failure is a typed error, and
   the database is [`effect/sql`](https://effect.website/docs).
-- **[Datastar](https://data-star.dev)** as the only JavaScript sent to browsers (13 KB gzipped),
-  for the theme toggle, share buttons, and the admin composer.
+- **[Datastar](https://data-star.dev)** in the browser (with [Rocket](https://data-star.dev/reference/rocket),
+  its web components; 23 KB gzipped), for the theme toggle, share buttons, and the admin
+  composer, a Rocket component in `src/client/`.
 - **A tiny JSX runtime** (`src/jsx`, about 110 lines) that renders TSX straight to HTML strings: no
   virtual DOM, no hydration.
 - **CQRS**: writes go through `src/commands`, and reads through `src/queries`, which query the
@@ -155,7 +156,7 @@ unconfigured site private, then the handler, with 404s, 500s, and security heade
 | `forms.ts`     | Reading a form within the upload limits (`UploadTooLarge` → the 413 page)                          |
 | `responses.ts` | Files with ranges, ETags, and caching; redirects                                                   |
 | `forwarded.ts` | The protocol and host behind Caddy (`TRUST_PROXY=1`)                                               |
-| `assets.ts`    | Datastar, fonts, and the stylesheets, embedded in the binary                                       |
+| `assets.ts`    | Datastar, the browser's modules, fonts, and the stylesheets, embedded in the binary                |
 
 #### 7. Pages: `src/views/` and `src/jsx/`
 
@@ -165,14 +166,20 @@ renders itself (Markdown output, the stylesheet, JSON-LD). Start with `document.
 `<html>` around every page. CSS is plain CSS in `views/styles/`, joined and minified by
 `stylesheet.ts`, and inlined into each page. The admin pages add `admin.css`.
 
-**Datastar** is in `controls.tsx` and `admin/composer-controls.tsx` only: the theme toggle
-(`data-on:click`) and share buttons (`data-on:click`, `data-class`, `data-attr`, one `_shared`
-signal) in the first, and in the second the composer's controls (uploads, the preview, saving the
-draft, and `ComposerUpdates`, a stream of the draft's changes from the server). Every expression
-is a constant string. Values like the URL to share are passed in `data-*` attributes and read with
-`el.dataset`, so nothing a user typed can end up in an expression. Everything else works without
-JavaScript: navigation is links, forms are forms, and the delete dialog uses
-`command`/`commandfor`.
+**Datastar** runs the theme toggle (`data-on:click`) and share buttons (`data-on:click`,
+`data-class`, `data-attr`, one `_shared` signal) in `controls.tsx`. The composer is a
+[Rocket](https://data-star.dev/reference/rocket) component, `<logspace-composer>`, in
+`src/client/composer.ts`: TypeScript that `views/scripts.ts` transpiles, served as a module that
+imports Datastar through an import map. The server still renders its markup
+(`admin/composer-controls.tsx`), which binds to the component's signals (`$$uploading`) and calls
+its actions (`@preview()`) with Datastar attributes and modifiers
+(`data-on:input__throttle.100ms.trailing`); the component sends the requests, follows the stream
+of the draft's changes from the server, and keeps a stale response from being applied. Rocket
+applies Datastar to the whole component again after every patch, so its markup has no
+`data-init` or `data-indicator`. Every expression is a constant string. Values like the URL to
+share are passed in `data-*` attributes and read with `el.dataset`, so nothing a user typed can
+end up in an expression. Everything else works without JavaScript: navigation is links, forms are
+forms, and the delete dialog uses `command`/`commandfor`.
 
 #### 8. Tests: `test/`
 

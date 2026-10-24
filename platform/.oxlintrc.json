@@ -9,10 +9,20 @@
     "typescript/no-non-null-assertion": "error"
   },
   "env": { "builtin": true },
-  // Vendored, minified.
-  "ignorePatterns": ["public/datastar.js"],
+  // Vendored: Datastar's bundle, minified, and its types.
+  "ignorePatterns": ["public/datastar-rocket.js", "src/client/datastar.d.ts"],
   // The layers of src/ (see ../CONTRIBUTING.md), kept apart: each may only import the ones below it.
   "overrides": [
+    {
+      // The browser's modules run apart from the server, with Datastar alone.
+      "files": ["src/client/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          { "patterns": ["./*", "../*", "#jsx/*", "effect", "effect/*", "node:*"] }
+        ]
+      }
+    },
     {
       // Pure: no database, storage, images, HTTP, or pages.
       "files": ["src/domain/**"],

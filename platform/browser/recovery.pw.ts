@@ -117,7 +117,7 @@ for (const replace of [false, true]) {
         if (
           event instanceof CustomEvent &&
           event.detail.type === 'finished' &&
-          event.detail.el.dataset.request === 'preview'
+          event.detail.el.getAttribute('name') === 'caption'
         )
           document.documentElement.dataset.lateSaveFinished = 'true'
       })
@@ -282,6 +282,47 @@ test('failed uploads stay visible through previews and reconnects and can be ret
   await expect(page.getByLabel('Caption', { exact: true })).toHaveValue(
     'Text saved after the upload failed',
   )
+})
+
+// Rocket applies Datastar to the whole component again after a patch, which would reset a
+// data-indicator: the upload must still count as in flight after another tab's change comes in.
+test('Post stays disabled while an upload is in flight through another tab’s change', async ({
+  page,
+  context,
+}) => {
+  await openComposer(page)
+  await caption(page, 'Wait for my photo')
+  const uploading = Promise.withResolvers<void>()
+  const deliver = Promise.withResolvers<void>()
+  await page.route(
+    '**/admin/posts/new/media',
+    async (route) => {
+      const response = await route.fetch()
+      uploading.resolve()
+      await deliver.promise
+      await route.fulfill({ response })
+    },
+    { times: 1 },
+  )
+  await page.getByLabel('Add photos', { exact: true }).setInputFiles(photo)
+  await uploading.promise
+  const post = page.getByRole('button', { name: 'Post', exact: true })
+  await expect(post).toBeDisabled()
+  const previous = Number(await page.locator('html').getAttribute('data-browser-updates'))
+  const other = await context.newPage()
+  await openComposer(other)
+  await caption(other, 'Edited elsewhere while uploading')
+  await expect
+    .poll(async () => Number(await page.locator('html').getAttribute('data-browser-updates')))
+    .toBeGreaterThan(previous)
+  await expect(page.getByLabel('Caption', { exact: true })).toHaveValue(
+    'Edited elsewhere while uploading',
+  )
+  await expect(post).toBeDisabled()
+  await expect(page.getByText('Uploading…')).toBeVisible()
+  deliver.resolve()
+  await expect(post).toBeEnabled()
+  await expect(page.getByText('Uploading…')).toBeHidden()
 })
 
 for (const committed of [false, true]) {

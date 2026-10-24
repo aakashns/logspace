@@ -23,8 +23,9 @@ export interface PageContext {
   // with (see http/security.ts).
   readonly nonce: string
   readonly stylesheets: Stylesheets
-  // Where Datastar is served, with its hash in the name.
+  // Where Datastar and the composer's module are served, with their hashes in the names.
   readonly datastarHref: string
+  readonly composerHref: string
 }
 
 export interface DocumentProps {
@@ -37,11 +38,13 @@ export interface DocumentProps {
   readonly navActions?: Child | undefined
   // Adds the admin pages' styles.
   readonly admin?: boolean | undefined
+  // Adds the composer's module, which defines <logspace-composer>.
+  readonly composer?: boolean | undefined
   readonly children?: Child | undefined
 }
 
 export function Document(props: DocumentProps): Html {
-  let { page, meta, preloadImage, navActions, admin, children } = props
+  let { page, meta, preloadImage, navActions, admin, composer, children } = props
   // The admin pages are shown before the site is configured, so its required settings can be
   // missing. Then the title is the app's, URLs are relative to the page, and there's no RSS feed.
   let saved = page.site
@@ -125,6 +128,13 @@ export function Document(props: DocumentProps): Html {
             {image?.alt ? <meta name="twitter:image:alt" content={image.alt} /> : null}
             {/* Data for search engines, which browsers don't run. */}
             <script type="application/ld+json">{raw(toScriptJson(structuredData))}</script>
+            {/* Where a module's `import … from 'datastar'` goes: the same Datastar as the page's,
+                so there's one copy of it and its signals. */}
+            {composer ? (
+              <script type="importmap" nonce={page.nonce}>
+                {raw(toScriptJson({ imports: { datastar: page.datastarHref } }))}
+              </script>
+            ) : null}
           </head>
           {/* `_shared` is the link a share button copied last (see ShareButton). */}
           <body data-signals="{_shared: ''}">
@@ -142,14 +152,20 @@ export function Document(props: DocumentProps): Html {
               </div>
             </header>
             <main>{children}</main>
-            {/* Datastar only runs the buttons (and the admin composer), so it's fetched at a
-                low priority, after the page's photos: a module script never blocks the page. */}
-            <script
-              type="module"
-              src={page.datastarHref}
-              nonce={page.nonce}
-              fetchpriority="low"
-            ></script>
+            {/* Datastar only runs the buttons, so it's fetched at a low priority, after the page's
+                photos: a module script never blocks the page. The composer's module imports it
+                instead, so the two run together and <logspace-composer> is defined before
+                Datastar sees what's in it. */}
+            {composer ? (
+              <script type="module" src={page.composerHref} nonce={page.nonce}></script>
+            ) : (
+              <script
+                type="module"
+                src={page.datastarHref}
+                nonce={page.nonce}
+                fetchpriority="low"
+              ></script>
+            )}
           </body>
         </html>
       ).value,

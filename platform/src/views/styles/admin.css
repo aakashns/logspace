@@ -2,6 +2,11 @@
  * The pages under /admin (see ../admin/).
  */
 @layer components {
+  /* The composer's component (see compose.tsx) only wraps it, so it lays out as if it weren't there. */
+  logspace-composer {
+    display: contents;
+  }
+
   .admin-page {
     display: flex;
     flex-direction: column;
