@@ -1,56 +1,23 @@
-import { createRequire } from "node:module";
-import { chromium, expect } from "@playwright/test";
-import { execFileSync, spawn } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { execFileSync } from "node:child_process";
+import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { expect } from "@playwright/test";
+import {
+  baseURL,
+  compose,
+  password,
+  root,
+  startDemoSite,
+} from "./demo-site.ts";
 
-const root = fileURLToPath(new URL("../", import.meta.url));
-const temporary = await mkdtemp(join(tmpdir(), "logspace-demo-"));
-const port = 44119;
-const baseURL = `http://127.0.0.1:${port}`;
-const password = "fictional-demo-password";
-const server = spawn("bun", [join(root, "scripts/demo-server.ts")], {
-  cwd: join(root, "../platform"),
-  env: {
-    ...process.env,
-    NODE_ENV: "production",
-    LOGSPACE_DEMO: "1",
-    PORT: String(port),
-    ADMIN_PASSWORD: password,
-    AUTH_SESSION_SECRET: "fictional-demo-session-secret",
-    DATABASE_PATH: join(temporary, "app.sqlite"),
-    MEDIA_DIR: join(temporary, "media"),
-    CACHE_DIR: join(temporary, "cache"),
-    MEDIA_STORAGE: "fs",
-  },
-  stdio: ["ignore", "pipe", "pipe"],
-});
-let logs = "";
-server.stdout.on("data", (chunk) => {
-  logs += chunk;
-});
-server.stderr.on("data", (chunk) => {
-  logs += chunk;
-});
-const browser = await chromium.launch();
+const site = await startDemoSite();
+const { browser, temporary } = site;
 try {
-  await expect
-    .poll(
-      async () => {
-        if (server.exitCode !== null) throw new Error(logs);
-        return fetch(baseURL)
-          .then((r) => r.status)
-          .catch(() => 0);
-      },
-      { timeout: 30_000 },
-    )
-    .toBe(200);
   const context = await browser.newContext({
     // A narrow viewport keeps the app’s content close to the edges of the recording.
     viewport: { width: 720, height: 720 },
-    colorScheme: "light",
+    colorScheme: "dark",
+    timezoneId: "America/Los_Angeles",
     recordVideo: { dir: temporary, size: { width: 720, height: 720 } },
   });
   // Authenticate before the recording starts; only the fictional publishing flow is shown.
@@ -68,65 +35,81 @@ try {
   }
   // These pauses set the walkthrough’s pace; locators check that each screen is ready.
   const hold = (milliseconds: number) => page.waitForTimeout(milliseconds);
+  const scrollTo = (top: number) =>
+    page.evaluate((top) => window.scrollTo({ top, behavior: "smooth" }), top);
+  async function imagesReady() {
+    await page.evaluate(() =>
+      Promise.all([
+        document.fonts.ready,
+        ...Array.from(
+          document.querySelectorAll<HTMLImageElement>("main img"),
+          (image) => image.decode().catch(() => {}),
+        ),
+      ]),
+    );
+  }
   await page.goto(baseURL);
-  await page.evaluate(() => document.fonts.ready);
-  await expect(page.locator("main img").first()).toBeVisible();
-  await page
-    .locator("main img")
-    .first()
-    .evaluate((image: HTMLImageElement) => image.decode());
+  await imagesReady();
   explain(
     "Browse the feed",
     "Text posts, photos, and articles appear together.",
   );
   await page.screenshot({ path: join(temporary, "poster.png") });
-  await hold(3200);
-  await page.evaluate(() => window.scrollTo({ top: 650, behavior: "smooth" }));
-  await hold(2800);
+  await hold(3000);
+  await scrollTo(560);
+  await hold(2400);
+  await scrollTo(1250);
+  await hold(2600);
   await page.locator('a.post-link[href="/posts/mirastory1"]').click();
   await expect(
-    page.getByRole("heading", { name: "The long way around" }),
+    page.getByRole("heading", {
+      name: "A notebook, a long walk, and no plans",
+    }),
   ).toBeVisible();
+  await imagesReady();
   explain(
     "Read a blog post",
     "Open an article to read the full text on its own page.",
   );
-  await hold(3200);
-  await page.goto(`${baseURL}/admin`);
-  await expect(
-    page.getByRole("link", { name: "New Post", exact: true }),
-  ).toBeVisible();
+  await hold(2600);
+  await scrollTo(620);
+  await hold(2600);
+  await page.getByRole("link", { name: "Compose", exact: true }).click();
+  await expect(page.getByLabel("Caption", { exact: true })).toBeFocused();
   explain(
-    "Manage your site",
-    "Sign in to edit posts, change settings, or create a post.",
+    "Write a post",
+    "Type a caption, add photos, and see a preview as you write.",
   );
-  await hold(2800);
-  await page.getByRole("link", { name: "New Post", exact: true }).click();
-  explain("Write a post", "Choose a format, add text or media, then publish.");
-  await page.getByLabel("Date", { exact: true }).fill("2026-10-22T10:30");
-  await page.getByLabel("UTC offset").fill("-07:00");
-  await page.getByLabel("City (optional)").fill("Portland");
-  await page
-    .getByLabel("Caption", { exact: true })
-    .pressSequentially(
-      "Made a little space for the things I want to remember.\n\nToday: cold air, warm coffee, and the first page of a new notebook.",
-      { delay: 42 },
-    );
-  await hold(1500);
-  await page.getByRole("button", { name: "Publish", exact: true }).click();
-  await expect(
-    page.getByText("Made a little space for the things I want to remember.", {
-      exact: false,
-    }),
-  ).toBeVisible();
+  await hold(800);
+  await compose(page, site.art, 42);
+  await hold(1200);
+  await scrollTo(900);
+  await hold(2400);
+  await page.getByRole("button", { name: "Post", exact: true }).click();
+  await expect(page).toHaveURL(/\/posts\//);
+  await imagesReady();
   explain("Publish and share", "The published post has a URL you can share.");
   await hold(3000);
   await page.goto(baseURL);
+  await imagesReady();
   explain(
     "See the new post",
     "New posts appear at the top of your website’s feed.",
   );
-  await hold(3200);
+  await hold(1200);
+  await scrollTo(560);
+  await hold(2600);
+  explain(
+    "Light or dark",
+    "Readers can switch themes, or follow their system’s setting.",
+  );
+  await hold(800);
+  await page.getByRole("button", { name: "Toggle dark mode" }).click();
+  // Off the button, so its tooltip goes.
+  await page.mouse.move(0, 360);
+  await hold(1800);
+  await scrollTo(1200);
+  await hold(2800);
   const finished = (Date.now() - started) / 1000;
   await context.close();
 
@@ -190,14 +173,25 @@ try {
     ],
     { stdio: "ignore" },
   );
-  const sharp = createRequire(
-    new URL("../../platform/package.json", import.meta.url),
-  )("sharp");
-  await sharp(join(temporary, "poster.png"))
-    .extend({ bottom: 96, background: "#161616" })
-    .composite([{ input: captionFiles[0], top: 720, left: 0 }])
+  // The poster is the first frame with its caption below, as the video starts.
+  const poster = join(temporary, "poster-captioned.png");
+  execFileSync(
+    "ffmpeg",
+    [
+      "-y",
+      "-i",
+      join(temporary, "poster.png"),
+      "-i",
+      captionFiles[0]!,
+      "-filter_complex",
+      "vstack",
+      poster,
+    ],
+    { stdio: "ignore" },
+  );
+  await new Bun.Image(await Bun.file(poster).bytes())
     .webp({ quality: 88 })
-    .toFile(join(root, "public/demo-poster.webp"));
+    .write(join(root, "public/demo-poster.webp"));
   const stamp = (seconds: number) =>
     new Date(seconds * 1000).toISOString().slice(11, 23);
   await writeFile(
@@ -214,11 +208,5 @@ try {
     "Recorded public/demo.mp4, demo-poster.webp, and demo.vtt using fictional content.",
   );
 } finally {
-  await browser.close();
-  server.kill("SIGTERM");
-  await new Promise<void>((resolve) => {
-    if (server.exitCode !== null) resolve();
-    else server.once("exit", () => resolve());
-  });
-  await rm(temporary, { recursive: true, force: true });
+  await site.close();
 }

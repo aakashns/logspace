@@ -211,6 +211,21 @@ figcaption {
   text-align: center;
 }
 
+section + section {
+  margin-top: 3rem;
+}
+.screenshot + .screenshot {
+  margin-top: 2.5rem;
+}
+.screenshot img {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: var(--surface);
+  border: 1px solid var(--faint);
+  border-radius: 8px;
+}
+
 .sr-only,
 .skip-link:not(:focus) {
   position: absolute;

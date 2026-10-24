@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <defs>
+    <filter id="grain"><feTurbulence type="fractalNoise" baseFrequency=".65" numOctaves="3" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncA type="linear" slope=".12"/></feComponentTransfer><feBlend in="SourceGraphic" mode="multiply"/></filter>
+    <filter id="shadow"><feDropShadow dx="10" dy="14" stdDeviation="12" flood-color="#3b2a1f" flood-opacity=".28"/></filter>
+  </defs>
+  <g filter="url(#grain)">
+    <path fill="#b98c67" d="M0 0h1600v900H0z"/>
+    <g fill="none" stroke="#a87b57" stroke-width="4" opacity=".6">
+      <path d="M0 120q400-30 800 0t800 0M0 300q400-24 800 0t800-6M0 480q400-30 800 2t800-4M0 660q400-20 800 0t800 4M0 820q400-28 800 0t800 0"/>
+    </g>
+    <g filter="url(#shadow)">
+      <g transform="rotate(-6 640 460)">
+        <path d="M330 190h300v540H330z" fill="#f6f0e2"/>
+        <path d="M630 190h300v540H630z" fill="#f8f3e8"/>
+        <path d="M626 190h8v540h-8z" fill="#d9cfbd"/>
+        <g stroke="#d7cdb8" stroke-width="2"><path d="M370 270h220M370 310h220M370 350h220M370 390h220M370 430h220M370 470h220M370 510h220M370 550h220M370 590h220M370 630h220M370 670h220"/></g>
+        <g stroke="#4f5a6b" stroke-width="4" stroke-linecap="round" fill="none"><path d="M376 262q30-8 60 0t60-2M376 302h170M376 342h130M376 382h182M376 422h90"/></g>
+        <g fill="none" stroke="#5a6e5e" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M670 560l70-110 50 60 40-40 70 90z"/>
+          <circle cx="840" cy="300" r="34"/>
+          <path d="M680 600h200"/>
+        </g>
+      </g>
+      <path d="M1040 640l300-230 22 28-300 230z" fill="#e3b04b"/>
+      <path d="M1040 640l-24 52 46-24z" fill="#e7d0a8"/>
+      <path d="M1340 410l20-14 22 28-20 14z" fill="#d98b8b"/>
+      <circle cx="1230" cy="230" r="118" fill="#e9e4dc"/>
+      <circle cx="1230" cy="230" r="92" fill="#5a3a28"/>
+      <circle cx="1230" cy="230" r="62" fill="#7a5038" opacity=".55"/>
+      <path d="M1340 194q70-6 70 40t-70 38" fill="none" stroke="#e9e4dc" stroke-width="22"/>
+      <path d="M180 660q40-60 110-50 30 70-30 120-70 20-80-70z" fill="#6f9a6b"/>
+      <path d="M150 560q60-30 110 10-10 60-70 60-50-10-40-70z" fill="#5d8a5c"/>
+    </g>
+  </g>
+</svg>

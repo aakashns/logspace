@@ -8,6 +8,25 @@ const description =
   "Publish blog posts, photos, and videos on your own domain.";
 const install = `curl -fsSL ${url}install.sh | sh`;
 
+// Made by `bun run screenshots` from Mira's fictional site, in dark mode.
+const screenshots = [
+  {
+    file: "home.webp",
+    alt: "The home page of Mira’s site: a banner, an introduction, and a feed of posts.",
+    caption: "Your home page, with every post in one feed.",
+  },
+  {
+    file: "article.webp",
+    alt: "An article on Mira’s site, with its title, summary, cover image, and text.",
+    caption: "Articles get a page of their own.",
+  },
+  {
+    file: "composer.webp",
+    alt: "The composer, with a caption, a photo, and a city filled in, ready to post.",
+    caption: "Write a post, add photos, and preview it before posting.",
+  },
+];
+
 export function Home() {
   return (
     <Document
@@ -140,6 +159,23 @@ export function Home() {
               server’s disk.
             </li>
           </ul>
+        </section>
+
+        <section aria-labelledby="screenshots">
+          <h2 id="screenshots">Screenshots</h2>
+          {screenshots.map((shot) => (
+            <figure class="screenshot">
+              <img
+                src={`/screenshots/${shot.file}`}
+                alt={shot.alt}
+                width="720"
+                height="720"
+                loading="lazy"
+                decoding="async"
+              />
+              <figcaption>{shot.caption}</figcaption>
+            </figure>
+          ))}
         </section>
       </main>
       <footer class="site">

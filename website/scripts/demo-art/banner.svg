@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="500" viewBox="0 0 1500 500">
+  <defs>
+    <linearGradient id="sky" x2="0" y2="1"><stop stop-color="#f3d9c4"/><stop offset=".55" stop-color="#f6e6cf"/><stop offset="1" stop-color="#efe4d2"/></linearGradient>
+    <linearGradient id="mist" x2="0" y2="1"><stop stop-color="#f6e6cf" stop-opacity="0"/><stop offset="1" stop-color="#f6e6cf" stop-opacity=".85"/></linearGradient>
+    <filter id="grain"><feTurbulence type="fractalNoise" baseFrequency=".65" numOctaves="3" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncA type="linear" slope=".12"/></feComponentTransfer><feBlend in="SourceGraphic" mode="multiply"/></filter>
+  </defs>
+  <g filter="url(#grain)">
+    <path fill="url(#sky)" d="M0 0h1500v500H0z"/>
+    <circle cx="1060" cy="230" r="70" fill="#f9eed6"/>
+    <circle cx="1060" cy="230" r="46" fill="#fbf3e2"/>
+    <path d="M0 270l120-38 140 30 160-62 150 46 130-30 170 54 150-70 180 60 160-34 140 26v248H0z" fill="#d9b9b0"/>
+    <path fill="url(#mist)" d="M0 220h1500v110H0z"/>
+    <path d="M0 318l150-44 170 36 190-58 170 52 210-48 160 40 190-62 260 60v206H0z" fill="#b89aa3"/>
+    <path d="M0 368l210-52 160 30 230-44 200 52 180-30 230 40 290-46v182H0z" fill="#86788f"/>
+    <path d="M0 420l170-30 220 26 240-40 210 36 260-22 200 18 200-30v122H0z" fill="#5c5874"/>
+    <path d="M0 470l260-24 300 14 290-26 330 22 320-12v56H0z" fill="#3d3d55"/>
+    <g fill="none" stroke="#6d5f6b" stroke-width="3" stroke-linecap="round" opacity=".7">
+      <path d="M402 132q10-9 20 0 10-9 20 0"/>
+      <path d="M452 160q8-7 16 0 8-7 16 0"/>
+      <path d="M368 172q7-6 14 0 7-6 14 0"/>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 1200 900">
+  <defs>
+    <linearGradient id="sky" x2="0" y2="1"><stop stop-color="#a7a6c4"/><stop offset=".55" stop-color="#e6b8a8"/><stop offset="1" stop-color="#f3d2a8"/></linearGradient>
+    <linearGradient id="sea" x2="0" y2="1"><stop stop-color="#c49a96"/><stop offset=".4" stop-color="#7e7590"/><stop offset="1" stop-color="#454a68"/></linearGradient>
+    <filter id="grain"><feTurbulence type="fractalNoise" baseFrequency=".65" numOctaves="3" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncA type="linear" slope=".12"/></feComponentTransfer><feBlend in="SourceGraphic" mode="multiply"/></filter>
+  </defs>
+  <g filter="url(#grain)">
+    <path fill="url(#sky)" d="M0 0h1200v900H0z"/>
+    <circle cx="380" cy="520" r="64" fill="#f8dcb0"/>
+    <path d="M0 520l120-26 110 14 120-22 90 20 60 14H0z" fill="#a88e9e"/>
+    <path fill="url(#sea)" d="M0 520h1200v380H0z"/>
+    <g fill="none" stroke="#f6d9b4" stroke-width="3" stroke-linecap="round" opacity=".7">
+      <path d="M320 548h120M340 580h80M300 620h150M350 668h60"/>
+    </g>
+    <g fill="none" stroke="#c7b6c4" stroke-width="3" stroke-linecap="round" opacity=".45">
+      <path d="M60 640h150M120 720h220M560 700h170M860 640h140M900 760h200M80 820h160M600 830h120"/>
+    </g>
+    <path d="M760 560h220l-30 40H790z" fill="#2f3048"/>
+    <path d="M868 556V250" stroke="#2f3048" stroke-width="7"/>
+    <path d="M876 266l100 270H876z" fill="#f4ece0"/>
+    <path d="M860 290L770 536h90z" fill="#e9dccb"/>
+    <path d="M790 606q90 20 160 0" fill="none" stroke="#f1d4b0" stroke-width="3" opacity=".5"/>
+    <g fill="none" stroke="#4f4a62" stroke-width="3" stroke-linecap="round" opacity=".7">
+      <path d="M560 260q10-9 20 0 10-9 20 0M610 296q8-7 16 0 8-7 16 0"/>
+    </g>
+  </g>
+</svg>

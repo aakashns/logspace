@@ -99,6 +99,21 @@ test("demo loads, plays, and seeks with captions available", async ({
   expect(poster.headers()["content-type"]).toContain("image/webp");
 });
 
+test("screenshots load at twice their shown size", async ({ page }) => {
+  await page.goto("/");
+  const screenshots = page.locator(".screenshot img");
+  await expect(screenshots).toHaveCount(3);
+  for (const screenshot of await screenshots.all()) {
+    await screenshot.scrollIntoViewIfNeeded();
+    await expect
+      .poll(() =>
+        screenshot.evaluate((image: HTMLImageElement) => image.naturalWidth),
+      )
+      .toBe(1440);
+    await expect(screenshot).toHaveAttribute("alt", /.+/);
+  }
+});
+
 test("serves the installer and icons, and rejects missing paths", async ({
   request,
 }) => {
