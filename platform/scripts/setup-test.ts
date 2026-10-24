@@ -194,7 +194,7 @@ await expectHttps(
 )
 let photo = path.resolve(import.meta.dir, '../test/content/posts/t83tytis1i/cover.jpg')
 await expectHttps(
-  `https://${DOMAIN}/admin/posts/new`,
+  `https://${DOMAIN}/admin/posts`,
   `303 https://${DOMAIN}/posts/setup00001`,
   ...auth,
   '-F',
@@ -212,11 +212,11 @@ let version = new Bun.CryptoHasher('sha256')
 await expectHttps(`https://${DOMAIN}/posts/setup00001/cover.jpg?w=600&v=${version}`, '200')
 await expectHttps(`https://${DOMAIN}/site/icon-512.png`, '200')
 await expectHttps(
-  `https://${DOMAIN}/admin/posts/new`,
+  `https://${DOMAIN}/admin/posts`,
   `303 https://${DOMAIN}/posts/setuplink1`,
   ...auth,
   '-F',
-  'id=setuplink1',
+  'post_id=setuplink1',
   '-F',
   'caption=http://127.0.0.1/private-preview-probe',
 )

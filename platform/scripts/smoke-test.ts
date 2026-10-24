@@ -87,7 +87,7 @@ try {
   post.set('post_id', 'smoketest1')
   post.set('caption', 'Hello')
   post.set('image_uploads', Bun.file(photo), 'cover.jpg')
-  let published = await fetch(`${base}/admin/posts/new`, {
+  let published = await fetch(`${base}/admin/posts`, {
     method: 'POST',
     headers: { Cookie: cookie },
     body: post,

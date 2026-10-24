@@ -1,7 +1,6 @@
-// The composer at /admin/posts/new, where posts are written: a caption, photos or a video added
-// with the toolbar's buttons (uploaded as they're chosen), and below, the post as it'll look,
-// which follows along as you write. Nothing is saved until it's posted: closing the page loses
-// it.
+// The composer, where posts are written and edited: a caption, photos or a video added with the
+// toolbar's buttons (uploaded as they're chosen), and below, the post as it'll look, which follows
+// along as you write. Nothing is saved until it's posted: closing the page loses it.
 //
 // Datastar runs it with one-line attributes, like the buttons in ../controls.tsx. The parts the
 // server re-renders have ids: the issues, media, and toolbar, which it replaces whole (so the
@@ -32,24 +31,30 @@ export const COMPOSER_IDS = {
 
 export interface ComposerProps {
   readonly values: ComposeValues
-  // The post as it'd be published now, its files served from /admin.
+  // The post as it'd be posted now, its files served from /admin.
   readonly post: Post
   readonly linkPreview?: LinkPreview | undefined
   readonly siteUrl: string
   readonly issues?: readonly PostIssue[] | undefined
+  // Whether the post is published, so this is an edit.
+  readonly published: boolean
 }
 
-const UPDATE_MEDIA = `@post('${routes.admin.newPostMedia()}', {contentType: 'form'})`
-const PREVIEW = `@post('${routes.admin.newPostPreview()}', {contentType: 'form'})`
+const UPDATE_MEDIA = `@post('${routes.admin.postMedia()}', {contentType: 'form'})`
+const PREVIEW = `@post('${routes.admin.postPreview()}', {contentType: 'form'})`
 
 export function ComposePage(props: ComposerProps): Html {
-  let { values } = props
+  let { values, published } = props
   return (
     <section class="admin-page">
-      <h1 class="page-title">New Post</h1>
+      <div class="admin-heading">
+        <h1 class="page-title">{published ? 'Edit Post' : 'New Post'}</h1>
+        <CloseButton published={published} />
+      </div>
       <form
+        id={COMPOSER_FORM}
         method="post"
-        action={routes.admin.newPost()}
+        action={routes.admin.savePost()}
         enctype="multipart/form-data"
         class="composer"
       >
@@ -59,11 +64,25 @@ export function ComposePage(props: ComposerProps): Html {
         <ComposerMedia {...props} />
         <div class="composer-bar">
           <ComposerTools />
-          <button type="submit" class="button post-button" data-attr:disabled="$_uploading">
-            Post
-          </button>
+          <div class="actions">
+            {/* Opens the dialog below with command/commandfor, which needs no JavaScript. */}
+            {published ? (
+              <button
+                type="button"
+                command="show-modal"
+                commandfor={DELETE_DIALOG}
+                class="destructive-button"
+              >
+                Delete
+              </button>
+            ) : null}
+            <button type="submit" class="button post-button" data-attr:disabled="$_uploading">
+              {published ? 'Save' : 'Post'}
+            </button>
+          </div>
         </div>
       </form>
+      {published ? <DeleteDialog id={values.id} /> : null}
       <section aria-labelledby="preview-heading" class="composer-preview">
         <h2 id="preview-heading">Preview</h2>
         <div id={COMPOSER_IDS.preview} class="feed">
@@ -71,6 +90,29 @@ export function ComposePage(props: ComposerProps): Html {
         </div>
       </section>
     </section>
+  )
+}
+
+const COMPOSER_FORM = 'composer'
+
+// Closes the composer, like a dialog's ×, back to the list of posts: a new post is discarded,
+// and an edit's changes. It posts the composer's form to discard what was uploaded for it, so
+// it's off while files upload.
+function CloseButton(props: { published: boolean }): Html {
+  let label = props.published ? 'Revert changes' : 'Discard post'
+  return (
+    <Tooltip label={label}>
+      <button
+        type="submit"
+        form={COMPOSER_FORM}
+        formaction={routes.admin.discardPost()}
+        aria-label={label}
+        class="nav-button"
+        data-attr:disabled="$_uploading"
+      >
+        <CloseIcon />
+      </button>
+    </Tooltip>
   )
 }
 
@@ -270,5 +312,38 @@ export function ComposerPreview(props: ComposerProps): Html {
       {post.captionHtml ? <Caption html={post.captionHtml} /> : null}
       <PostMedia post={post} preview={linkPreview} />
     </article>
+  )
+}
+
+const DELETE_DIALOG = 'delete-post'
+
+// Deleting a post: a dialog to confirm, outside the composer's form, since forms can't nest.
+function DeleteDialog(props: { id: string }): Html {
+  return (
+    <dialog id={DELETE_DIALOG} aria-labelledby={`${DELETE_DIALOG}-title`} class="dialog">
+      <form method="post" action={routes.admin.deletePost(props.id)}>
+        <h2 id={`${DELETE_DIALOG}-title`} class="dialog-title">
+          Delete this post?
+        </h2>
+        <p>
+          It’s removed from the site right away, along with its media files, and this can’t be
+          undone.
+        </p>
+        <div class="actions">
+          <button type="submit" class="destructive-button">
+            Delete
+          </button>
+          <button
+            type="button"
+            command="close"
+            commandfor={DELETE_DIALOG}
+            autofocus
+            class="secondary-button"
+          >
+            Cancel
+          </button>
+        </div>
+      </form>
+    </dialog>
   )
 }

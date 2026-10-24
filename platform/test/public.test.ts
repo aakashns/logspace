@@ -122,7 +122,7 @@ describe('the home page', () => {
     let caption = 'Hi <b data-on:click="alert(1)">there</b> data-on:click="alert(2)"'
     await app.run(
       Effect.flatMap(PostCommands, (commands) =>
-        commands.publish({
+        commands.save({
           post: { id, type: 'text', date: '2000-01-01T00:00:00Z', caption },
           uploads: [],
           issues: [],
@@ -246,7 +246,7 @@ describe('a post’s page and files', () => {
     let caption = 'Broken: https://[bad-host] but https://remix.run is fine'
     await app.run(
       Effect.flatMap(PostCommands, (commands) =>
-        commands.publish({
+        commands.save({
           post: { id, type: 'text', date: '2000-01-01T00:00:00Z', caption },
           uploads: [],
           issues: [],
@@ -339,7 +339,7 @@ describe('a post’s page and files', () => {
         let record = yield* queries.findRecord(id)
         if (record?.type !== 'video') throw new Error('No video post')
         let { width: _, height: __, ...video } = record.video
-        yield* (yield* PostCommands).edit(id, {
+        yield* (yield* PostCommands).save({
           post: { ...record, video },
           uploads: [],
           issues: [],

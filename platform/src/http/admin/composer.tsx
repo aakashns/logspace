@@ -1,17 +1,25 @@
-// The composer at /admin/posts/new, where posts are written.
+// The composer, where posts are written, at /admin/posts/new, and edited, at /admin/posts/<id>/edit;
+// and deleting posts.
 //
-// Nothing about the post is kept on the server until it's posted: the page holds it. As you
-// write, Datastar posts the form, and gets HTML for parts of the page: the media when files are
-// added or removed (the files are saved under the post's id right away), and the preview as you
-// type. Posting is a plain form submission, which publishes the post and goes to it.
+// The composer works the same for both: the page holds the post, by its id, and nothing about it
+// is saved until it's posted. As you write, Datastar posts the form, and gets HTML for parts of
+// the page: the media when files are added or removed, and the preview as you type. Files chosen
+// are saved under the post's id right away, with names of their own, so a published post's files
+// don't change until it's saved. Posting is a plain form submission, which saves the post, new or
+// published, and goes to it.
 import { DateTime, Effect } from 'effect'
 import { HttpServerResponse } from 'effect/http'
 
 import type { Html } from '#jsx/jsx-runtime'
 import { PostCommands } from '../../commands/posts.ts'
-import { composePost, readComposeForm, type ComposeValues } from '../../domain/compose.ts'
+import {
+  composePost,
+  composeValues,
+  readComposeForm,
+  type ComposeValues,
+} from '../../domain/compose.ts'
 import { MAX_UPLOAD_FILE_SIZE, MAX_UPLOAD_TOTAL_SIZE } from '../../domain/constants.ts'
-import { newPostId, type PostIssue } from '../../domain/post.ts'
+import { newPostId, type PostIssue, type PostRecord } from '../../domain/post.ts'
 import { LinkPreviews } from '../../queries/link-previews.ts'
 import { PostMedia } from '../../queries/post-media.ts'
 import { PostQueries } from '../../queries/posts.ts'
@@ -28,7 +36,15 @@ import {
 import { megabytes, readForm } from '../forms.ts'
 import { param, requestUrl } from '../pages.ts'
 import { fileResponse, notFound, redirect } from '../responses.ts'
-import { adminPage, loggedIn } from './pages.tsx'
+import { adminPage, loggedIn, message } from './pages.tsx'
+
+const postNotFound = message(
+  'Post not found',
+  <>
+    There’s no post with this id. <a href={routes.admin.index()}>See all posts</a>
+  </>,
+  404,
+)
 
 // Parts of the composer for Datastar to replace, by id, or with `inner`, to morph the inside of,
 // as server-sent events.
@@ -48,33 +64,64 @@ const patch = (...patches: [id: string, html: Html, mode?: 'inner'][]) =>
     { contentType: 'text/event-stream' },
   )
 
-// Now, in UTC, to the second (a post's date has no milliseconds).
-const newPostDate = Effect.map(DateTime.now, (now) => DateTime.formatIso(now).slice(0, 19) + 'Z')
+// A submitted composer, and its post as it's published, if it is.
+const readComposer = Effect.gen(function* () {
+  let formData = yield* readForm()
+  let id = String(formData.get('post_id') ?? '').trim()
+  let posts = yield* PostQueries
+  let published = yield* posts.findRecord(id)
+  return { ...readComposeForm(formData, id, yield* posts.fileNames(id)), published }
+})
 
-// The composer for `values`, with its post as it'd be published now.
-const composerProps = (values: ComposeValues, issues?: readonly PostIssue[]) =>
-  Effect.gen(function* () {
-    let record = composePost(values, yield* newPostDate)
-    let post = yield* (yield* PostQueries).preview(record)
-    let { siteUrl = '' } = yield* (yield* SiteConfigQueries).saved
-    let linkPreview = yield* (yield* LinkPreviews).forPost(post)
-    return { values, post, linkPreview, siteUrl, issues }
-  })
-
-const composePage = (values: ComposeValues, issues?: readonly PostIssue[]) =>
-  Effect.flatMap(composerProps(values, issues), (props) =>
-    adminPage('New Post', <ComposePage {...props} />, { status: issues ? 400 : 200 }),
+// The post the composer makes: published now, in UTC, to the second, or an edit.
+const composed = (values: ComposeValues, published: PostRecord | undefined) =>
+  Effect.map(DateTime.now, (now) =>
+    composePost(values, DateTime.formatIso(now).slice(0, 19) + 'Z', published),
   )
 
-export const compose = loggedIn(() => composePage({ id: newPostId(), caption: '', photos: [] }))
+// The composer for `values`, with its post as it'd be saved now.
+const composerProps = (
+  values: ComposeValues,
+  published: PostRecord | undefined,
+  issues?: readonly PostIssue[],
+) =>
+  Effect.gen(function* () {
+    let post = yield* (yield* PostQueries).preview(yield* composed(values, published))
+    let { siteUrl = '' } = yield* (yield* SiteConfigQueries).saved
+    let linkPreview = yield* (yield* LinkPreviews).forPost(post)
+    return { values, post, linkPreview, siteUrl, issues, published: published !== undefined }
+  })
+
+const composePage = (
+  values: ComposeValues,
+  published: PostRecord | undefined,
+  issues?: readonly PostIssue[],
+) =>
+  Effect.flatMap(composerProps(values, published, issues), (props) =>
+    adminPage(published ? 'Edit Post' : 'New Post', <ComposePage {...props} />, {
+      status: issues ? 400 : 200,
+    }),
+  )
+
+export const compose = loggedIn(() =>
+  composePage({ id: newPostId(), caption: '', photos: [] }, undefined),
+)
+
+export const editPost = loggedIn(() =>
+  Effect.gen(function* () {
+    let published = yield* (yield* PostQueries).findRecord(yield* param('id'))
+    if (!published) return yield* postNotFound
+    return yield* composePage(composeValues(published), published)
+  }),
+)
 
 // Files chosen are saved right away, and the media and preview are shown with them. The toolbar
-// is sent again too, so its file inputs start empty. A file taken out is deleted (a video with its
-// poster); everything uploaded for a post that's never posted is left in storage, unserved.
+// is sent again too, so its file inputs start empty. A file taken out is only left out of the
+// form: saving the post removes it, and so does closing the composer (discardComposer).
 export const updateComposerMedia = loggedIn(() =>
   Effect.gen(function* () {
-    let { values, uploads, issues, removed } = readComposeForm(yield* readForm())
-    let rejected = yield* (yield* PostCommands).upload(values.id, uploads, removed).pipe(
+    let { values, uploads, issues, published } = yield* readComposer
+    let rejected = yield* (yield* PostCommands).upload(values.id, uploads).pipe(
       Effect.as([]),
       Effect.catchTag('PostRejected', (error) => Effect.succeed(error.issues)),
     )
@@ -88,7 +135,7 @@ export const updateComposerMedia = loggedIn(() =>
         poster: saved(values.poster),
       }
     }
-    let props = yield* composerProps(values, [...issues, ...rejected])
+    let props = yield* composerProps(values, published, [...issues, ...rejected])
     return patch(
       [COMPOSER_IDS.issues, <ComposerIssues issues={props.issues} />],
       [COMPOSER_IDS.media, <ComposerMedia {...props} />],
@@ -114,35 +161,50 @@ const COMPOSER_TOO_LARGE =
 // The preview, for what's typed. The composer doesn't ask for one while files are uploading.
 export const previewComposer = loggedIn(() =>
   Effect.gen(function* () {
-    let { values } = readComposeForm(yield* readForm())
+    let { values, published } = yield* readComposer
     return patch([
       COMPOSER_IDS.preview,
-      <ComposerPreview {...yield* composerProps(values)} />,
+      <ComposerPreview {...yield* composerProps(values, published)} />,
       'inner',
     ])
   }),
 )
 
-// Then the browser goes to the post, or it's shown what's wrong. A form posted twice goes to the
-// post the first published.
-export const publishComposer = loggedIn(() =>
+// Then the browser goes to the post, or it's shown what's wrong. A post with nothing in it isn't
+// saved, unless files chosen with it were refused, which the composer says instead. A new post's
+// form posted twice saves the same post again.
+export const saveComposer = loggedIn(() =>
   Effect.gen(function* () {
-    let { values, uploads, issues } = readComposeForm(yield* readForm())
-    let post = composePost(values, yield* newPostDate)
+    let { values, uploads, issues, published } = yield* readComposer
+    let post = yield* composed(values, published)
     if (post.type === 'text' && post.caption === '' && issues.length === 0) {
-      return yield* composePage(values, [{ message: 'Write something, or add photos or a video.' }])
+      let empty = [{ message: 'Write something, or add photos or a video.' }]
+      return yield* composePage(values, published, empty)
     }
-    return yield* (yield* PostCommands).publish({ post, uploads, issues }).pipe(
+    return yield* (yield* PostCommands).save({ post, uploads, issues }).pipe(
       Effect.as(redirect(routes.post(values.id), 303)),
       Effect.catchTag('PostRejected', (rejected) =>
-        Effect.flatMap(PostQueries, (queries) => queries.findRecord(values.id)).pipe(
-          Effect.flatMap((published) =>
-            published
-              ? Effect.succeed(redirect(routes.post(values.id), 303))
-              : composePage(values, rejected.issues),
-          ),
-        ),
+        composePage(values, published, rejected.issues),
       ),
+    )
+  }),
+)
+
+// The composer's ×: what it uploaded goes, and the browser goes back to the list of posts. A tab
+// closed instead leaves its uploads in storage, unserved.
+export const discardComposer = loggedIn(() =>
+  Effect.gen(function* () {
+    let id = (yield* readForm()).get('post_id')
+    yield* (yield* PostCommands).discard(typeof id === 'string' ? id.trim() : '')
+    return redirect(routes.admin.index(), 303)
+  }),
+)
+
+export const deletePost = loggedIn(() =>
+  Effect.gen(function* () {
+    return yield* (yield* PostCommands).delete(yield* param('id')).pipe(
+      Effect.as(redirect(routes.admin.index(), 303)),
+      Effect.catchTag('PostNotFound', () => postNotFound),
     )
   }),
 )

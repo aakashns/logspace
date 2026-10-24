@@ -1,24 +1,15 @@
 // Labelled inputs for the admin forms. `invalid` is the input's aria-invalid.
 import type { Child, Html } from '#jsx/jsx-runtime'
 
-// In a FieldRow, a wide field takes more of the space and a small one less.
-type FieldSize = 'wide' | 'small'
-
-// Fields side by side, wrapping onto more lines on narrow screens.
-export function FieldRow(props: { children: Child }): Html {
-  return <div class="field-row">{props.children}</div>
-}
-
 // A label and hint around any input.
 export function Field(props: {
   label: string
   for: string
   hint?: string | undefined
-  size?: FieldSize | undefined
   children: Child
 }): Html {
   return (
-    <div data-size={props.size} class="field">
+    <div class="field">
       <label for={props.for}>{props.label}</label>
       {props.children}
       {props.hint ? <p class="muted">{props.hint}</p> : null}
@@ -35,10 +26,10 @@ export interface InputProps {
   hint?: string | undefined
 }
 
-export function TextField(props: InputProps & { size?: FieldSize | undefined }): Html {
-  let { label, name, id, value, invalid, hint, size } = props
+export function TextField(props: InputProps): Html {
+  let { label, name, id, value, invalid, hint } = props
   return (
-    <Field label={label} for={id} hint={hint} size={size}>
+    <Field label={label} for={id} hint={hint}>
       <input id={id} name={name} value={value ?? ''} aria-invalid={invalid} class="input" />
     </Field>
   )

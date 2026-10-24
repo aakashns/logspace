@@ -5,7 +5,7 @@ import { SqlClient } from 'effect/sql'
 
 import type { ImageInfo } from '../domain/images.ts'
 import { fromPostRow, POST_COLUMNS, type PostRow } from '../domain/post-rows.ts'
-import { sortNewestFirst, type PostRecord } from '../domain/post.ts'
+import { isPostId, sortNewestFirst, type PostRecord } from '../domain/post.ts'
 import { toPost, type Post } from '../domain/presentation.ts'
 import { routes } from '../routes.ts'
 import { MediaStorage, mediaKeys } from '../services/media-storage.ts'
@@ -18,15 +18,16 @@ export class PostQueries extends Context.Service<
     // Every post, newest first.
     readonly all: Effect.Effect<readonly Post[]>
     readonly find: (id: string) => Effect.Effect<Post | undefined>
-    // A post as it's stored, for the edit form.
+    // A post as it's stored, for the composer to edit.
     readonly findRecord: (id: string) => Effect.Effect<PostRecord | undefined>
     // The size and version of one of a post's images, if it's one.
     readonly imageInfo: (id: string, name: string) => Effect.Effect<ImageInfo | undefined>
     // A post that may not be published yet, as the composer previews it: its files are served
     // from /admin, with their sizes and versions.
     readonly preview: (record: PostRecord) => Effect.Effect<Post>
-    // The names and sizes of a post's files, from storage, for the /admin post form.
-    readonly files: (id: string) => Effect.Effect<{ name: string; size: number }[]>
+    // The names of a post's files in media storage, published or not, so the composer gives a
+    // new one a name of its own.
+    readonly fileNames: (id: string) => Effect.Effect<string[]>
   }
 >()('logspace/PostQueries') {
   static readonly layer = Layer.effect(
@@ -97,15 +98,14 @@ export class PostQueries extends Context.Service<
         findRecord,
         imageInfo,
         preview,
-        files: (id) =>
-          Effect.map(storage.list(mediaKeys.postFiles(id)), (files) =>
-            files
-              .map((file) => ({
-                name: file.key.slice(mediaKeys.postFiles(id).length),
-                size: file.size,
-              }))
-              .toSorted((a, b) => a.name.localeCompare(b.name)),
-          ),
+        fileNames: (id) => {
+          // Storage keys are built only from checked ids.
+          if (!isPostId(id)) return Effect.succeed([])
+          let folder = mediaKeys.postFiles(id)
+          return Effect.map(storage.list(folder), (files) =>
+            files.map((file) => file.key.slice(folder.length)),
+          )
+        },
       })
     }),
   )

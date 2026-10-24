@@ -65,7 +65,7 @@ test('photos upload as they’re chosen, and one can be taken out', async ({ pag
 test('Post waits for an upload to finish', async ({ page }) => {
   await openComposer(page)
   const held = Promise.withResolvers<void>()
-  await page.route('**/admin/posts/new/media', async (route) => {
+  await page.route('**/admin/posts/media', async (route) => {
     await held.promise
     await route.continue()
   })
@@ -104,6 +104,37 @@ test('an empty post is refused, and posts once it’s written', async ({ page })
   await expect(page.getByRole('alert')).toContainText('Write something')
   await caption(page, 'Now there is content')
   await publish(page)
+})
+
+test('an edit changes nothing until it’s saved, and × goes back to /admin', async ({ page }) => {
+  await openComposer(page)
+  await caption(page, 'Before the edit')
+  await upload(page, 'Add photos', [photo, secondPhoto])
+  await publish(page)
+  const post = page.url()
+
+  await page.goto(`${new URL(post).pathname.replace('/posts/', '/admin/posts/')}/edit`)
+  await expect(page.getByRole('heading', { name: 'Edit Post' })).toBeVisible()
+  await expect(page.getByLabel('Caption', { exact: true })).toHaveValue('Before the edit')
+  await loadedImages(page, '#composer-media img', 2)
+  await caption(page, 'After the edit')
+  await page.getByRole('button', { name: 'Remove hike-2.jpg', exact: true }).click()
+  await loadedImages(page, '#composer-media img', 1)
+  // Closing it leaves the post as it was.
+  await page.getByRole('button', { name: 'Revert changes', exact: true }).click()
+  await expect(page).toHaveURL(/\/admin$/)
+  await page.goto(post)
+  await expect(page.locator('main')).toContainText('Before the edit')
+  await loadedImages(page, 'main article img', 2)
+
+  await page.goto(`${new URL(post).pathname.replace('/posts/', '/admin/posts/')}/edit`)
+  await caption(page, 'After the edit')
+  await page.getByRole('button', { name: 'Remove hike-2.jpg', exact: true }).click()
+  await loadedImages(page, '#composer-media img', 1)
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(page).toHaveURL(post)
+  await expect(page.locator('main')).toContainText('After the edit')
+  await loadedImages(page, 'main article img', 1)
 })
 
 test.describe('without JavaScript', () => {

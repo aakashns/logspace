@@ -7,8 +7,7 @@ import { captionText, getFirstLink, renderCaption } from '../src/domain/caption.
 import { fromPostRow, toPostRow } from '../src/domain/post-rows.ts'
 import { isUploadableFileName, parsePostRecord, type PostRecord } from '../src/domain/post.ts'
 import { getPostMeta, toPost } from '../src/domain/presentation.ts'
-import { composePost, readComposeForm } from '../src/domain/compose.ts'
-import { readPostForm } from '../src/domain/post-form.ts'
+import { composePost, composeValues, readComposeForm } from '../src/domain/compose.ts'
 import { formatPostDate } from '../src/domain/format.ts'
 
 const ID = 'fc7p7vjhx6'
@@ -208,13 +207,16 @@ describe('the composer', () => {
   it('makes a photos post with file names as alt text, renaming names already taken', () => {
     let { values, uploads } = readComposeForm(
       form([
-        ['post_id', ID],
         ['caption', 'Hi\r\nthere'],
         ['photo', 'image.jpg'],
         ['image_uploads', new File(['a'], 'image.jpg')],
+        ['image_uploads', new File(['b'], 'C:\\Users\\me\\My Photo.jpg')],
       ]),
+      ID,
+      // Stored, though no longer in the post.
+      ['image-2.jpg'],
     )
-    expect(uploads.map((upload) => upload.name)).toEqual(['image-2.jpg'])
+    expect(uploads.map((upload) => upload.name)).toEqual(['image-3.jpg', 'My-Photo.jpg'])
     expect(composePost(values, DATE)).toEqual({
       id: ID,
       date: DATE,
@@ -222,7 +224,8 @@ describe('the composer', () => {
       caption: 'Hi\nthere',
       photos: [
         { file: 'image.jpg', alt: 'image.jpg' },
-        { file: 'image-2.jpg', alt: 'image-2.jpg' },
+        { file: 'image-3.jpg', alt: 'image-3.jpg' },
+        { file: 'My-Photo.jpg', alt: 'My-Photo.jpg' },
       ],
     })
   })
@@ -230,10 +233,11 @@ describe('the composer', () => {
   it('takes photos or a video, not both, and with a video, an image as its poster', () => {
     let { values, uploads } = readComposeForm(
       form([
-        ['post_id', ID],
         ['video', 'clip.mp4'],
         ['image_uploads', new File(['p'], 'clip.jpg')],
       ]),
+      ID,
+      [],
     )
     expect(values).toMatchObject({ photos: [], video: 'clip.mp4', poster: 'clip.jpg' })
     expect(uploads.map((upload) => upload.name)).toEqual(['clip.jpg'])
@@ -242,6 +246,8 @@ describe('the composer', () => {
         ['photo', 'a.jpg'],
         ['video_upload', new File(['v'], 'clip.mp4')],
       ]),
+      ID,
+      [],
     )
     expect(both.values.video).toBeUndefined()
     expect(both.issues[0]?.message).toMatch(/photos or a video, not both/)
@@ -251,34 +257,56 @@ describe('the composer', () => {
         ['poster', 'clip.jpg'],
         ['remove', 'clip.mp4'],
       ]),
+      ID,
+      [],
     )
     expect(removed.values).toMatchObject({ video: undefined, poster: undefined })
   })
-})
 
-describe('the post form', () => {
-  it('reads only the post type’s fields, and names uploads by their file names', () => {
-    let form = new FormData()
-    for (let [name, value] of Object.entries({
-      type: 'video',
-      date: '2026-10-16T13:12',
-      video_file: 'x.mp4',
-      video_width: '640',
-      video_height: 'tall',
-      photo_file: 'ignored.jpg',
-    })) {
-      form.append(name, value)
-    }
-    form.append('video_poster_upload', new File(['p'], 'C:\\Users\\me\\My Poster.jpg'))
-    let { post, uploads, issues } = readPostForm(form, ID, 'video')
-    expect(post).toEqual({
+  it('edits a published post, keeping what the composer doesn’t show', () => {
+    let published = {
+      id: ID,
+      type: 'photos',
+      date: DATE,
+      city: 'Hanoi',
+      caption: 'Hi',
+      photos: [
+        { file: 'a.jpg', alt: 'A lake' },
+        { file: 'b.jpg', alt: 'A hill' },
+      ],
+    } satisfies PostRecord
+    let values = composeValues(published)
+    expect(values).toEqual({
+      id: ID,
+      caption: 'Hi',
+      photos: ['a.jpg', 'b.jpg'],
+      video: undefined,
+      poster: undefined,
+    })
+    let edited = { ...values, caption: 'Edited', photos: ['b.jpg', 'c.jpg'] }
+    expect(composePost(edited, '2026-10-25T00:00:00Z', published)).toEqual({
+      id: ID,
+      type: 'photos',
+      date: DATE,
+      city: 'Hanoi',
+      caption: 'Edited',
+      photos: [
+        { file: 'b.jpg', alt: 'A hill' },
+        { file: 'c.jpg', alt: 'c.jpg' },
+      ],
+    })
+
+    // A video keeps its size until it's replaced.
+    let video = {
       id: ID,
       type: 'video',
-      date: '2026-10-16T13:12:00Z',
-      video: { file: 'x.mp4', poster: 'My-Poster.jpg', width: 640, height: 'tall' },
-    })
-    expect(uploads.map((upload) => upload.name)).toEqual(['My-Poster.jpg'])
-    expect(issues).toEqual([])
+      date: DATE,
+      video: { file: 'clip.mp4', width: 640, height: 360 },
+    } satisfies PostRecord
+    let kept = composePost({ ...composeValues(video), video: 'clip.mp4' }, DATE, video)
+    expect(kept.type === 'video' && kept.video).toEqual(video.video)
+    let replaced = composePost({ ...composeValues(video), video: 'new.mp4' }, DATE, video)
+    expect(replaced.type === 'video' && replaced.video).toEqual({ file: 'new.mp4' })
   })
 })
 

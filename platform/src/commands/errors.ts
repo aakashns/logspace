@@ -8,7 +8,7 @@ const PostIssue = Schema.Struct({
   message: Schema.String,
 })
 
-// The post wasn't saved, for these reasons (shown above the post form).
+// The post wasn't saved, for these reasons (shown in the composer).
 export class PostRejected extends Schema.TaggedError<PostRejected>()('PostRejected', {
   issues: Schema.Array(PostIssue),
 }) {}

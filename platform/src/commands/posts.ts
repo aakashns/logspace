@@ -1,6 +1,6 @@
-// Publishing, editing, and deleting posts: the write side for posts. Media storage and the
-// database can't change together, so each command says what's left when one step fails.
-import { Context, DateTime, Effect, Layer, Option } from 'effect'
+// Saving and deleting posts: the write side for posts. Media storage and the database can't
+// change together, so each command says what's left when one step fails.
+import { Context, DateTime, Effect, Layer } from 'effect'
 import { SqlClient } from 'effect/sql'
 
 import { fromPostRow, POST_COLUMNS, toPostRow, type PostRow } from '../domain/post-rows.ts'
@@ -15,7 +15,7 @@ import { MediaStorage, mediaKeys } from '../services/media-storage.ts'
 import { PostNotFound, PostRejected } from './errors.ts'
 import { makePostFiles } from './post-files.ts'
 
-// A post as the /admin post form submitted it (see domain/post-form.ts).
+// A post as the composer submitted it (see domain/compose.ts).
 export interface PostSubmission {
   // The post, unchecked.
   readonly post: { readonly id: string; readonly type: string; readonly [field: string]: unknown }
@@ -28,18 +28,16 @@ export interface PostSubmission {
 export class PostCommands extends Context.Service<
   PostCommands,
   {
-    readonly publish: (submission: PostSubmission) => Effect.Effect<PostRecord, PostRejected>
-    // Saves files chosen in the composer as a new post's, before it's published, replacing any of
-    // the same names, and deletes `removed`. A published post's files can't be changed this way.
+    // Publishes the post, or saves it over the published one with its id.
+    readonly save: (submission: PostSubmission) => Effect.Effect<PostRecord, PostRejected>
+    // Saves files chosen in the composer as the post's, before it's saved.
     readonly upload: (
       id: string,
       uploads: PostSubmission['uploads'],
-      removed?: readonly string[],
     ) => Effect.Effect<void, PostRejected>
-    readonly edit: (
-      id: string,
-      submission: PostSubmission,
-    ) => Effect.Effect<PostRecord, PostRejected | PostNotFound>
+    // Throws away what the composer uploaded for a post it was closed without saving: all of a
+    // new post's files, or the ones an edit added.
+    readonly discard: (id: string) => Effect.Effect<void>
     readonly delete: (id: string) => Effect.Effect<void, PostNotFound>
   }
 >()('logspace/PostCommands') {
@@ -50,13 +48,7 @@ export class PostCommands extends Context.Service<
       let files = yield* makePostFiles()
       let storage = yield* MediaStorage
 
-      let findRecord = (id: string) =>
-        sql<PostRow>`select ${sql.literal(POST_COLUMNS)} from posts where id = ${id}`.pipe(
-          Effect.orDie,
-          Effect.map((rows) => Option.fromNullishOr(rows[0]).pipe(Option.map(fromPostRow))),
-        )
-
-      let saveUploads = ({ uploads }: PostSubmission, id: string) =>
+      let saveUploads = (id: string, uploads: PostSubmission['uploads']) =>
         Effect.forEach(uploads, ({ name, file }) => files.save(id, name, file), { discard: true })
 
       // Checks the post, and that every file it names is in media storage.
@@ -78,66 +70,55 @@ export class PostCommands extends Context.Service<
         return record
       })
 
-      // Uploads are saved before the post is checked, so a rejected submission doesn't need its
-      // files chosen again. A published post's id is refused, so a form submitted twice can't
-      // replace its files. If storing the post fails, its files stay under its id, unserved.
-      let alreadyPublished = new PostRejected({
-        issues: [{ message: 'This post was already published.' }],
-      })
-      let publish = Effect.fn('PostCommands.publish')(function* (submission: PostSubmission) {
-        let { id } = submission.post
-        if (Option.isSome(yield* findRecord(id))) return yield* alreadyPublished
-        // An invalid id is one of the post's issues; no files are saved under it.
-        if (isPostId(id)) yield* saveUploads(submission, id)
-        let record = yield* check(submission)
-        yield* sql`insert into posts ${sql.insert({ ...toPostRow(record) })}`.pipe(
-          // A form submitted twice at once (SQLite calls a primary key clash a constraint error).
-          Effect.catch((error) =>
-            ['UniqueViolation', 'ConstraintError'].includes(error.reason._tag)
-              ? Effect.fail(alreadyPublished)
-              : Effect.die(error),
-          ),
+      // Removes post `id`'s files that it doesn't name, with their resized copies: files taken
+      // out in the composer, an edit's old media, or all of a post never saved.
+      let cleanUp = Effect.fnUntraced(function* (id: string) {
+        if (!isPostId(id)) return
+        let rows =
+          yield* sql<PostRow>`select ${sql.literal(POST_COLUMNS)} from posts where id = ${id}`.pipe(
+            Effect.orDie,
+          )
+        let named = rows[0] ? getPostFileNames(fromPostRow(rows[0])) : []
+        let folder = mediaKeys.postFiles(id)
+        yield* Effect.forEach(
+          (yield* storage.list(folder))
+            .map((file) => file.key.slice(folder.length))
+            .filter((name) => !named.includes(name)),
+          (name) => files.remove(id, name),
+          { discard: true },
         )
+      })
+
+      // Uploads are saved before the post is checked, so a rejected submission doesn't need its
+      // files chosen again. Once the post is stored, the files it doesn't name go. If storing the
+      // post fails, its files are left as they were; if removing them fails, they're left,
+      // unserved.
+      let save = Effect.fn('PostCommands.save')(function* (submission: PostSubmission) {
+        let { id } = submission.post
+        // An invalid id is one of the post's issues; no files are saved under it.
+        if (isPostId(id)) yield* saveUploads(id, submission.uploads)
+        let record = yield* check(submission)
+        let { id: _, ...row } = toPostRow(record)
+        let updated_at = DateTime.formatIso(yield* DateTime.now)
+        yield* sql`insert into posts ${sql.insert({ id, ...row })}
+          on conflict (id) do update set ${sql.update({ ...row, updated_at })}`.pipe(Effect.orDie)
+        yield* cleanUp(id)
         return record
       })
 
       let upload = Effect.fn('PostCommands.upload')(function* (
         id: string,
         uploads: PostSubmission['uploads'],
-        removed: readonly string[] = [],
       ) {
         if (!isPostId(id)) {
           return yield* new PostRejected({
             issues: [{ field: 'id', message: 'Expected a post id' }],
           })
         }
-        if (Option.isSome(yield* findRecord(id))) return yield* alreadyPublished
-        // First, as a file chosen now can take a removed one's name.
-        yield* Effect.forEach(removed, (name) => files.remove(id, name), { discard: true })
-        yield* Effect.forEach(uploads, ({ name, file }) => files.save(id, name, file), {
-          discard: true,
-        })
+        yield* saveUploads(id, uploads)
       })
 
-      // A post's type can't change. Uploads replace the post's files of the same names right
-      // away, even if the edit is rejected or storing it fails.
-      let edit = Effect.fn('PostCommands.edit')(function* (id: string, submission: PostSubmission) {
-        let existing = yield* findRecord(id)
-        if (Option.isNone(existing)) return yield* new PostNotFound({ id })
-        if (submission.post.type !== existing.value.type) {
-          return yield* new PostRejected({
-            issues: [{ field: 'type', message: 'A post’s type can’t change.' }],
-          })
-        }
-        yield* saveUploads(submission, id)
-        let record = yield* check({ ...submission, post: { ...submission.post, id } })
-        let { id: _, ...row } = toPostRow(record)
-        let updated_at = DateTime.formatIso(yield* DateTime.now)
-        yield* sql`update posts set ${sql.update({ ...row, updated_at })} where id = ${id}`.pipe(
-          Effect.orDie,
-        )
-        return record
-      })
+      let discard = Effect.fn('PostCommands.discard')(cleanUp)
 
       // The post goes first: if removing its files fails, the files left over aren't served,
       // while a post whose files went first would show broken media.
@@ -149,7 +130,7 @@ export class PostCommands extends Context.Service<
         yield* files.removeAll(id)
       })
 
-      return PostCommands.of({ publish, upload, edit, delete: remove })
+      return PostCommands.of({ save, upload, discard, delete: remove })
     }),
   )
 }
