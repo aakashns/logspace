@@ -129,28 +129,17 @@ describe('server-enforced admin sessions', () => {
     }
   })
 
-  it('bounds failed logins with one persistent account budget, ignoring spoofed proxy headers', async () => {
+  it('accepts the correct password after repeated failed logins without waiting', async () => {
     let time = controlledClock()
     let app = makeTestApp({}, time)
     try {
       await app.seedDatabase()
-      for (let i = 0; i < 10; i++)
-        expect((await app.logIn('wrong', { 'X-Forwarded-For': `10.0.0.${i}` })).status).toBe(401)
-      let limited = await app.logIn()
-      expect(limited.status).toBe(429)
-      expect(limited.headers.get('Retry-After')).toBe('60')
-      time.advance(59_999)
-      expect((await app.logIn()).status).toBe(429)
-      time.advance(1)
-      expect((await app.logIn()).status).toBe(302)
-      expect((await app.logIn('wrong')).status).toBe(401)
-      expect((await app.logIn()).status).toBe(302)
-      let rows = await app.run(
-        Effect.flatMap(SqlClient.SqlClient, (sql) =>
-          sql`select * from login_throttle`.pipe(Effect.orDie),
-        ),
-      )
-      expect(rows.length).toBe(0)
+      for (let i = 0; i < 20; i++) expect((await app.logIn('wrong')).status).toBe(401)
+      // Keep the clock fixed: unrelated failed attempts must not block the owner.
+      let login = await app.logIn()
+      expect(login.status).toBe(302)
+      let cookie = defined(app.sessionCookie(login), 'cookie')
+      expect((await app.fetch('/admin', { headers: { Cookie: cookie } })).status).toBe(200)
     } finally {
       await app.dispose()
     }

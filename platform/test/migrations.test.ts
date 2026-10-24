@@ -89,7 +89,7 @@ describe('migrations', () => {
       {
         id: '0007',
         name: 'protect_content_access',
-        checksum: '206d3ebf4d747af2d82dfe3179d73551434c47ee7c02048d6a7b9b37137e54fb',
+        checksum: 'da3da8e10a42777fb666717f31b980f1725f70b418846dfa34babe3512dffd22',
         batch: 1,
       },
     ])

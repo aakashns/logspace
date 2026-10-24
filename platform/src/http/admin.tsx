@@ -150,14 +150,6 @@ const logIn = Effect.gen(function* () {
   Effect.catchTags({
     UploadTooLarge: () => message('Upload too large', UPLOAD_TOO_LARGE_MESSAGE, 413),
     MalformedForm: () => loginPage('That password isn’t right.'),
-    LoginThrottled: ({ retryAfter }) =>
-      Effect.succeed(
-        HttpServerResponse.setHeader(
-          textResponse('Too many login attempts. Try again shortly.', 429),
-          'Retry-After',
-          String(retryAfter),
-        ),
-      ),
   }),
   Effect.map(privately),
 )

@@ -158,10 +158,8 @@ are `public.test.ts`, `admin.test.ts`, `config.test.ts`,
   `HttpOnly`, `SameSite=Lax`, `Secure` in production, sent only to `/admin`, and holding a
   fingerprint of the password, so changing it logs everyone out. SQLite records enforce a fixed
   30-day lifetime and logout revocation; changing the signing secret also invalidates cookies.
-  A persistent, account-wide limit allows ten failed login attempts per minute (429 with
-  Retry-After thereafter), regardless of client IP. Successful login resets that budget; an
-  attacker can cause a temporary login lockout, but existing sessions remain usable. At most
-  100 sessions are retained, with expired/old-credential rows removed on login. Login is checked before an
+  At most 100 sessions are retained, with expired/old-credential rows removed on login. Failed
+  password attempts do not lock out a subsequent correct password. Login is checked before an
   upload's body is read, and the login form itself, which anyone can send, is read only up to
   16 KB.
 - **Forms from other sites** are refused (`Sec-Fetch-Site`, else `Origin` against the host), as

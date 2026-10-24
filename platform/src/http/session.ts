@@ -20,8 +20,6 @@ const COOKIE_NAME = 'admin_session'
 export const ADMIN_HINT_COOKIE = 'admin'
 const MAX_AGE = 60 * 60 * 24 * 30
 const MIN_SECRET_LENGTH = 16
-const LOGIN_WINDOW_MS = 60_000
-const LOGIN_ATTEMPTS = 10
 const MAX_SESSIONS = 100
 
 export const Session = Schema.Struct({
@@ -40,10 +38,6 @@ const decodePayload = Schema.decodeUnknownOption(Schema.fromJsonString(Session))
 // Someone who isn't logged in as admin asked for an admin page.
 export class NotLoggedIn extends Schema.TaggedError<NotLoggedIn>()('NotLoggedIn', {}) {}
 
-export class LoginThrottled extends Schema.TaggedError<LoginThrottled>()('LoginThrottled', {
-  retryAfter: Schema.Number,
-}) {}
-
 export class AdminAuth extends Context.Service<
   AdminAuth,
   {
@@ -53,7 +47,7 @@ export class AdminAuth extends Context.Service<
     // The request's session if it's logged in as admin.
     readonly requireLogin: Effect.Effect<Session, NotLoggedIn, HttpServerRequest.HttpServerRequest>
     // A new logged-in session.
-    readonly logIn: (input: unknown) => Effect.Effect<Session | undefined, LoginThrottled>
+    readonly logIn: (input: unknown) => Effect.Effect<Session | undefined>
     readonly logOut: Effect.Effect<void, never, HttpServerRequest.HttpServerRequest>
     // Sets the session's cookie on a response, or with undefined, clears it. The hint cookie is
     // set while it's logged in, and cleared with it.
@@ -100,27 +94,12 @@ export class AdminAuth extends Context.Service<
       })
 
       let logIn = Effect.fn('AdminAuth.logIn')(function* (input: unknown) {
-        let now = clock.currentTimeMillisUnsafe()
-        // One fixed-size account budget: rotating/spoofing IPs cannot bypass it or grow memory.
-        // A fixed window bounds lockout to a minute. Successful logins clear failed attempts.
-        let attempts = yield* sql<{ attempts: number; started_at: number }>`
-          insert into login_throttle (id, started_at, attempts) values (1, ${now}, 1)
-          on conflict (id) do update set
-            attempts = case when started_at <= ${now - LOGIN_WINDOW_MS} then 1 else min(attempts + 1, ${LOGIN_ATTEMPTS + 1}) end,
-            started_at = case when started_at <= ${now - LOGIN_WINDOW_MS} then ${now} else started_at end
-          returning attempts, started_at`.pipe(Effect.orDie)
-        let budget = attempts[0]
-        if (budget && budget.attempts > LOGIN_ATTEMPTS) {
-          return yield* new LoginThrottled({
-            retryAfter: Math.max(1, Math.ceil((budget.started_at + LOGIN_WINDOW_MS - now) / 1000)),
-          })
-        }
         if (!enabled || typeof input !== 'string') return undefined
         let hash = (value: string) => createHash('sha256').update(value).digest()
         if (!timingSafeEqual(hash(input), hash(password))) return undefined
+        let now = clock.currentTimeMillisUnsafe()
         let loggedIn = { id: crypto.randomUUID(), auth: fingerprint }
         yield* Effect.gen(function* () {
-          yield* sql`delete from login_throttle`
           yield* sql`delete from admin_sessions where expires_at <= ${now} or auth != ${fingerprint}`
           yield* sql`delete from admin_sessions where id not in
             (select id from admin_sessions order by expires_at desc, id limit ${MAX_SESSIONS - 1})`
