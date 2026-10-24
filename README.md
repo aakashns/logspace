@@ -40,7 +40,7 @@ sudo sqlite3 /var/lib/logspace/app.sqlite ".backup '/root/logspace-backup.sqlite
 sudo cp -a /var/lib/logspace/media /root/logspace-media-backup
 ```
 
-Use a fresh destination for each backup, avoid publishing or deleting posts while backing up, and keep a copy off the server. Protect a copy of `/etc/logspace.env` too; it contains your admin secrets. See `logspace help` for configuration options.
+Use a fresh destination for each backup, avoid publishing or deleting posts while backing up, and keep a copy off the server. Protect a copy of `/etc/logspace.env` too; it contains your admin secrets. See [the configuration reference](platform/README.md#configuration) or `logspace help` for the other settings.
 
 ## Contribute
 

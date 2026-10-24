@@ -1,8 +1,8 @@
 # LogSpace
 
-Bun, Effect v4, and Datastar, released as one binary. `README.md` is the tour of the code; the
-Effect docs are in `node_modules/effect/CLAUDE.md` and `node_modules/effect/ai-docs/`, and
-Datastar's at https://data-star.dev/docs.md.
+Bun, Effect v4, and Datastar, released as one binary. `../CONTRIBUTING.md` has the tour of the
+code; the Effect docs are in `node_modules/effect/CLAUDE.md` and `node_modules/effect/ai-docs/`,
+and Datastar's at https://data-star.dev/docs.md.
 
 ```sh
 bun run dev:demo     # a throwaway site with the test posts; prints its URL and admin password

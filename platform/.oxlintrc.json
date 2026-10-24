@@ -11,7 +11,7 @@
   "env": { "builtin": true },
   // Vendored, minified.
   "ignorePatterns": ["public/datastar.js"],
-  // The layers of src/ (see README.md), kept apart: each may only import the ones below it.
+  // The layers of src/ (see ../CONTRIBUTING.md), kept apart: each may only import the ones below it.
   "overrides": [
     {
       // Pure: no database, storage, images, HTTP, or pages.

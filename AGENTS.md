@@ -12,5 +12,5 @@ one you're changing.
   (`scripts/demo-server.ts`), so a platform change can break them.
 
 `.github/workflows/release.yml` checks `platform/` on every PR and releases the binary when
-`platform/package.json`'s version changes on main. `README.md` is for people running LogSpace;
-`CONTRIBUTING.md` for working on it.
+`platform/package.json`'s version changes on main. `README.md` and `platform/README.md` are for
+people running LogSpace; `CONTRIBUTING.md` is for working on it, with the tour of the code.
