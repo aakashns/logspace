@@ -1,12 +1,101 @@
-// The shared Bun server: routes, application services, and graceful shutdown, given AppConfig.
-import { BunHttpServer } from '@effect/platform-bun'
+// The composition root: each service wired to its dependencies and merged into the app, its
+// routes, and the server that serves them on a port. Reusing these layer values shares the
+// database, storage, caches, and write locks.
+import { BunFileSystem, BunHttpServer } from '@effect/platform-bun'
 import { Effect, Layer } from 'effect'
 import { HttpRouter } from 'effect/http'
+import { SqlClient } from 'effect/sql'
 
-import { AppLive, AppRoutes, ROUTER_CONFIG } from './app.ts'
-import { AppConfig } from './config.ts'
+import { LinkPreviews } from './data/link-previews/link-previews.ts'
+import { PostCommands } from './data/posts/commands.ts'
+import { PostMedia } from './data/posts/media.ts'
+import { PostQueries } from './data/posts/queries.ts'
+import { SiteConfigCommands } from './data/site/commands.ts'
+import { SiteConfigQueries } from './data/site/queries.ts'
+import { AppConfig } from './lib/config.ts'
+import { DatabaseLive, runMigrations } from './lib/database.ts'
+import { Assets } from './lib/http/assets.ts'
+import { AppMiddleware } from './lib/http/middleware.ts'
+import { AdminAuth } from './lib/http/session.ts'
+import { Images } from './lib/images.ts'
+import { MediaStorage } from './lib/media-storage.ts'
+import { PublicHttpLive, PublicNetwork } from './lib/public-http.ts'
+import { ComposeRoutes } from './routes/admin/compose/handler.tsx'
+import { ConfigRoutes } from './routes/admin/config/handler.tsx'
+import { AdminIndexRoutes } from './routes/admin/index/handler.tsx'
+import { LoginRoutes } from './routes/admin/login/handler.tsx'
+import { AssetRoutes } from './routes/assets/handler.ts'
+import { FeedRoutes } from './routes/feeds/handler.ts'
+import { IndexRoutes } from './routes/index/handler.tsx'
+import { LinkImageRoutes } from './routes/link-images/handler.ts'
+import { PostRoutes } from './routes/post/handler.tsx'
+import { SiteFileRoutes } from './routes/site-files/handler.ts'
 
-// Retain the app services and listener for startup logging and the browser fixture's address.
+// No consumer gets the connection until its schema is ready. The migrate CLI uses DatabaseLive
+// directly so a dry run doesn't apply migrations.
+const MigratedDatabase = Layer.effect(
+  SqlClient.SqlClient,
+  Effect.gen(function* () {
+    let sql = yield* SqlClient.SqlClient
+    yield* runMigrations({})
+    return sql
+  }),
+).pipe(Layer.provide(DatabaseLive), Layer.provide(BunFileSystem.layer))
+
+const PostQueriesLive = PostQueries.layer.pipe(
+  Layer.provide([MigratedDatabase, MediaStorage.layer]),
+)
+const SiteConfigQueriesLive = SiteConfigQueries.layer.pipe(Layer.provide(MigratedDatabase))
+
+// Requires AppConfig and PublicNetwork. SQL and media services are exposed for seeding and file
+// queries; the remaining outputs are the APIs used by routes and the server's shutdown hook.
+export const AppServices = Layer.mergeAll(
+  MigratedDatabase,
+  MediaStorage.layer,
+  Images.layer,
+  PostQueriesLive,
+  SiteConfigQueriesLive,
+  Assets.layer,
+  AdminAuth.layer.pipe(Layer.provide(MigratedDatabase)),
+  PostCommands.layer.pipe(Layer.provide([MigratedDatabase, MediaStorage.layer, Images.layer])),
+  SiteConfigCommands.layer.pipe(
+    Layer.provide([MigratedDatabase, MediaStorage.layer, Images.layer, SiteConfigQueriesLive]),
+  ),
+  PostMedia.layer.pipe(Layer.provide([MediaStorage.layer, Images.layer, PostQueriesLive])),
+  LinkPreviews.layer.pipe(
+    Layer.provide([
+      SiteConfigQueriesLive,
+      MediaStorage.layer,
+      Images.layer,
+      BunFileSystem.layer,
+      PublicHttpLive,
+    ]),
+  ),
+)
+
+// The normal assembly for servers and scripts. Tests can supply a network to AppServices.
+export const AppLive = AppServices.pipe(Layer.provide(PublicNetwork.layer))
+
+// How routes match: /posts/<id>/ (with a trailing slash) isn't /posts/<id>, as in LogSpace 0.1.
+export const ROUTER_CONFIG = { ignoreTrailingSlash: false }
+
+// ServerLive serves these routes; tests drive them through an in-memory web handler.
+export const AppRoutes = Layer.mergeAll(
+  IndexRoutes,
+  PostRoutes,
+  FeedRoutes,
+  SiteFileRoutes,
+  LinkImageRoutes,
+  AssetRoutes,
+  LoginRoutes,
+  AdminIndexRoutes,
+  ComposeRoutes,
+  ConfigRoutes,
+  AppMiddleware,
+)
+
+// The app on AppConfig's port. Retains the app services and listener for startup logging and the
+// browser fixture's address.
 export const ServerLive = Layer.unwrap(
   Effect.gen(function* () {
     let { port, hostname } = yield* AppConfig

@@ -3,8 +3,8 @@
 // DATABASE_PATH, else on a server `logspace deploy` set up, the service's, else data/app.sqlite.
 import { Config, Console, Effect, FileSystem, Layer, Option } from 'effect'
 
-import { AppConfig } from '../config.ts'
-import { DatabaseLive, runMigrations } from '../services/database.ts'
+import { AppConfig } from '../lib/config.ts'
+import { DatabaseLive, runMigrations } from '../lib/database.ts'
 import { DOMAINS_FILE, SERVER_DATABASE_PATH } from './deploy.ts'
 import { fail, reportFailures } from './shell.ts'
 

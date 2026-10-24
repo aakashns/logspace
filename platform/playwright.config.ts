@@ -1,7 +1,7 @@
 import { defineConfig } from '@playwright/test'
 
 export default defineConfig({
-  testDir: './browser',
+  testDir: './src',
   // Bun discovers *.test/spec.ts; these are only for the Playwright runner.
   testMatch: '**/*.pw.ts',
   fullyParallel: true,

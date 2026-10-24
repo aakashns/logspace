@@ -7,7 +7,7 @@ import { Prompt } from 'effect/cli'
 import { ENV_FILE, setEnvVariable } from './env-file.ts'
 import { fail, reportFailures, requireRoot, run } from './shell.ts'
 
-// What the app needs to switch /admin on (see http/session.ts).
+// What the app needs to switch /admin on (see ../lib/http/session.ts).
 const MIN_LENGTH = 16
 
 export const setAdminPassword = Effect.gen(function* () {

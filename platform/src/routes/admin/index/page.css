@@ -1,0 +1,21 @@
+/*
+ * /admin's list of posts (see page.tsx).
+ */
+@layer components {
+  .post-list {
+    list-style: none;
+    border-top: 1px solid var(--border);
+
+    & li {
+      padding-block: 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+  }
+
+  .post-summary {
+    margin-top: 0.25rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}

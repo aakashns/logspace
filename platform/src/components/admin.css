@@ -1,0 +1,8 @@
+/*
+ * What the pages under /admin add to site.css (see stylesheet.ts).
+ */
+@import '../routes/admin/layout.css';
+@import '../routes/admin/login/page.css';
+@import '../routes/admin/index/page.css';
+@import '../routes/admin/config/page.css';
+@import '../routes/admin/compose/page.css';

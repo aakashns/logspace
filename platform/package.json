@@ -1,15 +1,15 @@
 {
   "name": "logspace",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "private": true,
   "type": "module",
   "imports": {
-    "#jsx/*": "./src/jsx/*.ts"
+    "#jsx/*": "./src/lib/jsx/*.ts"
   },
   "scripts": {
-    "dev": "NODE_ENV=development bun --watch src/main.ts start",
+    "dev": "NODE_ENV=development bun --watch src/entry.ts start",
     "dev:demo": "bun scripts/dev-demo.ts",
-    "start": "NODE_ENV=production bun src/main.ts start",
+    "start": "NODE_ENV=production bun src/entry.ts start",
     "build": "bun scripts/build.ts",
     "test": "bun test",
     "test:browser": "playwright test",

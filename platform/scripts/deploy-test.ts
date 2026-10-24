@@ -172,7 +172,7 @@ let loginHeaders =
 let cookie = /^set-cookie: (admin_session=[^;]+)/im.exec(loginHeaders)?.[1]
 if (!cookie) fail('login did not set a session cookie')
 let auth = ['-H', `Cookie: ${cookie}`, '-H', `Origin: https://${DOMAIN}`]
-let icon = path.resolve(import.meta.dir, '../src/services/default-icon.png')
+let icon = path.resolve(import.meta.dir, '../src/lib/default-icon.png')
 await expectHttps(
   `https://${DOMAIN}/admin/config`,
   `303 https://${DOMAIN}/admin/config`,
