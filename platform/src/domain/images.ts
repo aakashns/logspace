@@ -22,11 +22,16 @@ export function isResizableImage(name: string): boolean {
   return RESIZABLE.test(name)
 }
 
-// The resized copies of an image and the width of each, for srcset: one per width in IMAGE_WIDTHS
-// below the image's own, then one at its own width (made from the next width up) if that's no
-// wider than the largest. `param` is the `w` in the copy's URL.
+// The resized copies of an image and the width of each, for srcset (none for a file that can't be
+// resized).
 export function getImageSources(name: string, info: ImageInfo) {
-  if (!isResizableImage(name)) return []
+  return isResizableImage(name) ? getResizedSources(info) : []
+}
+
+// One copy per width in IMAGE_WIDTHS below the image's own, then one at its own width (made from
+// the next width up) if that's no wider than the largest. `param` is the width the copy is asked
+// for at, like the `w` in its URL.
+export function getResizedSources(info: { readonly width: number }) {
   let sources = IMAGE_WIDTHS.filter((width) => width < info.width).map((width) => ({
     param: width,
     width,

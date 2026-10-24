@@ -13,6 +13,9 @@ export const routes = {
   favicon: () => '/favicon.ico',
   appleTouchIcon: () => '/apple-touch-icon.png',
   siteFile: (file: string) => `/site/${encodeURIComponent(file)}`,
+  // A link preview's image, saved from the linked site and resized to `width` (one of
+  // IMAGE_WIDTHS). `version` is a hash of the image, so the URL never serves anything else.
+  linkImage: (version: string, width: number) => `/link-images/${version}-${width}.webp`,
   post: (id: string) => `/posts/${encodeURIComponent(id)}`,
   // One of a post's files, from media storage.
   postFile: (id: string, file: string) =>
