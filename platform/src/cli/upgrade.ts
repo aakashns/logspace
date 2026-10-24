@@ -1,13 +1,10 @@
 // `logspace upgrade [version] [--yes]`: replaces this binary with the latest release, or the given
-// one, from GitHub, checked against the release's SHA256SUMS. When it's the binary a server's
-// service runs (see setup.ts), it then runs the new one's setup, which installs its service file
-// and restarts the app.
+// one, from GitHub, checked against the release's SHA256SUMS. That's all it does: migrating the
+// database and restarting the server are left to `logspace migrate` and whatever runs it.
 import { Config, Console, Effect, FileSystem, Path } from 'effect'
 import { Prompt } from 'effect/cli'
 import { FetchHttpClient, HttpClient } from 'effect/http'
-import { ChildProcess, ChildProcessSpawner } from 'effect/process'
 
-import { runsService } from './setup.ts'
 import { fail, IS_BINARY, reportFailures, VERSION } from './shell.ts'
 
 // Where releases are published.
@@ -83,19 +80,7 @@ export const upgrade = Effect.fn('upgrade')(
       yield* fs.rename(tmp, binary)
     }).pipe(Effect.ensuring(fs.remove(tmp, { force: true }).pipe(Effect.orDie)))
     yield* Console.log(`Upgraded LogSpace ${VERSION} to ${version}`)
-
-    if (!(yield* runsService(binary))) return yield* Console.log('Restart LogSpace to run it')
-    let spawner = yield* ChildProcessSpawner.ChildProcessSpawner
-    let setup = yield* spawner.exitCode(
-      ChildProcess.make(binary, ['setup'], {
-        stdin: 'inherit',
-        stdout: 'inherit',
-        stderr: 'inherit',
-      }),
-    )
-    if (setup !== 0) {
-      return yield* fail(`The new version's setup didn't finish. Run sudo logspace setup again.`)
-    }
+    yield* Console.log('Run logspace migrate, then restart LogSpace to run it')
   },
   reportFailures,
   Effect.provide(FetchHttpClient.layer),

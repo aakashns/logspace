@@ -27,6 +27,8 @@ Write in Markdown and upload media directly. Every post has its own link; reader
 
 ```sh
 sudo logspace upgrade              # Install the latest release
+sudo logspace migrate              # Then update the database
+sudo systemctl restart logspace    # And restart to run it
 sudo logspace set-admin-password   # Change your password
 journalctl -u logspace             # View server logs
 ```
