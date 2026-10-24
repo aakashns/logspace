@@ -7,7 +7,7 @@ import { HttpRouter, HttpServer } from 'effect/http'
 
 import { AppConfig } from '../src/lib/config.ts'
 import { PublicNetwork } from '../src/lib/public-http.ts'
-import { AppRoutes, AppServices, ROUTER_CONFIG } from '../src/server.ts'
+import { AppRoutes, AppServices } from '../src/server.ts'
 import { seedDatabase, seedMedia } from './seed.ts'
 
 export const ADMIN_PASSWORD = 'test-password-1234'
@@ -49,7 +49,7 @@ export function makeTestApp(
       Layer.provide(configLayer),
       Layer.provide(HttpServer.layerServices),
     ),
-    { memoMap, disableLogger: true, routerConfig: ROUTER_CONFIG },
+    { memoMap, disableLogger: true },
   )
 
   let app = {

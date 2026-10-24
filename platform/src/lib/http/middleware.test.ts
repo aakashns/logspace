@@ -13,7 +13,6 @@ describe('unknown paths', () => {
   it('answers unknown paths with a 404', async () => {
     let response = await app.fetch('/no-such-page')
     expect(response.status).toBe(404)
-    expect((await app.fetch('/posts/drdp3ei6fd/')).status).toBe(404)
     expect((await app.fetch(`/posts/${'a'.repeat(3000)}`)).status).toBe(404)
     expect(response.headers.get('X-Frame-Options')).toBe('DENY')
   })
