@@ -8,7 +8,7 @@ export class AppConfig extends Context.Service<
   AppConfig,
   {
     readonly port: number
-    // Keep the existing wildcard listener for custom deployments; setup sets loopback explicitly.
+    // Keep the existing wildcard listener for custom deployments; deploy sets loopback explicitly.
     readonly hostname: string
     // 'production' serves pages for real; 'development' runs `bun run dev`; 'test' runs the tests
     // (which mustn't reach out to the network).

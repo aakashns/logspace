@@ -1,9 +1,9 @@
-// `logspace setup`: sets up a Linux server, as root, to run LogSpace from the binary it's run from
+// `logspace deploy`: sets up a Linux server, as root, to run LogSpace from the binary it's run from
 // (which install.sh installs at /usr/local/bin/logspace): a systemd service that runs it, its env
 // file, and blocks in Caddy's config for the site's domain and any domains that should redirect
 // to it:
 //
-//   sudo logspace setup example.com www.example.com
+//   sudo logspace deploy example.com www.example.com
 //
 // The domains are saved, so later runs can leave them out. Existing Caddy site blocks for these
 // domains are replaced. The app's port is PORT in the env file (44100 when it isn't set), which
@@ -27,7 +27,7 @@ After=network.target
 
 [Service]
 Type=exec
-# The binary logspace setup was run from.
+# The binary logspace deploy was run from.
 ExecStart=${binary} start
 DynamicUser=yes
 UMask=0077
@@ -47,7 +47,7 @@ AmbientCapabilities=
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 # Bun uses JIT compilation: MemoryDenyWriteExecute is intentionally not enabled.
 # The default port, which PORT in ${ENV_FILE} overrides (EnvironmentFile= wins over
-# Environment=). logspace setup points Caddy at the same one.
+# Environment=). logspace deploy points Caddy at the same one.
 Environment=PORT=${DEFAULT_PORT}
 Environment=TRUST_PROXY=1
 Environment=HOST=127.0.0.1
@@ -65,7 +65,7 @@ Environment=MEDIA_STORAGE=fs
 Environment=MEDIA_DIR=/var/lib/logspace/media
 # Link previews.
 Environment=CACHE_DIR=/var/cache/logspace
-# Secrets (ADMIN_PASSWORD, AUTH_SESSION_SECRET) and PORT, readable only by root. logspace setup
+# Secrets (ADMIN_PASSWORD, AUTH_SESSION_SECRET) and PORT, readable only by root. logspace deploy
 # creates it.
 EnvironmentFile=${ENV_FILE}
 Restart=always
@@ -75,12 +75,12 @@ RestartSec=2
 WantedBy=multi-user.target
 `
 
-export const setup = Effect.fn('setup')(function* (args: readonly string[]) {
+export const deploy = Effect.fn('deploy')(function* (args: readonly string[]) {
   if (process.platform !== 'linux') {
-    return yield* fail('setup installs LogSpace on a Linux server, with systemd')
+    return yield* fail('deploy installs LogSpace on a Linux server, with systemd')
   }
   if (!IS_BINARY) {
-    return yield* fail('setup makes a service of the built binary: run it from there')
+    return yield* fail('deploy makes a service of the built binary: run it from there')
   }
   yield* requireRoot
   let fs = yield* FileSystem.FileSystem
@@ -89,7 +89,7 @@ export const setup = Effect.fn('setup')(function* (args: readonly string[]) {
   if (!domains) {
     return yield* fail(
       "Give the site's domain, then any that should redirect to it, " +
-        'e.g. logspace setup example.com www.example.com',
+        'e.g. logspace deploy example.com www.example.com',
     )
   }
   for (let domain of domains) {
@@ -143,7 +143,7 @@ export const setup = Effect.fn('setup')(function* (args: readonly string[]) {
   }
 }, reportFailures)
 
-// The domains the last setup was for.
+// The domains the last deploy was for.
 const savedDomains = Effect.gen(function* () {
   let fs = yield* FileSystem.FileSystem
   if (!(yield* fs.exists(DOMAINS_FILE))) return undefined
@@ -213,7 +213,7 @@ export function installedConfigProblem(
   env: ReadonlyMap<string, string>,
 ): string | undefined {
   if (!/^\/(usr\/(local\/)?bin|var\/usrlocal\/bin|opt)\/[A-Za-z0-9_./-]+$/.test(binary)) {
-    return 'Install the binary in /usr/local/bin (outside home directories) before running setup'
+    return 'Install the binary in /usr/local/bin (outside home directories) before running deploy'
   }
   for (let [name, expected] of [
     ['HOST', '127.0.0.1'],
@@ -229,7 +229,7 @@ export function installedConfigProblem(
   }
 }
 
-// systemd's own private-directory symlinks are compatible with repeated setup. External storage
+// systemd's own private-directory symlinks are compatible with repeated deploys. External storage
 // symlinks are custom paths too; refuse them before replacing a working service's unit.
 export function installedPathProblem(location: string, resolved: string): string | undefined {
   let privateLocation = location

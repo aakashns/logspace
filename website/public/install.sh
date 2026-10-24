@@ -5,7 +5,7 @@
 #
 # Downloads the latest release for this machine, checks it against the release's SHA256SUMS, and
 # installs it at /usr/local/bin/logspace, with sudo if that folder needs it. Running it again
-# upgrades (as does `logspace upgrade`). On a server, run `sudo logspace setup` next. Settings, as
+# upgrades (as does `logspace upgrade`). On a server, run `sudo logspace deploy` next. Settings, as
 # environment variables:
 #
 #   LOGSPACE_VERSION      install this version instead of the latest (e.g. 0.1.0)
@@ -98,7 +98,7 @@ elif [ "$found" != "$dir/logspace" ]; then
   command="$dir/logspace"
 fi
 if [ "$os" = linux ]; then
-  echo "To run it on this server, behind Caddy: sudo $command setup <domain>"
+  echo "To run it on this server, behind Caddy: sudo $command deploy <domain>"
 else
   echo "Run \`$command\` to start it at http://localhost:44100 (\`$command help\` for more)."
 fi

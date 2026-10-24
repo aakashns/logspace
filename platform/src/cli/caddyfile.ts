@@ -1,4 +1,4 @@
-// Adds the site's blocks to a Caddyfile for `logspace setup`, replacing any it already has for the
+// Adds the site's blocks to a Caddyfile for `logspace deploy`, replacing any it already has for the
 // same domains, and leaving everything else as it is.
 import type { Array as Arr } from 'effect'
 

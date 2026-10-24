@@ -72,7 +72,7 @@ the normal network implementation for servers and scripts. The routes are `Publi
 `AdminRoutes`, and `AppMiddleware`. `provideMerge` is used only where the dependency must also
 remain available to the caller.
 
-`src/main.ts` is the binary's command line (`start` by default, and `setup`, `migrate`,
+`src/main.ts` is the binary's command line (`start` by default, and `deploy`, `migrate`,
 `set-admin-password`, `upgrade`, `version`, `help`). `src/server.ts` supplies Bun's HTTP listener.
 The CLI and browser tests use this same server.
 

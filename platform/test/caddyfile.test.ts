@@ -1,4 +1,4 @@
-// The Caddyfile blocks `logspace setup` writes (see src/cli/caddyfile.ts).
+// The Caddyfile blocks `logspace deploy` writes (see src/cli/caddyfile.ts).
 import * as assert from 'node:assert/strict'
 import { describe, it } from 'bun:test'
 
