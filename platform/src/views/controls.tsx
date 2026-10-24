@@ -139,9 +139,10 @@ export function ShareButton(props: { url: string }): Html {
 // parts of the page (see composerPatch in http/admin.tsx): media is uploaded as it's chosen,
 // which re-renders the media and the toolbar, and the preview below is re-rendered as you type.
 // The form's own action publishes. Without Datastar it's a plain form, whose files are uploaded
-// when it's posted. Two local signals, declared on the form, say what's in flight: `_uploading`
-// (set by data-indicator on whatever is uploading) and `_posting`. While either is, the preview
-// waits, since a preview posts the whole form, chosen files and all.
+// when it's posted. Each tab also follows the draft as other tabs change it (ComposerUpdates).
+// Two local signals, declared on the form, say what's in flight: `_uploading` (set by
+// data-indicator on whatever is uploading) and `_posting`. While either is, the preview waits,
+// since a preview posts the whole form, chosen files and all.
 const URL_OF = (kind: 'media' | 'preview') => `el.closest('form').dataset.${kind}`
 const UPDATE_MEDIA = `@post(${URL_OF('media')}, {contentType: 'form'})`
 const PREVIEW = `$_uploading || $_posting || @post(${URL_OF('preview')}, {contentType: 'form'})`
@@ -201,9 +202,10 @@ export function CaptionInput(props: { value: string }): Html {
   )
 }
 
-// Where it was written: a map pin that shows the city's input beside it, which starts shown when
+// Where it was written: a map pin that shows the city's input beside it, which is shown when
 // there's a city. Hiding it clears the city, and the preview follows. Without Datastar, the input
-// is always shown.
+// is always shown. Datastar sets `_city` again when the attribute changes, as when another tab's
+// change adds or clears the city.
 const TOGGLE_CITY =
   '$_city = !$_city; const input = el.parentElement.nextElementSibling; ' +
   '$_city ? requestAnimationFrame(() => input.focus()) : ' +
@@ -231,7 +233,7 @@ export function CityInput(props: { value: string }): Html {
         aria-label="City"
         placeholder="City"
         class="input city-input"
-        data-init="$_city = el.value !== ''"
+        data-signals:_city={props.value === '' ? 'false' : 'true'}
         data-show="$_city"
         {...PREVIEW_ON_INPUT}
       />
@@ -239,9 +241,18 @@ export function CityInput(props: { value: string }): Html {
   )
 }
 
-// Starts at the newest post's offset, for a browser without Datastar.
+// Starts at the newest post's offset, for a browser without Datastar, and keeps the browser's
+// when another tab's change is morphed in.
 export function OffsetInput(props: { value: string }): Html {
-  return <input type="hidden" name="offset" value={props.value} data-init={BROWSER_OFFSET} />
+  return (
+    <input
+      type="hidden"
+      name="offset"
+      value={props.value}
+      data-init={BROWSER_OFFSET}
+      data-preserve-attr="value"
+    />
+  )
 }
 
 // The article's title or summary, which the preview follows.
@@ -321,6 +332,14 @@ export function RemoveMediaButton(props: {
 // Runs once, when the server's HTML puts it on the page.
 export function PreviewRefresh(): Html {
   return <span hidden data-init={REFRESH} />
+}
+
+// The composer again, from the server, whenever another tab changes the draft (see
+// composerUpdates in http/admin.tsx). Datastar closes the stream while the tab is hidden and opens
+// it again when it's shown, which sends the draft as it is then. The server ends it when it stops,
+// so it's opened again (`always`) for when the server's back, unless it redirects to the login.
+export function ComposerUpdates(props: { url: string }): Html {
+  return <span hidden data-url={props.url} data-init="@get(el.dataset.url, {retry: 'always'})" />
 }
 
 // Shown while media is uploading.

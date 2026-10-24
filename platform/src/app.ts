@@ -2,7 +2,7 @@
 // what depends on what. Each layer is built once and shared.
 //
 //   AppConfig ─┬─ Database ── Migrations
-//              ├─ MediaStorage, Images, AdminAuth, Assets
+//              ├─ MediaStorage, Images, DraftChanges, AdminAuth, Assets
 //              │
 //   queries/ (the read side):  SiteConfigQueries, PostQueries, SiteFiles, PostMedia, LinkPreviews
 //   commands/ (the write side): PostFiles, PostCommands, SiteConfigCommands
@@ -25,11 +25,14 @@ import { PostQueries } from './queries/posts.ts'
 import { SiteConfigQueries } from './queries/site-config.ts'
 import { SiteFiles } from './queries/site-files.ts'
 import { DatabaseLive, Migrations } from './services/database.ts'
+import { DraftChanges } from './services/draft-changes.ts'
 import { Images } from './services/images.ts'
 import { MediaStorage } from './services/media-storage.ts'
 
 const Infrastructure = Migrations.layer.pipe(
-  Layer.provideMerge(Layer.mergeAll(DatabaseLive, MediaStorage.layer, Images.layer)),
+  Layer.provideMerge(
+    Layer.mergeAll(DatabaseLive, MediaStorage.layer, Images.layer, DraftChanges.layer),
+  ),
   Layer.provideMerge(BunFileSystem.layer),
 )
 

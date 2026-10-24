@@ -28,6 +28,8 @@ export const routes = {
     newPostMedia: () => '/admin/posts/new/media',
     newPostPreview: () => '/admin/posts/new/preview',
     discardNewPost: () => '/admin/posts/new/discard',
+    // The composer again whenever the draft changes, as server-sent events, for one tab.
+    newPostUpdates: (tab: string) => `/admin/posts/new/updates?tab=${encodeURIComponent(tab)}`,
     // One of a post's files, published or not, for the composer.
     postFile: (id: string, file: string) =>
       `/admin/posts/${encodeURIComponent(id)}/files/${encodeURIComponent(file)}`,
