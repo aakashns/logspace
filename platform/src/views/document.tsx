@@ -51,14 +51,14 @@ export function Document(props: DocumentProps): Html {
   }
   let url = site.siteUrl + meta.path
   let description = meta.description || site.siteDescription
-  let { socialImage } = site
+  let { bannerImage } = site
   let image =
     meta.image ??
-    (socialImage && {
-      url: getSiteImageHref(socialImage),
-      alt: site.socialImageAlt,
-      width: socialImage.width,
-      height: socialImage.height,
+    (bannerImage && {
+      url: getSiteImageHref(bannerImage),
+      alt: site.bannerImageAlt,
+      width: bannerImage.width,
+      height: bannerImage.height,
     })
   if (image && site.siteUrl) image = { ...image, url: new URL(image.url, site.siteUrl).href }
   let structuredData = getStructuredData(site, meta, url, description, image?.url)

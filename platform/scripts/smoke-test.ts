@@ -61,7 +61,7 @@ try {
     siteDescription: 'A test',
     heroHeading: '',
     heroSubheading: '',
-    socialImageAlt: '',
+    bannerImageAlt: '',
   })) {
     config.set(name, value)
   }

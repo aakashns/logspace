@@ -1,5 +1,5 @@
 // The files the site serves for its images: the icons (favicon, home screen and manifest icons),
-// the logo, and the social preview image. Icons are made from LogSpace's mark until an icon is
+// the logo, and the banner image. Icons are made from LogSpace's mark until an icon is
 // uploaded.
 import { Context, Effect, Layer } from 'effect'
 
@@ -40,7 +40,7 @@ export class SiteFiles extends Context.Service<
             let file = { blob, size: blob.size, type: icon.type, lastModified: STARTED_AT }
             return { file, version: DEFAULT_ICON_VERSION }
           }
-          let image = [images.logo, images.socialImage].find((image) => image?.file === name)
+          let image = [images.logo, images.bannerImage].find((image) => image?.file === name)
           return image ? yield* stored(name, image.version) : undefined
         }),
         iconColor: (images) =>
@@ -66,7 +66,7 @@ export function getIconHref(images: SiteImages, name: string): string {
   return `${path}?v=${version}`
 }
 
-// The URL of the logo or social preview image.
+// The URL of the logo or banner image.
 export function getSiteImageHref(image: SiteImage): string {
   return `${routes.siteFile(image.file)}?v=${image.version}`
 }

@@ -90,10 +90,10 @@ export class SiteConfigCommands extends Context.Service<
           let image = saved[kind]
           if (image) current[kind] = image
         }
-        let hasSocialImage =
-          processed.has('socialImage') || (current.socialImage && !removals.includes('socialImage'))
-        if (hasSocialImage && !text.socialImageAlt) {
-          issues.push({ field: 'socialImageAlt', message: 'Describe the social preview image' })
+        let hasBannerImage =
+          processed.has('bannerImage') || (current.bannerImage && !removals.includes('bannerImage'))
+        if (hasBannerImage && !text.bannerImageAlt) {
+          issues.push({ field: 'bannerImageAlt', message: 'Describe the banner image' })
         }
         if (parsed._tag === 'Failure' || issues.length > 0) {
           return yield* new SiteConfigRejected({ issues })

@@ -1,7 +1,33 @@
 /*
- * The home page's introduction, and a post's own page (see ../home.tsx and ../post-page.tsx).
+ * The home page's banner and introduction, and a post's own page (see ../home.tsx and
+ * ../post-page.tsx).
  */
 @layer components {
+  /*
+   * A 3:1 strip, like an X header, cropped from the middle of whatever was uploaded. On phones it
+   * spans the screen right under the navbar; on wider screens it's as wide as the feed, with
+   * rounded corners and some space above.
+   */
+  .banner {
+    display: block;
+    width: calc(100% + 2rem);
+    max-width: none;
+    height: auto;
+    aspect-ratio: 3 / 1;
+    margin-inline: -1rem;
+    object-fit: cover;
+    background-color: var(--muted);
+
+    @media (width >= 40rem) {
+      margin-top: 1.5rem;
+      border-radius: var(--radius);
+    }
+  }
+
+  .banner + .intro {
+    padding-top: 2rem;
+  }
+
   .intro {
     padding-block: 2.5rem;
 

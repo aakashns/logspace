@@ -1,6 +1,6 @@
 // Where uploaded media is kept: posts' photos, videos, and posters under posts/<id>/<file>, their
 // resized copies under variants/<id>/<file>/<width>-<version>.webp, and the site's logo, icon,
-// and social preview image under site/<file>. Keys are always built from a checked post id and
+// and banner image under site/<file>. Keys are always built from a checked post id and
 // file name (see isPostFileName in domain/post.ts), so none can point outside its folder.
 //
 // The fs backend keeps each key as a file of that name under MEDIA_DIR, written with Bun's file

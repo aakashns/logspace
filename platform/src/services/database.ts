@@ -13,6 +13,7 @@ import createPosts from '../../db/migrations/0001_create_posts.sql' with { type:
 import addArticleBody from '../../db/migrations/0002_add_article_body.sql' with { type: 'text' }
 import createPostImages from '../../db/migrations/0003_create_post_images.sql' with { type: 'text' }
 import createConfig from '../../db/migrations/0004_create_config.sql' with { type: 'text' }
+import renameSocialImage from '../../db/migrations/0005_rename_social_image_to_banner.sql' with { type: 'text' }
 import { AppConfig } from '../config.ts'
 
 const MIGRATIONS = [
@@ -20,6 +21,7 @@ const MIGRATIONS = [
   { id: '0002', name: 'add_article_body', sql: addArticleBody },
   { id: '0003', name: 'create_post_images', sql: createPostImages },
   { id: '0004', name: 'create_config', sql: createConfig },
+  { id: '0005', name: 'rename_social_image_to_banner', sql: renameSocialImage },
 ]
 
 const JOURNAL = 'data_table_migrations'

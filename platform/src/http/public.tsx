@@ -11,7 +11,7 @@ import { LinkPreviews } from '../queries/link-previews.ts'
 import { PostMedia } from '../queries/post-media.ts'
 import { PostQueries } from '../queries/posts.ts'
 import { SiteConfigQueries } from '../queries/site-config.ts'
-import { getIconHref, SiteFiles } from '../queries/site-files.ts'
+import { getIconHref, getSiteImageHref, SiteFiles } from '../queries/site-files.ts'
 import { routes } from '../routes.ts'
 import { Document } from '../views/document.tsx'
 import { HomePage } from '../views/home.tsx'
@@ -43,7 +43,12 @@ const home = Effect.gen(function* () {
     <Document
       page={page}
       meta={{ path: routes.home() }}
-      preloadImage={posts[0] && getPriorityImage(posts[0])}
+      // The banner, when there's one, is at the top, above the first post.
+      preloadImage={
+        site.bannerImage
+          ? { href: getSiteImageHref(site.bannerImage) }
+          : posts[0] && getPriorityImage(posts[0])
+      }
     >
       <HomePage site={site} items={items} />
     </Document>,
