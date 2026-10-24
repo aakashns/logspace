@@ -94,8 +94,9 @@ export function Composer(props: ComposerProps & { tab: string }): Html {
           </button>
         </Tooltip>
       </div>
+      {/* A field named id shadows form.id and makes Datastar rebuild the focused form. */}
       <ComposerForm id="composer">
-        <input type="hidden" name="id" value={values.id} />
+        <input type="hidden" name="post_id" value={values.id} />
         <input type="hidden" name="tab" value={props.tab} />
         <OffsetInput value={values.offset} />
         <CaptionInput value={values.caption} />
@@ -132,7 +133,7 @@ function DiscardDialog(props: { id: string }): Html {
       data-preserve-attr="open"
     >
       <form method="post" action={routes.admin.discardNewPost()}>
-        <input type="hidden" name="id" value={props.id} />
+        <input type="hidden" name="post_id" value={props.id} />
         <h2 id={`${DISCARD_DIALOG}-title`} class="dialog-title">
           Discard this post?
         </h2>

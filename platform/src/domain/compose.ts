@@ -100,7 +100,8 @@ export function readComposeForm(formData: FormData): ComposeForm {
   let [video] = fileNames('video')
   let [poster] = video ? fileNames('poster') : []
   let body = text('article_body')
-  let id = text('id').trim()
+  // Keep accepting forms from tabs opened before post_id stopped shadowing HTMLFormElement.id.
+  let id = (text('post_id') || text('id')).trim()
   let used = [
     ...['photo', 'video', 'poster', 'cover'].flatMap(submitted),
     ...(body.trim() === '' ? [] : findArticleFiles(id, body)),

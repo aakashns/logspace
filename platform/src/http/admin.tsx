@@ -550,7 +550,8 @@ const publishComposer = loggedIn(() =>
 // one.
 const discardComposer = loggedIn(() =>
   Effect.gen(function* () {
-    let id = (yield* readForm(LOGIN_FORM_LIMIT)).get('id')
+    let form = yield* readForm(LOGIN_FORM_LIMIT)
+    let id = form.get('post_id') ?? form.get('id')
     return yield* (yield* PostCommands).discard(typeof id === 'string' ? id : '').pipe(
       Effect.catchTag('PostRejected', () => Effect.void),
       Effect.as(redirect(routes.admin.newPost(), 303)),

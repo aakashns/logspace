@@ -71,6 +71,29 @@ jobs:
       - run: bun run format:check
       - run: bun run test
 
+  browser:
+    needs: version
+    if: github.event_name == 'pull_request' || needs.version.outputs.release == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: platform/package.json
+      - run: bun install --frozen-lockfile
+      - run: bun run test:browser:install
+      # Each case gets a fresh app and directory. No retries hide failures.
+      - run: bun run test:browser --repeat-each=2
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: browser-failures
+          path: |
+            platform/test-results/
+            platform/playwright-report/
+          retention-days: 7
+          if-no-files-found: ignore
+
   build:
     needs: version
     if: needs.version.outputs.build == 'true'
@@ -105,7 +128,7 @@ jobs:
           if-no-files-found: error
 
   release:
-    needs: [version, check, build]
+    needs: [version, check, browser, build]
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && needs.version.outputs.release == 'true'
     runs-on: ubuntu-24.04
     permissions:

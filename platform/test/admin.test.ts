@@ -230,7 +230,7 @@ describe('admin post pages', () => {
 
   it('creates a new post, once', async () => {
     let page = await (await app.adminFetch('/admin/posts/new')).text()
-    let id = capture(page, /<input [^>]*name="id"[^>]*value="([0-9a-z]{10})"/)
+    let id = capture(page, /<input [^>]*name="post_id"[^>]*value="([0-9a-z]{10})"/)
     let submit = () =>
       app.adminFetch('/admin/posts/new', {
         method: 'POST',
@@ -571,7 +571,7 @@ describe('the composer', () => {
   it('starts a new post at the newest post’s UTC offset, with no date to edit', async () => {
     let html = await (await app.adminFetch('/admin/posts/new')).text()
     expect(html).toMatch(/<form id="composer" method="post" action="\/admin\/posts\/new"/)
-    expect(html).toMatch(/<input type="hidden" name="id" value="[0-9a-z]{10}"/)
+    expect(html).toMatch(/<input type="hidden" name="post_id" value="[0-9a-z]{10}"/)
     expect(html).toMatch(/<input type="hidden" name="offset" value="\+05:30"/)
     expect(html).not.toMatch(/name="date"/)
     expect(html).toMatch(/<input type="file" name="photo_uploads" accept="image\/\*" multiple/)
@@ -875,7 +875,10 @@ describe('the composer', () => {
     // The composer as GET /admin/posts/new shows it: its post's id, and the page.
     let openComposer = async () => {
       let html = await (await app.adminFetch('/admin/posts/new')).text()
-      return { id: capture(html, /<input type="hidden" name="id" value="([0-9a-z]{10})"/), html }
+      return {
+        id: capture(html, /<input type="hidden" name="post_id" value="([0-9a-z]{10})"/),
+        html,
+      }
     }
     let captionOf = (html: string) =>
       unescapeHtml(capture(html, /<textarea name="caption"[^>]*>\n([^<]*)<\/textarea>/))
@@ -1131,7 +1134,7 @@ describe('the composer', () => {
 
         await write(tab, id, 'From the first tab')
         let next = await updates.next()
-        expect(capture(next, /name="id" value="([0-9a-z]{10})"/)).toBe(id)
+        expect(capture(next, /name="post_id" value="([0-9a-z]{10})"/)).toBe(id)
         expect(captionOf(next)).toBe('From the first tab')
         expect(next).toContain('>Saved</span>')
 
@@ -1161,7 +1164,7 @@ describe('the composer', () => {
         )
         expect(published.status).toBe(303)
         let fresh = await updates.next()
-        expect(capture(fresh, /name="id" value="([0-9a-z]{10})"/)).not.toBe(id)
+        expect(capture(fresh, /name="post_id" value="([0-9a-z]{10})"/)).not.toBe(id)
         expect(captionOf(fresh)).toBe('')
         await updates.close()
       })

@@ -144,17 +144,32 @@ export function ShareButton(props: { url: string }): Html {
 // data-indicator on whatever is uploading) and `_posting`. While either is, the preview waits,
 // since a preview posts the whole form, chosen files and all.
 const URL_OF = (kind: 'media' | 'preview') => `el.closest('form').dataset.${kind}`
-const UPDATE_MEDIA = `@post(${URL_OF('media')}, {contentType: 'form'})`
-const PREVIEW = `$_uploading || $_posting || @post(${URL_OF('preview')}, {contentType: 'form'})`
+// Mutations need an explicit retry: a lost response may already have committed the write.
+// Datastar 1.0.4 also needs retryMaxCount: 0 to stop transport-error retries.
+const FORM_REQUEST = "{contentType: 'form', retry: 'never', retryMaxCount: 0}"
+const UPDATE_MEDIA = `@post(${URL_OF('media')}, ${FORM_REQUEST}).catch(() => {})`
+const PREVIEW = `$_uploading || $_posting || @post(${URL_OF('preview')}, ${FORM_REQUEST}).catch(() => {})`
 // While typing, the preview follows at most every 100 ms, and once more after the last keystroke.
 // A newer preview cancels one still on its way. A modifier's dot can't be in a JSX attribute's
 // name, so this one is spread in.
-const PREVIEW_ON_INPUT = { 'data-on:input__throttle.100ms.trailing': PREVIEW }
+// Datastar compares incoming values with DOM defaults. Keep those defaults current so a
+// patch clearing a field (e.g. another tab discarding) also clears its edited value.
+const PREVIEW_ON_INPUT = {
+  'data-on:input':
+    "el instanceof HTMLTextAreaElement ? (el.defaultValue = el.value) : el.setAttribute('value', el.value)",
+  'data-on:input__throttle.100ms.trailing': PREVIEW,
+}
 // Media re-rendered after an upload, a removal, or a rejected post: the preview catches up with
-// what was typed meanwhile, and the Post button comes back.
-const REFRESH = `$_posting = false; @post(${URL_OF('preview')}, {contentType: 'form'})`
+// what was typed meanwhile. Publishing resets its own busy state even without returned markup.
+const REFRESH = `@post(${URL_OF('preview')}, ${FORM_REQUEST}).catch(() => {})`
 const PUBLISH =
-  "!$_uploading && !$_posting && ($_posting = true) && @post(el.getAttribute('action'), {contentType: 'form'})"
+  '!$_uploading && !$_posting && ($_posting = true) && ' +
+  `@post(el.getAttribute('action'), ${FORM_REQUEST}).catch(() => {}).finally(() => ($_posting = false))`
+// HTTP errors resolve Datastar's promise; transport failures reject it. Both emit fetch events.
+const REQUEST_FEEDBACK =
+  "if (evt.detail.el.closest('form') === el) { " +
+  "if (evt.detail.type === 'started') $_requestError = false; " +
+  "if (['error', 'retries-failed'].includes(evt.detail.type)) $_requestError = true; }"
 // Cmd or Ctrl + Enter posts, as on X.
 const POST_SHORTCUT =
   "(evt.metaKey || evt.ctrlKey) && evt.key === 'Enter' && (evt.preventDefault(), el.form.requestSubmit())"
@@ -174,9 +189,14 @@ export function ComposerForm(props: { id: string; children: Child }): Html {
       class="composer"
       data-media={routes.admin.newPostMedia()}
       data-preview={routes.admin.newPostPreview()}
-      data-signals="{_uploading: false, _posting: false, _city: false}"
+      data-signals="{_uploading: false, _posting: false, _city: false, _requestError: false}"
+      data-on:datastar-fetch={REQUEST_FEEDBACK}
       data-on:submit__prevent={PUBLISH}
     >
+      <div role="alert" class="alert" hidden data-attr:hidden="!$_requestError">
+        Couldn’t complete the request. Your input is still here; check your connection and try
+        again.
+      </div>
       {props.children}
     </form>
   )
@@ -208,8 +228,9 @@ export function CaptionInput(props: { value: string }): Html {
 // change adds or clears the city.
 const TOGGLE_CITY =
   '$_city = !$_city; const input = el.parentElement.nextElementSibling; ' +
+  "input.setAttribute('data-signals:_city', String($_city)); " +
   '$_city ? requestAnimationFrame(() => input.focus()) : ' +
-  `((input.value = ''), ${PREVIEW})`
+  `((input.value = ''), (input.defaultValue = ''), ${PREVIEW})`
 const CITY_LABEL = "$_city ? 'Remove location' : 'Add location'"
 
 export function CityInput(props: { value: string }): Html {

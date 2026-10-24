@@ -146,6 +146,46 @@ JavaScript: navigation is links, forms are forms, and the delete dialog uses
 are `public.test.ts`, `admin.test.ts`, `config.test.ts`,
 `domain.test.ts`, `migrations.test.ts`, and `caddyfile.test.ts`.
 
+### Browser journeys
+
+The Playwright runner needs Node.js 20 or newer alongside Bun. From `platform/`, install
+dependencies with `bun install`, then install Chromium, WebKit, and
+(on Linux) their system libraries once with `bun run test:browser:install`. Run the suite with:
+
+```sh
+bun run test:browser
+```
+
+Playwright runs `browser/*.pw.ts` in both engines. The `.pw.ts` suffix keeps these tests out of
+`bun test`; `playwright.config.ts` explicitly discovers them. Use `--project chromium`,
+`--project webkit`, or `--grep 'failed publishing'` to narrow a run. For repeatability use
+`bun run test:browser --repeat-each=2`; retries are disabled, including in CI.
+
+Each test starts a Bun process serving the real application routes, middleware, Datastar asset,
+SQLite database, and filesystem media. The fixture uses a fresh OS temporary directory for
+all database, media, and cache files, random credentials, loopback binding, and port 0 (the OS
+selects an available port). It ignores developer environment settings and dotenv files. Startup
+waits for the listener and a successful login-page response; tests wait for requests, stream
+patches, or visible state. Teardown stops the process and removes its directory even on failure.
+A fresh process/directory is the reset; the restart test alone reuses its own data and port.
+The server runs in test mode, which disables outbound DNS and link-preview requests. Browser
+requests outside the fixture origin are blocked and fail the test. No existing server is reused.
+
+The suite publishes text, photos, video, and Markdown articles, checks public rendering and
+media, preserves drafts through edits/reloads, exercises two tabs and stale submissions after
+discard/publication, and recovers from HTTP errors, interrupted requests, and a killed server.
+It also checks keyboard submission, native discard dialogs and focus, and plain HTML publishing
+with JavaScript disabled. The fallback only submits the form and selected files; it does not
+promise live previews, autosave, or media removal. Browser-side request interception injects
+failures; it does not replace the successful application endpoints or Datastar.
+
+Failure traces, screenshots, videos, server logs, and the HTML report are ignored by Git and
+uploaded by CI for seven days. Inspect a trace with
+`bunx playwright show-trace test-results/<case>/trace.zip` or the report with
+`bunx playwright show-report`. CI runs every case twice in both browsers and gates releases.
+The version checker currently counts dev dependencies and `bun.lock` as binary inputs too;
+browser tooling changes therefore require the same version-policy check as runtime changes.
+
 ## Security
 
 - **CSP**: pages allow only scripts with that response's nonce (not even other scripts from the
