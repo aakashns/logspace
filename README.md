@@ -33,16 +33,6 @@ sudo logspace set-admin-password   # Change your password
 journalctl -u logspace             # View server logs
 ```
 
-Version 0.6 changes the installed service to an unprivileged systemd dynamic user and binds the
-server to `127.0.0.1` behind Caddy. Run `sudo logspace setup` after upgrading to apply the new unit;
-replacing the binary alone keeps the old unit. systemd takes ownership of the existing state and
-cache directories when the service restarts. The root-only secrets file stays at
-`/etc/logspace.env`. Custom data paths or listener overrides require a custom unit; setup refuses
-incompatible overrides before replacing the unit and does not relocate custom data. Custom
-deployments keep the app's previous default of listening on all interfaces (`::`); `HOST` can
-override it. Existing logins need to log in again. Back up both database and media before upgrading;
-new site-media generations require 0.6 or later to serve them.
-
 Back up before upgrading. On the server, with `sqlite3` installed:
 
 ```sh
