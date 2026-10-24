@@ -47,10 +47,16 @@ export function Home() {
         </nav>
       </header>
       <main id="main">
-        <h1>Self-host your personal website</h1>
-        <p class="lede">{description}</p>
+        <h1>
+          Self-host your <br class="mobile" />
+          personal website
+        </h1>
+        <p class="lede">
+          Publish blog posts, photos, <br class="mobile" />
+          and videos on your own domain.
+        </p>
 
-        <p>Run this command on a Linux server to install LogSpace:</p>
+        <p>Run this on a Linux server to install LogSpace:</p>
         <div class="command">
           <pre>
             <code id="install-command">{install}</code>
@@ -100,8 +106,9 @@ export function Home() {
             </a>
           </video>
           <figcaption id="demo-caption">
-            A consolidated feed, clean &amp; minimal pages, and a simple
-            publishing flow.
+            A consolidated feed, clean &amp; minimal pages,{" "}
+            <br class="mobile" />
+            and a simple publishing flow.
           </figcaption>
         </figure>
 
@@ -136,11 +143,6 @@ export function Home() {
             open source
           </a>
           <span aria-hidden="true"> · </span>
-          <a href={`${github}/blob/main/LICENSE`} target="_blank">
-            MIT License
-          </a>
-        </span>
-        <span>
           Built by{" "}
           <a href="https://aakashns.com" target="_blank">
             aakashns
