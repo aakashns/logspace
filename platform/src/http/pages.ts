@@ -20,7 +20,7 @@ export const requestUrl = Effect.map(HttpServerRequest.HttpServerRequest, (reque
 export const param = (name: string) => Effect.map(HttpRouter.params, (params) => params[name] ?? '')
 
 // What every page needs to know about the request. The nonce is new for every response:
-// Datastar runs its expressions with it (see views/controls.tsx), and nothing else can run.
+// Datastar and the composer's module run with it, and nothing else can.
 export const pageContext = Effect.gen(function* () {
   let request = yield* HttpServerRequest.HttpServerRequest
   let assets = yield* Assets
@@ -32,6 +32,7 @@ export const pageContext = Effect.gen(function* () {
     nonce: crypto.getRandomValues(new Uint8Array(16)).toHex(),
     stylesheets: yield* assets.stylesheets,
     datastarHref: assets.datastarHref,
+    composerHref: assets.composerHref,
   } satisfies PageContext
 })
 

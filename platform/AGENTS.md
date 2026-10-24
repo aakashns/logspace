@@ -28,6 +28,8 @@ bun run count-lines
 - `src/http/` has the routes (`public.tsx`, and `admin.tsx`, whose handlers are in `admin/`: each
   has its route table at the bottom) and the middleware around them; `src/views/` the pages,
   rendered by `src/jsx/` to strings
+- `src/client/` is the browser's TypeScript modules, like the composer's Rocket component, which
+  import Datastar as `datastar` and are transpiled when the server starts (`views/scripts.ts`)
 - `src/main.ts` is the binary's command line (`start`, `setup`, `set-admin-password`, `migrate`,
   `upgrade`, `version`, `help`), with a module per command in `src/cli/`;
   `scripts/setup-test.ts` checks `setup` on a throwaway Linux machine with systemd and Caddy
@@ -43,9 +45,10 @@ path says otherwise.
   `home.tsx`), `views/styles/`; `public.test.ts`
 - Public routes, feeds, and files: `http/public.tsx`, `domain/feeds.ts`,
   `queries/post-media.ts`; `public.test.ts`
-- The composer: `views/admin/compose.tsx` and its Datastar in `views/admin/composer-controls.tsx`,
-  `domain/compose.ts`, `http/admin/composer.tsx`, `commands/posts.ts`, `services/draft-changes.ts`;
-  `admin.test.ts` ("the composer"), `browser/composer.pw.ts`
+- The composer: `views/admin/compose.tsx`, its component in `client/composer.ts` and the markup
+  that binds to it in `views/admin/composer-controls.tsx`, `domain/compose.ts`,
+  `http/admin/composer.tsx`, `commands/posts.ts`, `services/draft-changes.ts`; `admin.test.ts`
+  ("the composer"), `browser/composer.pw.ts`, `browser/recovery.pw.ts`
 - Editing and deleting posts: `views/admin/post-form.tsx`, `domain/post-form.ts`,
   `http/admin/posts.tsx`, `commands/posts.ts`; `admin.test.ts`, `content-access.test.ts`
 - Site settings and images: `domain/site.ts`, `domain/site-images.ts`, `commands/site-config.ts`,
@@ -91,10 +94,8 @@ path says otherwise.
   never import services or queries (URLs and the shapes pages show come from `domain/`), public
   pages and routes never import the admin's, and the admin's handlers share only
   `http/admin/pages.tsx`; `bun run lint` checks
-- The only browser JavaScript is Datastar, in `src/views/controls.tsx` and the composer's
-  `src/views/admin/composer-controls.tsx`. Its expressions are constant strings; pass values in
-  `data-*` attributes. Put `data-ignore` on any HTML made from what someone wrote. Pages get a CSP
-  nonce per response, so no inline scripts
+- Datastar expressions are constant strings; pass values in `data-*` attributes. Put
+  `data-ignore` on any HTML made from what someone wrote
 - Markup unescaped is `raw()`, only for HTML the app made (Markdown output, CSS, JSON-LD)
 - Embed any file the app reads with an `import … with { type: 'file' }` (or `'text'`), so the
   binary has it

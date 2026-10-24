@@ -1,6 +1,6 @@
 // The composer at /admin/posts/new, where posts are written.
 //
-// As you write, the composer posts its form with Datastar (see views/admin/composer-controls.tsx), and
+// As you write, the composer posts its form with Datastar (see src/client/composer.ts), and gets
 // HTML for parts of the page: its media when files are added or removed, and the preview as you
 // type. Each of those requests sends the whole form, so each saves it as the draft, which the
 // composer picks up again on any browser until the post is published or discarded. Posting it
@@ -158,7 +158,9 @@ const currentComposer = (preferredId?: string) =>
 export const compose = loggedIn(() =>
   Effect.gen(function* () {
     let props = yield* currentComposer()
-    return yield* adminPage('New Post', <ComposePage {...props} tab={crypto.randomUUID()} />)
+    return yield* adminPage('New Post', <ComposePage {...props} tab={crypto.randomUUID()} />, {
+      composer: true,
+    })
   }),
 )
 
@@ -313,6 +315,7 @@ export const publishComposer = loggedIn(() =>
           : // A new page, so a new tab.
             adminPage('New Post', <ComposePage {...props} tab={crypto.randomUUID()} />, {
               status: 400,
+              composer: true,
             }),
       )
     let post = composePost(values, dateAtOffset(yield* Clock.currentTimeMillis, values.offset))

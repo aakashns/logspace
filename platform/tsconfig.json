@@ -18,7 +18,10 @@
     "noEmit": true,
     // Pages are TSX rendered straight to HTML strings by src/jsx (no virtual DOM).
     "jsx": "react-jsx",
-    "jsxImportSource": "#jsx"
+    "jsxImportSource": "#jsx",
+    // The browser's modules (src/client/) import Datastar's bundle as `datastar`, which the
+    // import map in views/document.tsx points at; these are its types.
+    "paths": { "datastar": ["./src/client/datastar.d.ts"] }
   },
   "exclude": ["dist", "node_modules"]
 }

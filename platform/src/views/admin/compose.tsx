@@ -2,12 +2,12 @@
 // toolbar's buttons (photos, a video, or an article from a Markdown file, uploaded as they're
 // chosen), and below, the post as it'll look, which follows along as you write. The post is dated
 // when it's posted. The parts the server re-renders as you write have ids: the issues, media, and
-// toolbar, which it replaces whole (so their file inputs start empty, and data-init runs again),
-// and the inside of the preview, which Datastar morphs into place (so its photos and video don't
-// flicker as you type). Each of those requests saves the draft, which the note by the Post
-// button says. Every tab with the composer open follows the draft: when another tab changes it,
-// the server sends the whole composer again, which Datastar morphs into place. Their Datastar
-// controls are in composer-controls.tsx.
+// toolbar, which it replaces whole (so their file inputs start empty), and the inside of the
+// preview, which Datastar morphs into place (so its photos and video don't flicker as you type).
+// Each of those requests saves the draft, which the note by the Post button says. Every tab with
+// the composer open follows the draft: when another tab changes it, the server sends the whole
+// composer again, which Datastar morphs into place. It all runs in <logspace-composer>
+// (src/client/composer.ts), and its controls are in composer-controls.tsx.
 import type { Array as Arr } from 'effect'
 
 import type { Html } from '#jsx/jsx-runtime'
@@ -26,8 +26,8 @@ import {
   CaptionInput,
   CityInput,
   ClearFiles,
+  ComposerElement,
   ComposerForm,
-  ComposerUpdates,
   MediaPicker,
   OffsetInput,
   PostButton,
@@ -64,14 +64,13 @@ export interface ComposerProps {
   readonly draft?: DraftState
 }
 
-// The page: the composer, and the stream of it as the draft changes in other tabs. `tab` names
-// this tab, so it isn't sent its own changes.
+// The page: the composer, in the component that follows the draft as it changes in other tabs.
+// `tab` names this tab, so it isn't sent its own changes.
 export function ComposePage(props: ComposerProps & { tab: string }): Html {
   return (
-    <>
+    <ComposerElement updates={routes.admin.newPostUpdates(props.tab)}>
       <Composer {...props} />
-      <ComposerUpdates url={routes.admin.newPostUpdates(props.tab)} />
-    </>
+    </ComposerElement>
   )
 }
 
@@ -96,13 +95,12 @@ export function Composer(props: ComposerProps & { tab: string }): Html {
       </div>
       {/* A field named id shadows form.id and makes Datastar rebuild the focused form. */}
       <ComposerForm id="composer">
-        {/* data-saved: the post is a draft that's saved, not a new one (see ComposerUpdates). */}
+        {/* data-saved: the post is a draft that's saved, not a new one. */}
         <input
           type="hidden"
           name="post_id"
           value={values.id}
           data-saved={props.draft === 'saved'}
-          data-bind:_post-id
         />
         <input type="hidden" name="tab" value={props.tab} />
         <OffsetInput value={values.offset} />

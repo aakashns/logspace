@@ -568,6 +568,36 @@ describe('the composer', () => {
     expect(await hasPostFile('composer01', 'a.jpg')).toBe(false)
   })
 
+  it('runs in its component, whose module brings Datastar along through the import map', async () => {
+    let html = await (await app.adminFetch('/admin/posts/new')).text()
+    let nonce = capture(html, /<html [^>]*data-nonce="([^"]+)"/)
+    let datastar = capture(html, /"datastar":"(\/assets\/datastar\.[0-9a-f]{12}\.js)"/)
+    expect(html).toContain(`<script type="importmap" nonce="${nonce}">`)
+    // Only the composer's module: a second module script would let Datastar see the component's
+    // `$$signals` before Rocket scopes them.
+    let scripts = [...html.matchAll(/<script type="module" src="([^"]+)" nonce="([^"]+)"/g)]
+    expect(scripts.map(([, src, scriptNonce]) => [src?.split('.')[0], scriptNonce])).toEqual([
+      ['/assets/composer', nonce],
+    ])
+    let module = await app.fetch(capture(html, /<script type="module" src="([^"]+)"/))
+    expect(module.headers.get('Content-Type')).toBe('text/javascript; charset=utf-8')
+    expect(module.headers.get('Cache-Control')).toBe('public, max-age=31536000, immutable')
+    let code = await module.text()
+    expect(code).toMatch(/^import \{[^}]*\brocket\b[^}]*\} from "datastar";/)
+    expect(code).toContain('rocket("logspace-composer"')
+    expect((await app.fetch(datastar)).status).toBe(200)
+    // Every signal and action is inside the component, which scopes them.
+    let component = capture(html, /(<logspace-composer [\s\S]*<\/logspace-composer>)/)
+    let outside = html.replace(component, '')
+    expect(component).toContain('data-attr:disabled="$$uploading || $$posting || $$published"')
+    expect(outside).not.toContain('$$')
+    expect(outside).not.toMatch(/="@\w+\(/)
+    // Other pages load Datastar alone, without an import map.
+    let home = await (await app.fetch('/')).text()
+    expect(home).not.toContain('importmap')
+    expect(home).toContain(`<script type="module" src="${datastar}"`)
+  })
+
   it('starts a new post at the newest post’s UTC offset, with no date to edit', async () => {
     let html = await (await app.adminFetch('/admin/posts/new')).text()
     expect(html).toMatch(/<form id="composer" method="post" action="\/admin\/posts\/new"/)
@@ -750,7 +780,7 @@ describe('the composer', () => {
         ['caption', 'Just text'],
       ])
     ).text()
-    expect(events).toContain(`data-href="/posts/${id}"`)
+    expect(events).toContain(`data-redirect="/posts/${id}"`)
     expect((await findPost(id))?.type).toBe('text')
   })
 
@@ -911,7 +941,7 @@ describe('the composer', () => {
       ).text()
       expect(preview).toContain('>Saved</span>')
       // What was saved becomes the fields' defaults, so a morph keeps only unsaved typing.
-      expect(JSON.parse(unescapeHtml(capture(preview, /data-values="([^"]*)"/)))).toEqual({
+      expect(JSON.parse(unescapeHtml(capture(preview, /data-saved-values="([^"]*)"/)))).toEqual({
         caption: 'Morning <walk> & tea\n\nWith friends',
         city: 'Pune',
         article_title: '',
@@ -1132,7 +1162,7 @@ describe('the composer', () => {
       it('follows what other tabs write, but not its own', async () => {
         let { id, html } = await openComposer()
         let tab = capture(html, /<input type="hidden" name="tab" value="([^"]+)"/)
-        expect(html).toContain(`data-url="/admin/posts/new/updates?tab=${tab}"`)
+        expect(html).toContain(`updates-url="/admin/posts/new/updates?tab=${tab}"`)
         let updates = await openUpdates('second-tab')
         // The composer as it is when the stream opens, for this tab.
         let first = await updates.next()
