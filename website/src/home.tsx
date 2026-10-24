@@ -19,7 +19,7 @@ const screenshots = [
   {
     name: "article",
     alt: "An article on Mira’s site, with its title, summary, cover image, and text.",
-    caption: "Articles get a page of their own.",
+    caption: "Each post gets a page of its own.",
   },
   {
     name: "composer",
@@ -190,11 +190,11 @@ export function Home() {
           </ul>
         </section>
 
-        {/* Dark until the switch (shown by site.js) picks light. */}
+        {/* Light until the switch (shown by site.js) picks dark. */}
         <section
           aria-labelledby="screenshots"
           class="screenshots"
-          data-theme="dark"
+          data-theme="light"
         >
           <div class="section-heading">
             <h2 id="screenshots">Screenshots</h2>
@@ -207,7 +207,7 @@ export function Home() {
               <button
                 type="button"
                 value="light"
-                aria-pressed="false"
+                aria-pressed="true"
                 aria-label="Light"
               >
                 <SunIcon />
@@ -215,7 +215,7 @@ export function Home() {
               <button
                 type="button"
                 value="dark"
-                aria-pressed="true"
+                aria-pressed="false"
                 aria-label="Dark"
               >
                 <MoonIcon />

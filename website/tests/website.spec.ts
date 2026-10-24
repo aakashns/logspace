@@ -105,9 +105,9 @@ test("screenshots switch theme and load at twice their shown size", async ({
   await page.goto("/");
   const light = page.getByRole("button", { name: "Light", exact: true });
   const dark = page.getByRole("button", { name: "Dark", exact: true });
-  await expect(dark).toHaveAttribute("aria-pressed", "true");
-  for (const theme of ["dark", "light"]) {
-    if (theme === "light") await light.click();
+  await expect(light).toHaveAttribute("aria-pressed", "true");
+  for (const theme of ["light", "dark"]) {
+    if (theme === "dark") await dark.click();
     const screenshots = page.locator(".screenshot img:visible");
     await expect(screenshots).toHaveCount(3);
     for (const screenshot of await screenshots.all()) {
@@ -121,8 +121,8 @@ test("screenshots switch theme and load at twice their shown size", async ({
       await expect(screenshot).toHaveAttribute("alt", /.+/);
     }
   }
-  await expect(light).toHaveAttribute("aria-pressed", "true");
-  await expect(dark).toHaveAttribute("aria-pressed", "false");
+  await expect(dark).toHaveAttribute("aria-pressed", "true");
+  await expect(light).toHaveAttribute("aria-pressed", "false");
 });
 
 test("serves the installer and icons, and rejects missing paths", async ({
