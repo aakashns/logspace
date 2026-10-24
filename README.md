@@ -31,6 +31,7 @@ sudo logspace migrate              # Then update the database
 sudo logspace setup               # Update the managed service and restart (saved domains)
 sudo logspace set-admin-password   # Change your password
 journalctl -u logspace             # View server logs
+logspace help                      # All commands and settings
 ```
 
 Back up before upgrading. On the server, with `sqlite3` installed:
@@ -40,8 +41,29 @@ sudo sqlite3 /var/lib/logspace/app.sqlite ".backup '/root/logspace-backup.sqlite
 sudo cp -a /var/lib/logspace/media /root/logspace-media-backup
 ```
 
-Use a fresh destination for each backup, avoid publishing or deleting posts while backing up, and keep a copy off the server. Protect a copy of `/etc/logspace.env` too; it contains your admin secrets. See `logspace help` for configuration options.
+Use a fresh destination for each backup, avoid publishing or deleting posts while backing up, and keep a copy off the server. Protect a copy of `/etc/logspace.env` too; it contains your admin secrets.
+
+## Configuration
+
+`logspace setup` configures everything; change these only to run LogSpace another way. The server reads environment variables, which setup puts in the service and, for the secrets and port, in `/etc/logspace.env` (readable only by root).
+
+| Variable              | Default           | With `setup`                   |
+| --------------------- | ----------------- | ------------------------------ |
+| `PORT`                | `44100`           | `44100`                        |
+| `HOST`                | `::` (everywhere) | `127.0.0.1`, behind Caddy      |
+| `DATABASE_PATH`       | `data/app.sqlite` | `/var/lib/logspace/app.sqlite` |
+| `MEDIA_DIR`           | `data/media`      | `/var/lib/logspace/media`      |
+| `CACHE_DIR`           | `data/cache`      | `/var/cache/logspace`          |
+| `ADMIN_PASSWORD`      |                   | asked for by `setup`           |
+| `AUTH_SESSION_SECRET` |                   | generated                      |
+| `TRUST_PROXY`         | off               | `1`                            |
+
+Relative paths are from the working directory. `/admin` stays off until `ADMIN_PASSWORD` and `AUTH_SESSION_SECRET` are each at least 16 characters, and changing either logs everyone out. Set `TRUST_PROXY=1` only behind a proxy that overwrites `X-Forwarded-*` headers, like Caddy. Run only one server for each database and media folder. The cache holds link previews, which are fetched again if it's deleted.
+
+## Security
+
+Pages run no scripts but LogSpace's own, under a strict Content Security Policy, and what you write is escaped. The admin is one password, with sessions that last 30 days and end when you log out or change the password. Forms sent from other sites are refused. Uploads are typed by their extension and stored only under `MEDIA_DIR`, and unpublished posts' files aren't served. Link previews fetch only public addresses, and their images are re-encoded before they're served. [CONTRIBUTING.md](CONTRIBUTING.md#security) has the details.
 
 ## Contribute
 
-[Report a bug](https://github.com/aakashns/logspace/issues) or read [CONTRIBUTING.md](CONTRIBUTING.md) to work on the app or website. Licensed under [MIT](LICENSE).
+[Report a bug](https://github.com/aakashns/logspace/issues) or read [CONTRIBUTING.md](CONTRIBUTING.md) to work on the app or website. Licensed under [MIT](LICENSE). Includes [Datastar](https://data-star.dev), © Star Federation, and icons from [Phosphor Icons](https://phosphoricons.com), © 2023 Phosphor Icons, both MIT licensed.
