@@ -19,7 +19,7 @@ describe('found in review', () => {
     }
     let cookie = defined(app.sessionCookie(await app.logIn()), 'a session cookie')
     let submit = () =>
-      app.fetch('/admin/posts/new', { method: 'POST', headers: { Cookie: cookie }, body: form() })
+      app.fetch('/admin/posts', { method: 'POST', headers: { Cookie: cookie }, body: form() })
     let statuses = (await Promise.all([submit(), submit()]))
       .map((response) => response.status)
       .sort()
@@ -67,7 +67,7 @@ describe('found in review', () => {
       new File([new Uint8Array(png.subarray(0, Math.floor(png.length * 0.6)))], 'cut.png'),
     )
     expect(
-      (await app.fetch('/admin/posts/new', { method: 'POST', headers: { Cookie: cookie }, body }))
+      (await app.fetch('/admin/posts', { method: 'POST', headers: { Cookie: cookie }, body }))
         .status,
     ).toBe(303)
     let html = await (await app.fetch(`/posts/${id}`)).text()

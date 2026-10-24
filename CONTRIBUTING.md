@@ -88,7 +88,7 @@ No database, files, or HTTP: lint fails if anything here imports them (`.oxlintr
 | `caption.ts`                                                 | Captions: paragraphs, line breaks, **bold**, *italic*, and URLs as links, and the first URL for its preview                                             |
 | `site.ts`                                                    | The site's settings, and their checks                                                                                                                   |
 | `site-images.ts`                                             | The URLs pages link the site's icon, logos, and banner image with                                                                                       |
-| `post-form.ts`                                               | Reading the admin post form into a post and its uploads                                                                                                 |
+| `compose.ts`                                                 | Reading the composer's form into a post and its uploads, new or an edit of a published one                                                              |
 | `feeds.ts`                                                   | `sitemap.xml`, `rss.xml`, and `robots.txt`                                                                                                              |
 | `images.ts`, `link-metadata.ts`, `format.ts`, `constants.ts` | Image widths, link-preview parsing, dates and sizes, and limits                                                                                         |
 
@@ -112,9 +112,11 @@ changed. They fail with typed errors (`commands/errors.ts`): `PostRejected` (wit
 show), `PostNotFound`, and `SiteConfigRejected`. Storage and database failures are defects (a 500,
 logged), as they're not something a user can fix.
 
-- `posts.ts`: `publish`, `edit`, `delete`, and the composer's `upload`, which saves a new post's
-  files as they're chosen. Uploads are saved before the post is checked, so a rejected form
-  doesn't need its files chosen again.
+- `posts.ts`: `save`, which publishes a post or saves an edit of one, `delete`, and the
+  composer's `upload`, which saves a post's files as they're chosen. Uploads are saved before the
+  post is checked, so a rejected form doesn't need its files chosen again, and a chosen file never
+  takes the name of one the post has, so nothing published changes until the post is saved.
+  Saving, or closing the composer (`discard`), removes the post's files it doesn't name.
 - `post-files.ts`: `makePostFiles` captures SQL, storage, and images for stateless upload and
   removal helpers, also used by test seeding.
 - `site-config.ts`: saving `/admin/config`, turning uploads into the site's image files.
@@ -167,7 +169,8 @@ renders itself (captions, the stylesheet, JSON-LD). Start with `document.tsx`, t
 `admin/compose.tsx`: its file inputs and remove buttons post the form for its media
 (`data-on:change`, with `data-indicator:_uploading`), and typing posts it for the preview
 (`data-on:input__throttle.100ms.trailing`); the server answers with HTML for those parts. The
-composer keeps nothing on the server until it's posted, which is a plain form submission. Every
+composer, for new posts and edits alike, keeps nothing on the server until it's posted, which is
+a plain form submission. Every
 expression is a one-line constant string. Values like the URL to
 share are passed in `data-*` attributes and read with `el.dataset`, so nothing a user typed can
 end up in an expression. Everything else works without JavaScript: navigation is links, forms are
@@ -209,7 +212,8 @@ the app with its own temporary data and port. Install the browsers once with `bu
 - **Files**: storage keys are built only from checked ids and names, and the fs backend also
   refuses any path outside `MEDIA_DIR`. Uploads are typed by extension, never by what the browser
   claims, and SVG isn't accepted for posts. Site images are re-encoded as PNG or JPEG.
-  Unpublished posts' files aren't served. Link previews' images are fetched only over https,
+  Only the files a published post names are served, so the composer's uploads stay private until
+  the post is saved. Link previews' images are fetched only over https,
   refused past 10 MB or 25 megapixels (checked from the header, before decoding), and served
   only as WebP that the app re-encoded. Link previews fetch only public addresses on standard
   ports, checking each redirect.

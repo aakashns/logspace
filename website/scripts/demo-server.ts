@@ -105,7 +105,7 @@ await Effect.runPromise(
         name,
         file: image(name.replace(/\.png$/, "")),
       }));
-      yield* commands.publish({ post, uploads, issues: [] });
+      yield* commands.save({ post, uploads, issues: [] });
     }
   }).pipe(Effect.provide(AppLive.pipe(Layer.provide(AppConfig.layer)))),
 );
