@@ -9,25 +9,30 @@ The server, its pages, and the `logspace` binary, built with:
   [`effect/sql`](https://effect.website/docs).
 - **[Datastar](https://data-star.dev)** as the only JavaScript sent to browsers (13 KB gzipped),
   for the theme toggle, share buttons, and the admin composer.
-- **A tiny JSX runtime** (`src/jsx`, 91 lines) that renders TSX straight to HTML strings: no
+- **A tiny JSX runtime** (`src/jsx`, about 110 lines) that renders TSX straight to HTML strings: no
   virtual DOM, no hydration.
-- **CQRS**: writes go through `src/commands`, reads through `src/queries`, which keep in-memory
-  views of the data that are rebuilt only when it changes.
+- **CQRS**: writes go through `src/commands`, and reads through `src/queries`, which query the
+  database on every request.
 
 ```sh
 bun install
-bun run dev          # http://localhost:44100, restarts on change
-bun run test         # in-memory database and media
-bun run typecheck && bun run lint && bun run format:check
+bun run dev:demo     # a throwaway site with the test posts, on a free port; nothing to set up
+bun run dev          # your own site at http://localhost:44100 (see ../CONTRIBUTING.md)
+bun run ready        # typecheck, lint, format:check, and test, as CI does
+bun run test:browser # the composer in Chromium and WebKit (see Browser tests)
 bun run build && bun scripts/smoke-test.ts dist/logspace
 bun scripts/seed.ts  # fills DATABASE_PATH and MEDIA_DIR with the test posts
 ```
 
+Both dev servers restart on change; reload the browser. `dev:demo` prints the site's URL and a
+new admin password, keeps its data in a temporary folder that's deleted when it stops, and
+ignores `.env`.
+
 The server is configured with environment variables: `PORT`, `HOST` (defaults to `::`, all interfaces),
 `DATABASE_PATH`, `MEDIA_DIR`, `CACHE_DIR`, `ADMIN_PASSWORD`, `AUTH_SESSION_SECRET`, `TRUST_PROXY`,
 and `MEDIA_STORAGE=fs|memory`. The managed systemd service sets `HOST=127.0.0.1` behind Caddy.
-Without them, data goes in `data/` in the working directory. `AGENTS.md` has the conventions, and
-`docs/posts.md` what a post is made of.
+Without them, data goes in `data/` in the working directory. `AGENTS.md` has the conventions and where common
+changes go, and `docs/posts.md` what a post is made of.
 
 ## A tour of the code
 
@@ -132,9 +137,10 @@ renders itself (Markdown output, the stylesheet, JSON-LD). Start with `document.
 `<html>` around every page. CSS is plain CSS in `views/styles/`, joined and minified by
 `stylesheet.ts`, and inlined into each page. The admin pages add `admin.css`.
 
-**Datastar** is in `controls.tsx` only: the theme toggle (`data-on:click`) and share buttons
-(`data-on:click`, `data-class`, `data-attr`, one `_shared` signal). Every expression is a
-constant string. Values like the URL to share are passed in `data-*` attributes and read with
+**Datastar** is in `controls.tsx` only: the theme toggle (`data-on:click`), share buttons
+(`data-on:click`, `data-class`, `data-attr`, one `_shared` signal), and the composer's controls
+(uploads, the preview, saving the draft, and `ComposerUpdates`, a stream of the draft's changes
+from the server). Every expression is a constant string. Values like the URL to share are passed in `data-*` attributes and read with
 `el.dataset`, so nothing a user typed can end up in an expression. Everything else works without
 JavaScript: navigation is links, forms are forms, and the delete dialog uses
 `command`/`commandfor`.
@@ -143,8 +149,7 @@ JavaScript: navigation is links, forms are forms, and the delete dialog uses
 
 `test/app.ts` builds the app with an in-memory database and storage and drives it through
 `fetch`-style requests. Services can also be called directly with `app.run(effect)`. The suites
-are `public.test.ts`, `admin.test.ts`, `config.test.ts`,
-`domain.test.ts`, `migrations.test.ts`, and `caddyfile.test.ts`.
+are the `*.test.ts` files; `AGENTS.md` lists which cover each common change.
 
 ### Browser tests
 

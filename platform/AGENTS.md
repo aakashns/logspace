@@ -5,10 +5,11 @@ Effect docs are in `node_modules/effect/CLAUDE.md` and `node_modules/effect/ai-d
 Datastar's at https://data-star.dev/docs.md.
 
 ```sh
-bun run dev          # restarts on change; reload the browser
+bun run dev:demo     # a throwaway site with the test posts; prints its URL and admin password
+bun run dev          # your own site, configured in .env (see ../CONTRIBUTING.md)
+bun run ready        # typecheck, lint, format:check, and test: what CI checks
 bun run test         # in-memory database and media storage
 bun run test:browser # Playwright, Chromium and WebKit; not run by CI
-bun run typecheck && bun run lint && bun run format:check
 bun run build && bun scripts/smoke-test.ts dist/logspace
 bun scripts/seed.ts  # the test posts, into DATABASE_PATH and MEDIA_DIR
 bun run count-lines
@@ -28,11 +29,39 @@ bun run count-lines
   `upgrade`, `version`, `help`), with a module per command in `src/cli/`;
   `scripts/setup-test.ts` checks `setup` on a throwaway Linux machine with systemd and Caddy
 
+## Common changes
+
+Where to start, then the tests that cover it. Code is in `src/` and tests in `test/` unless the
+path says otherwise.
+
+- A post's fields or checks: `domain/post.ts`, `domain/post-rows.ts`, a new `db/migrations/`
+  file, and `docs/posts.md`; `domain.test.ts`, `migrations.test.ts`
+- How posts and pages look: `domain/presentation.ts`, `views/` (`post.tsx`, `post-page.tsx`,
+  `home.tsx`), `views/styles/`; `public.test.ts`
+- Public routes, feeds, and files: `http/public.tsx`, `domain/feeds.ts`,
+  `queries/post-media.ts`; `public.test.ts`
+- The composer: `views/admin/compose.tsx` and its Datastar in `views/controls.tsx`,
+  `domain/compose.ts`, `http/admin.tsx`, `commands/posts.ts`, `services/draft-changes.ts`;
+  `admin.test.ts` ("the composer"), `browser/composer.pw.ts`
+- Editing and deleting posts: `views/admin/post-form.tsx`, `domain/post-form.ts`,
+  `http/admin.tsx`, `commands/posts.ts`; `admin.test.ts`, `content-access.test.ts`
+- Site settings and images: `domain/site.ts`, `commands/site-config.ts`,
+  `queries/site-files.ts`, `views/admin/config.tsx`; `config.test.ts`
+- Login and sessions: `http/session.ts`, `views/admin/login.tsx`; `admin.test.ts` ("logging
+  in"), `session-lifecycle.test.ts`
+- Link previews: `queries/link-previews.ts`, `domain/link-metadata.ts`,
+  `services/public-http.ts`; `link-previews.test.ts`
+- Headers, CSP, and cross-origin forms: `http/middleware.ts`, `http/pages.ts`; `public.test.ts`,
+  `admin.test.ts`, `review.test.ts`
+- The binary's commands and `setup`: `main.ts`, `cli/`; `service.test.ts`, `caddyfile.test.ts`,
+  `scripts/setup-test.ts`, `scripts/smoke-test.ts`
+
 ## Rules
 
-- A PR that changes what goes into the binary (`src/`, `db/`, `public/`, dependencies, the build)
-  bumps `version` in `package.json` one step, and merging it to main releases that version; other
-  PRs (tests, docs, scripts, the website) leave it be. CI checks both (`scripts/check-version.ts`
+- A PR that changes what goes into the binary (`src/`, `db/`, `public/`, dependencies, the build,
+  or anything else in `package.json`, like its scripts) bumps `version` in `package.json` one
+  step, and merging it to main releases that version; other PRs (tests, docs, scripts, the
+  website) leave it be. CI checks both (`scripts/check-version.ts`
   lists what counts). Below 1.0, bump the minor version for breaking changes (like to the binary's
   commands or environment variables, or what `setup` installs) and the patch version for others
 - Scripts are TypeScript, run with Bun, and any that run on a server go in the binary as commands
