@@ -23,8 +23,9 @@ bun run count-lines
 - `src/commands/` is every write (one method per change), and `src/queries/` every read, straight
   from the database
 - `src/services/` talks to the world: SQLite, media files, images (Bun.Image)
-- `src/http/` has the routes (`public.tsx`, `admin.tsx`, each with its route table at the bottom)
-  and the middleware around them; `src/views/` the pages, rendered by `src/jsx/` to strings
+- `src/http/` has the routes (`public.tsx`, and `admin.tsx`, whose handlers are in `admin/`: each
+  has its route table at the bottom) and the middleware around them; `src/views/` the pages,
+  rendered by `src/jsx/` to strings
 - `src/main.ts` is the binary's command line (`start`, `setup`, `set-admin-password`, `migrate`,
   `upgrade`, `version`, `help`), with a module per command in `src/cli/`;
   `scripts/setup-test.ts` checks `setup` on a throwaway Linux machine with systemd and Caddy
@@ -40,15 +41,15 @@ path says otherwise.
   `home.tsx`), `views/styles/`; `public.test.ts`
 - Public routes, feeds, and files: `http/public.tsx`, `domain/feeds.ts`,
   `queries/post-media.ts`; `public.test.ts`
-- The composer: `views/admin/compose.tsx` and its Datastar in `views/controls.tsx`,
-  `domain/compose.ts`, `http/admin.tsx`, `commands/posts.ts`, `services/draft-changes.ts`;
+- The composer: `views/admin/compose.tsx` and its Datastar in `views/admin/composer-controls.tsx`,
+  `domain/compose.ts`, `http/admin/composer.tsx`, `commands/posts.ts`, `services/draft-changes.ts`;
   `admin.test.ts` ("the composer"), `browser/composer.pw.ts`
 - Editing and deleting posts: `views/admin/post-form.tsx`, `domain/post-form.ts`,
-  `http/admin.tsx`, `commands/posts.ts`; `admin.test.ts`, `content-access.test.ts`
-- Site settings and images: `domain/site.ts`, `commands/site-config.ts`,
-  `queries/site-files.ts`, `views/admin/config.tsx`; `config.test.ts`
-- Login and sessions: `http/session.ts`, `views/admin/login.tsx`; `admin.test.ts` ("logging
-  in"), `session-lifecycle.test.ts`
+  `http/admin/posts.tsx`, `commands/posts.ts`; `admin.test.ts`, `content-access.test.ts`
+- Site settings and images: `domain/site.ts`, `domain/site-images.ts`, `commands/site-config.ts`,
+  `queries/site-files.ts`, `http/admin/config.tsx`, `views/admin/config.tsx`; `config.test.ts`
+- Login and sessions: `http/session.ts`, `http/admin/login.tsx`, `views/admin/login.tsx`;
+  `admin.test.ts` ("logging in"), `session-lifecycle.test.ts`
 - Link previews: `queries/link-previews.ts`, `domain/link-metadata.ts`,
   `services/public-http.ts`; `link-previews.test.ts`
 - Headers, CSP, and cross-origin forms: `http/middleware.ts`, `http/pages.ts`; `public.test.ts`,
@@ -81,11 +82,14 @@ path says otherwise.
 - Time comes from `Clock` or `DateTime`, files and processes from `FileSystem` and
   `ChildProcessSpawner`, and other sites from `HttpClient`, except where Bun's own APIs are the
   point (media storage serves `BunFile`s with sendfile)
-- The layers stay apart: `domain/` imports nothing below it, queries never import commands, and
-  views never import services; `bun run lint` checks
-- The only browser JavaScript is Datastar, in `src/views/controls.tsx`. Its expressions are
-  constant strings; pass values in `data-*` attributes. Put `data-ignore` on any HTML made from
-  what someone wrote. Pages get a CSP nonce per response, so no inline scripts
+- The layers stay apart: `domain/` imports nothing below it, queries never import commands, views
+  never import services or queries (URLs and the shapes pages show come from `domain/`), public
+  pages and routes never import the admin's, and the admin's handlers share only
+  `http/admin/pages.tsx`; `bun run lint` checks
+- The only browser JavaScript is Datastar, in `src/views/controls.tsx` and the composer's
+  `src/views/admin/composer-controls.tsx`. Its expressions are constant strings; pass values in
+  `data-*` attributes. Put `data-ignore` on any HTML made from what someone wrote. Pages get a CSP
+  nonce per response, so no inline scripts
 - Markup unescaped is `raw()`, only for HTML the app made (Markdown output, CSS, JSON-LD)
 - Embed any file the app reads with an `import … with { type: 'file' }` (or `'text'`), so the
   binary has it

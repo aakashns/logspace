@@ -54,7 +54,8 @@
       }
     },
     {
-      // Pages render what they're given; they don't fetch or write.
+      // Pages render what they're given; they don't fetch or write. URLs and the shapes they show
+      // come from domain/.
       "files": ["src/views/**"],
       "rules": {
         "no-restricted-imports": [
@@ -63,9 +64,60 @@
             "patterns": [
               "**/services/**",
               "**/commands/**",
+              "**/queries/**",
               "**/http/**",
               "**/cli/**",
               "effect/sql"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      // Public pages (and the navbar's controls) don't use the admin's, like the composer's.
+      "files": ["src/views/*"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              "**/admin/**",
+              "**/services/**",
+              "**/commands/**",
+              "**/queries/**",
+              "**/http/**",
+              "**/cli/**",
+              "effect/sql"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      // Public routes only read, and show public pages.
+      "files": ["src/http/public.tsx"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          { "patterns": ["**/commands/**", "**/admin/**", "**/admin.tsx", "**/cli/**"] }
+        ]
+      }
+    },
+    {
+      // The admin's handlers share admin/pages.tsx; the route table (admin.tsx) is the only place
+      // that imports them all.
+      "files": ["src/http/admin/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              "./login.tsx",
+              "./config.tsx",
+              "./posts.tsx",
+              "./composer.tsx",
+              "../admin.tsx",
+              "**/cli/**"
             ]
           }
         ]

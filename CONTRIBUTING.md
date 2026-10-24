@@ -86,9 +86,10 @@ No database, files, or HTTP: lint fails if anything here imports them (`.oxlintr
 | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `post.ts`                                                                | What a post is (`PostRecord`, an Effect `Schema`), and the checks a post passes before it's saved, reported as `{ field, message }` issues for the form |
 | `post-rows.ts`                                                           | How a post maps to a row of the `posts` table                                                                                                           |
-| `presentation.ts`                                                        | Posts as pages show them: media URLs, image sizes, `srcset`s, captions rendered to HTML, and page metadata                                              |
+| `presentation.ts`                                                        | Posts as pages show them: media URLs, image sizes, `srcset`s, captions rendered to HTML, link previews, and page metadata                               |
 | `markdown.ts`                                                            | Captions (tweet-like Markdown) and article bodies (with images and videos from the post's files)                                                        |
 | `site.ts`                                                                | The site's settings, and their checks                                                                                                                   |
+| `site-images.ts`                                                         | The URLs pages link the site's icon, logos, and banner image with                                                                                       |
 | `post-form.ts`                                                           | Reading the admin post form into a post and its uploads                                                                                                 |
 | `feeds.ts`                                                               | `sitemap.xml`, `rss.xml`, and `robots.txt`                                                                                                              |
 | `images.ts`, `links.ts`, `link-metadata.ts`, `format.ts`, `constants.ts` | Image widths, URLs in text, link-preview parsing, dates and sizes, and limits                                                                           |
@@ -137,7 +138,10 @@ copies, so cards load from the site itself, at the size they're shown.
 #### 6. HTTP: `src/http/`
 
 Routes are Effect `HttpRouter` routes: `public.tsx` (pages, feeds, files) and `admin.tsx`
-(everything under `/admin`). The route table is at the bottom of each file. A handler reads
+(everything under `/admin`), with the route table at the bottom of each. The admin's handlers
+are in `admin/`, a module for each part (`login.tsx`, `config.tsx`, `posts.tsx`, and
+`composer.tsx`), which share only `admin/pages.tsx`: the admin layout and the login check. A
+handler reads
 the request, calls queries or one command, and picks a response. `middleware.ts` wraps every request,
 in this order: the proxy's forwarded host, the cross-origin form check, the gate that keeps an
 unconfigured site private, then the handler, with 404s, 500s, and security headers.
@@ -159,10 +163,11 @@ renders itself (Markdown output, the stylesheet, JSON-LD). Start with `document.
 `<html>` around every page. CSS is plain CSS in `views/styles/`, joined and minified by
 `stylesheet.ts`, and inlined into each page. The admin pages add `admin.css`.
 
-**Datastar** is in `controls.tsx` only: the theme toggle (`data-on:click`), share buttons
-(`data-on:click`, `data-class`, `data-attr`, one `_shared` signal), and the composer's controls
-(uploads, the preview, saving the draft, and `ComposerUpdates`, a stream of the draft's changes
-from the server). Every expression is a constant string. Values like the URL to share are passed in `data-*` attributes and read with
+**Datastar** is in `controls.tsx` and `admin/composer-controls.tsx` only: the theme toggle
+(`data-on:click`) and share buttons (`data-on:click`, `data-class`, `data-attr`, one `_shared`
+signal) in the first, and in the second the composer's controls (uploads, the preview, saving the
+draft, and `ComposerUpdates`, a stream of the draft's changes from the server). Every expression
+is a constant string. Values like the URL to share are passed in `data-*` attributes and read with
 `el.dataset`, so nothing a user typed can end up in an expression. Everything else works without
 JavaScript: navigation is links, forms are forms, and the delete dialog uses
 `command`/`commandfor`.

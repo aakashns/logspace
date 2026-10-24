@@ -44,8 +44,6 @@ export const ICON_FILES = ['favicon.ico', 'apple-touch-icon.png', 'icon-192.png'
 // License, Copyright (c) 2023 Phosphor Icons).
 const DEFAULT_ICON = new Uint8Array(readFileSync(defaultIconPath))
 
-export const DEFAULT_ICON_VERSION = hash(DEFAULT_ICON)
-
 export class Images extends Context.Service<
   Images,
   {

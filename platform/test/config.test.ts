@@ -6,6 +6,7 @@ import { SqlClient } from 'effect/sql'
 
 import { isSiteConfigured } from '../src/domain/site.ts'
 import { SiteConfigQueries } from '../src/queries/site-config.ts'
+import { hash } from '../src/services/images.ts'
 import { MediaStorage, mediaKeys } from '../src/services/media-storage.ts'
 import { capture, defined, makeTestApp } from './app.ts'
 import { TEST_SITE_CONFIG } from './seed.ts'
@@ -203,6 +204,9 @@ describe('the site’s images', () => {
     expect(html).not.toMatch(/og:image/)
     expect(html).toMatch(/<meta name="twitter:card" content="summary">/)
     let icon = capture(html, /<link rel="icon" href="\/favicon\.ico\?v=([0-9a-f]{12})"/)
+    // The version is a hash of LogSpace's mark, so a new mark gets new URLs.
+    let mark = await Bun.file(`${import.meta.dir}/../src/services/default-icon.png`).bytes()
+    expect(icon).toBe(hash(mark))
     // A URL with the current version is cached for good.
     let versioned = await app.fetch(`/favicon.ico?v=${icon}`)
     expect(versioned.headers.get('Cache-Control')).toBe('public, max-age=31536000, immutable')

@@ -2,7 +2,7 @@ import type { Html } from '#jsx/jsx-runtime'
 
 import { BANNER_IMAGE_SIZES } from '../domain/constants.ts'
 import type { SiteConfig } from '../domain/site.ts'
-import { getBannerSrcset, getSiteImageHref } from '../queries/site-files.ts'
+import { getBannerSrcset, getSiteImageHref } from '../domain/site-images.ts'
 import { Feed, type FeedItem } from './feed.tsx'
 
 // The banner and introduction set at /admin/config, then the feed. Any of the banner and the
