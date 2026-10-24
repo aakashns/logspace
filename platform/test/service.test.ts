@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { installedConfigProblem, installedPathProblem, service } from '../src/cli/setup.ts'
+import { installedConfigProblem, installedPathProblem, service } from '../src/cli/deploy.ts'
 
 describe('installed service policy', () => {
   it('runs unprivileged with only state/cache writable, and keeps JIT and networking usable', () => {

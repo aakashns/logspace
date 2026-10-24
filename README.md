@@ -10,10 +10,10 @@ You need a Linux server (Ubuntu or Debian, x64 or arm64), [Caddy](https://caddys
 
 ```sh
 curl -fsSL https://logspace.app/install.sh | sh
-sudo logspace setup example.com www.example.com
+sudo logspace deploy example.com www.example.com
 ```
 
-Replace the domains with yours. Setup asks for an admin password, starts LogSpace, enables HTTPS, and redirects the second domain to the first. The installer also supports macOS for local use.
+Replace the domains with yours. Deploy asks for an admin password, starts LogSpace, enables HTTPS, and redirects the second domain to the first. The installer also supports macOS for local use.
 
 ## Publish
 
@@ -27,8 +27,7 @@ Write like a tweet, with **bold**, *italic*, and links that turn clickable on th
 
 ```sh
 sudo logspace upgrade              # Install the latest release
-sudo logspace migrate              # Then update the database
-sudo logspace setup               # Update the managed service and restart (saved domains)
+sudo logspace deploy               # Then restart with it (saved domains)
 sudo logspace set-admin-password   # Change your password
 journalctl -u logspace             # View server logs
 logspace help                      # All commands and settings
@@ -45,16 +44,16 @@ Use a fresh destination for each backup, avoid publishing or deleting posts whil
 
 ## Configuration
 
-`logspace setup` configures everything; change these only to run LogSpace another way. The server reads environment variables, which setup puts in the service and, for the secrets and port, in `/etc/logspace.env` (readable only by root).
+`logspace deploy` configures everything; change these only to run LogSpace another way. The server reads environment variables, which deploy puts in the service and, for the secrets and port, in `/etc/logspace.env` (readable only by root).
 
-| Variable              | Default           | With `setup`                   |
+| Variable              | Default           | With `deploy`                  |
 | --------------------- | ----------------- | ------------------------------ |
 | `PORT`                | `44100`           | `44100`                        |
 | `HOST`                | `::` (everywhere) | `127.0.0.1`, behind Caddy      |
 | `DATABASE_PATH`       | `data/app.sqlite` | `/var/lib/logspace/app.sqlite` |
 | `MEDIA_DIR`           | `data/media`      | `/var/lib/logspace/media`      |
 | `CACHE_DIR`           | `data/cache`      | `/var/cache/logspace`          |
-| `ADMIN_PASSWORD`      |                   | asked for by `setup`           |
+| `ADMIN_PASSWORD`      |                   | asked for by `deploy`          |
 | `AUTH_SESSION_SECRET` |                   | generated                      |
 | `TRUST_PROXY`         | off               | `1`                            |
 

@@ -1,10 +1,11 @@
 // `logspace upgrade [version] [--yes]`: replaces this binary with the latest release, or the given
-// one, from GitHub, checked against the release's SHA256SUMS. That's all it does: migrating the
-// database and restarting the server are left to `logspace migrate` and whatever runs it.
+// one, from GitHub, checked against the release's SHA256SUMS. That's all it does: restarting the
+// server, which migrates the database when it starts, is left to whatever runs it.
 import { Config, Console, Effect, FileSystem, Path } from 'effect'
 import { Prompt } from 'effect/cli'
 import { FetchHttpClient, HttpClient } from 'effect/http'
 
+import { DOMAINS_FILE } from './deploy.ts'
 import { fail, IS_BINARY, reportFailures, VERSION } from './shell.ts'
 
 // Where releases are published.
@@ -80,9 +81,10 @@ export const upgrade = Effect.fn('upgrade')(
       yield* fs.rename(tmp, binary)
     }).pipe(Effect.ensuring(fs.remove(tmp, { force: true }).pipe(Effect.orDie)))
     yield* Console.log(`Upgraded LogSpace ${VERSION} to ${version}`)
-    yield* Console.log('Run logspace migrate, then restart LogSpace to run it')
     yield* Console.log(
-      'For a service installed by setup, run sudo logspace setup to apply the current service defaults',
+      (yield* fs.exists(DOMAINS_FILE))
+        ? 'Run sudo logspace deploy to restart the service with it'
+        : 'Restart LogSpace to run it',
     )
   },
   reportFailures,

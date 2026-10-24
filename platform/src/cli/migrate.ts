@@ -1,11 +1,11 @@
 // `logspace migrate [--dry-run]`: applies the database migrations that haven't run yet, as the
 // server does when it starts, or with --dry-run, lists them. It's the database `start` would use:
-// DATABASE_PATH, else on a server `logspace setup` set up, the service's, else data/app.sqlite.
+// DATABASE_PATH, else on a server `logspace deploy` set up, the service's, else data/app.sqlite.
 import { Config, Console, Effect, FileSystem, Layer, Option } from 'effect'
 
 import { AppConfig } from '../config.ts'
 import { DatabaseLive, runMigrations } from '../services/database.ts'
-import { DOMAINS_FILE, SERVER_DATABASE_PATH } from './setup.ts'
+import { DOMAINS_FILE, SERVER_DATABASE_PATH } from './deploy.ts'
 import { fail, reportFailures } from './shell.ts'
 
 export const migrate = Effect.fn('migrate')(function* (dryRun: boolean) {

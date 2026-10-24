@@ -10,7 +10,7 @@ type Kind = 'source' | 'test' | 'config'
 
 // The first pattern a file matches says what it is.
 const KINDS: [RegExp, Kind][] = [
-  [/\.test\.tsx?$|^platform\/test\/|^platform\/scripts\/(smoke-test|setup-test)\.ts$/, 'test'],
+  [/\.test\.tsx?$|^platform\/test\/|^platform\/scripts\/(smoke-test|deploy-test)\.ts$/, 'test'],
   [/^platform\/(src\/|db\/migrations\/.*\.sql$)|^platform\/scripts\/|^install\.sh$/, 'source'],
   [/\.(json|toml)$|^\.github\/|\.gitignore$/, 'config'],
 ]

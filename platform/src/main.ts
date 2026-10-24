@@ -16,8 +16,8 @@ const start = Command.make('start', {}, () => runServer).pipe(
   Command.withDescription('Start the server (the default)'),
 )
 
-const setup = Command.make(
-  'setup',
+const deploy = Command.make(
+  'deploy',
   {
     domains: Argument.String('domain').pipe(
       Argument.variadic(),
@@ -26,8 +26,8 @@ const setup = Command.make(
   },
   ({ domains }) =>
     Effect.flatMap(
-      Effect.promise(() => import('./cli/setup.ts')),
-      (module) => module.setup(domains),
+      Effect.promise(() => import('./cli/deploy.ts')),
+      (module) => module.deploy(domains),
     ),
 ).pipe(
   Command.withDescription(
@@ -85,7 +85,7 @@ const logspace = Command.make('logspace', {}, () => runServer).pipe(
       'ADMIN_PASSWORD and AUTH_SESSION_SECRET (the admin password and the secret that signs its ' +
       'session cookie), and TRUST_PROXY=1 behind a reverse proxy.',
   ),
-  Command.withSubcommands([start, setup, setAdminPassword, migrate, upgrade]),
+  Command.withSubcommands([start, deploy, setAdminPassword, migrate, upgrade]),
 )
 
 // The old binary's spellings of help and version, which prints the version alone, for scripts.

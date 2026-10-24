@@ -13,7 +13,7 @@ const MIN_LENGTH = 16
 export const setAdminPassword = Effect.gen(function* () {
   yield* requireRoot
   if (!(yield* (yield* FileSystem.FileSystem).exists(ENV_FILE))) {
-    return yield* fail(`${ENV_FILE} isn't there. Run logspace setup first.`)
+    return yield* fail(`${ENV_FILE} isn't there. Run logspace deploy first.`)
   }
   yield* setEnvVariable('ADMIN_PASSWORD', yield* promptAdminPassword)
   yield* run('systemctl', 'restart', 'logspace')

@@ -1,4 +1,4 @@
-// The service's env file, which `logspace setup` creates: the secrets (ADMIN_PASSWORD,
+// The service's env file, which `logspace deploy` creates: the secrets (ADMIN_PASSWORD,
 // AUTH_SESSION_SECRET) and PORT, readable only by root and loaded by systemd.
 import { Effect, FileSystem } from 'effect'
 

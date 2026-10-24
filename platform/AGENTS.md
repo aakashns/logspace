@@ -14,7 +14,7 @@ bun run build && bun scripts/smoke-test.ts dist/logspace
 ## Rules
 
 - A PR that changes what goes into the binary bumps `version` in `package.json` one step (minor
-  for breaking changes to the binary's commands, environment variables, or what `setup`
+  for breaking changes to the binary's commands, environment variables, or what `deploy`
   installs; patch otherwise), and merging it releases that version. `scripts/check-version.ts`
   says what counts
 - Scripts that run on a server go in the binary as commands (servers have no Bun), except

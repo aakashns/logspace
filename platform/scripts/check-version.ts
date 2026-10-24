@@ -29,7 +29,7 @@ const BINARY = [
 // What tests the binary, which needs a build to check but not a release.
 const BINARY_TESTS = [
   'platform/scripts/smoke-test.ts',
-  'platform/scripts/setup-test.ts',
+  'platform/scripts/deploy-test.ts',
   '.github/workflows/release.yml',
 ]
 

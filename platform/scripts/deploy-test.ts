@@ -1,15 +1,15 @@
-// Checks `logspace setup` and `logspace set-admin-password` on a Linux machine with systemd and
+// Checks `logspace deploy` and `logspace set-admin-password` on a Linux machine with systemd and
 // Caddy, as a user with passwordless sudo. It sets the machine up for real, replacing Caddy's
 // config, so only run it on a throwaway one.
 //
-//   bun scripts/setup-test.ts dist/logspace
+//   bun scripts/deploy-test.ts dist/logspace
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 
 import { $ } from 'bun'
 
 if (!process.argv[2]) {
-  console.error('Usage: bun scripts/setup-test.ts <binary>')
+  console.error('Usage: bun scripts/deploy-test.ts <binary>')
   process.exit(1)
 }
 const BINARY = path.resolve(process.argv[2])
@@ -19,7 +19,7 @@ const CADDYFILE = '/etc/caddy/Caddyfile'
 // them to this machine.
 const DOMAIN = 'logspace.localhost'
 const REDIRECT = 'www.logspace.localhost'
-const PASSWORD = 'setup-test-password'
+const PASSWORD = 'deploy-test-password'
 
 function fail(message: string): never {
   console.error(`FAIL: ${message}`)
@@ -84,13 +84,13 @@ await $`sudo env DATABASE_PATH=/var/lib/logspace/app.sqlite ${INSTALLED} migrate
 await $`sudo tee /var/lib/logspace/media/legacy/kept.txt < ${new Response('existing data')}`.quiet()
 await $`sudo chmod 600 /var/lib/logspace/media/legacy/kept.txt`
 
-console.log('--- setup')
-await expectRun($`${BINARY} setup ${DOMAIN}`, 'setup as a user', 1, /Run it as root/)
-await expectRun($`sudo ${BINARY} setup`, 'setup without domains', 1, /Give the site's domain/)
-await expectRun($`sudo ${BINARY} setup ${'bad_domain!'}`, 'setup a bad domain', 1, /Not a domain/)
+console.log('--- deploy')
+await expectRun($`${BINARY} deploy ${DOMAIN}`, 'deploy as a user', 1, /Run it as root/)
+await expectRun($`sudo ${BINARY} deploy`, 'deploy without domains', 1, /Give the site's domain/)
+await expectRun($`sudo ${BINARY} deploy ${'bad_domain!'}`, 'deploy a bad domain', 1, /Not a domain/)
 let output = await expectRun(
-  $`sudo ${INSTALLED} setup ${DOMAIN} ${REDIRECT} < /dev/null`,
-  `setup ${DOMAIN} ${REDIRECT}`,
+  $`sudo ${INSTALLED} deploy ${DOMAIN} ${REDIRECT} < /dev/null`,
+  `deploy ${DOMAIN} ${REDIRECT}`,
   0,
   /Set the password for \/admin with/,
 )
@@ -178,7 +178,7 @@ await expectHttps(
   `303 https://${DOMAIN}/admin/config`,
   ...auth,
   '-F',
-  'siteTitle=Setup test',
+  'siteTitle=Deploy test',
   '-F',
   `siteUrl=https://${DOMAIN}`,
   '-F',
@@ -237,9 +237,9 @@ await expectHttps(
 )
 await expectHttps(`https://${DOMAIN}/admin`, `302 https://${DOMAIN}/admin/login`, ...auth)
 
-console.log('--- setup again, on another port')
+console.log('--- deploy again, on another port')
 await $`sudo sed -i ${'s/^PORT=.*/PORT=44105/'} /etc/logspace.env`
-output = await expectRun($`sudo ${INSTALLED} setup`, 'setup with the saved domains', 0, /Done/)
+output = await expectRun($`sudo ${INSTALLED} deploy`, 'deploy with the saved domains', 0, /Done/)
 if (output.includes('set-admin-password')) fail('it lost the admin password')
 caddyfile = fs.readFileSync(CADDYFILE, 'utf8')
 let siteBlocks = caddyfile.split('\n').filter((line) => line === `${DOMAIN} {`)
@@ -256,9 +256,14 @@ await expectHttps(`https://${DOMAIN}/site/icon-512.png`, '200')
 console.log('--- refuse incompatible existing environment without replacing the service')
 let previousUnit = fs.readFileSync('/etc/systemd/system/logspace.service', 'utf8')
 await $`sudo tee -a /etc/logspace.env < ${new Response('HOST=0.0.0.0\n')}`.quiet()
-await expectRun($`sudo ${INSTALLED} setup`, 'unsafe listener override', 1, /HOST must be 127.0.0.1/)
+await expectRun(
+  $`sudo ${INSTALLED} deploy`,
+  'unsafe listener override',
+  1,
+  /HOST must be 127.0.0.1/,
+)
 if (fs.readFileSync('/etc/systemd/system/logspace.service', 'utf8') !== previousUnit)
-  fail('unsafe setup changed the unit')
+  fail('unsafe deploy changed the unit')
 await $`sudo sed -i '/^HOST=/d' /etc/logspace.env`
 await expectHttps(`https://${DOMAIN}/posts/setup00001/cover.jpg`, '200')
 
@@ -266,7 +271,7 @@ console.log('--- a block that mixes the domains with others')
 let mixedBlock = `\n${REDIRECT}, mixed.localhost {\n}\n`
 await $`sudo tee -a ${CADDYFILE} < ${new Response(mixedBlock)}`.quiet()
 let mixed = fs.readFileSync(CADDYFILE, 'utf8')
-await expectRun($`sudo ${INSTALLED} setup`, 'setup', 1, /edit it by hand/)
+await expectRun($`sudo ${INSTALLED} deploy`, 'deploy', 1, /edit it by hand/)
 if (fs.readFileSync(CADDYFILE, 'utf8') !== mixed) fail('it changed the Caddyfile')
 
 console.log('All good')
