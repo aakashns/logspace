@@ -8,11 +8,21 @@ const photo = fileURLToPath(new URL('../test/content/posts/drdp3ei6fd/hike-1.jpg
 // the entire response, so use a streaming reader for this never-ending endpoint.
 async function initialEvent(route: Route) {
   const controller = new AbortController()
-  const response = await fetch(route.request().url(), {
-    headers: route.request().headers(),
+  const url = route.request().url()
+  // WebKit's intercepted request does not expose its session cookie. Forward the cookies
+  // applicable to this fixture URL from the authenticated browser context instead.
+  const cookies = await route.request().frame().page().context().cookies(url)
+  const response = await fetch(url, {
+    headers: {
+      ...(await route.request().allHeaders()),
+      cookie: cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join('; '),
+    },
     signal: controller.signal,
   })
-  if (!response.body) throw new Error('Missing stream body')
+  if (!response.body || !response.headers.get('content-type')?.includes('text/event-stream'))
+    throw new Error(
+      `Expected a stream, received ${response.status} ${response.headers.get('content-type')} at ${response.url}`,
+    )
   const reader = response.body.getReader()
   const decoder = new TextDecoder()
   let body = ''

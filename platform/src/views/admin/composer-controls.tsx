@@ -281,12 +281,15 @@ export function SavedDefaults(props: { id: string; values: Record<string, string
 // Only a reconnect retries broken images, once per element/source. Ordinary remote edits
 // must not repeatedly request permanently missing article images. Uploads and publishing need
 // an explicit retry: their response may have been lost after committing the mutation.
+// Remove sources first for WebKit, then restore their raw attributes so the next morph doesn't
+// reload them merely because a relative src became an absolute URL.
 const RECOVER =
   "const form = document.querySelector('#composer-page form'); " +
   "if ($_reconnecting) document.querySelectorAll('#composer-page img').forEach((img) => { " +
   'const source = img.src + img.srcset; if (img.complete && !img.naturalWidth && $_imageRetries.get(img) !== source) { ' +
-  "$_imageRetries.set(img, source); if (img.hasAttribute('srcset')) img.setAttribute('srcset', img.getAttribute('srcset')); " +
-  "if (img.hasAttribute('src')) img.setAttribute('src', img.getAttribute('src')); } }); " +
+  "$_imageRetries.set(img, source); const src = img.getAttribute('src'), srcset = img.getAttribute('srcset'); " +
+  "img.removeAttribute('srcset'); img.removeAttribute('src'); " +
+  "if (srcset !== null) img.setAttribute('srcset', srcset); if (src !== null) img.setAttribute('src', src); } }); " +
   '$_reconnecting = false; ' +
   "if ($_previewError && !$_posting && !$_uploading) form.elements.namedItem('caption').dispatchEvent(new Event('input')); "
 
