@@ -9,5 +9,6 @@
 @import './theme.css';
 @import './layout.css';
 @import './controls.css';
-@import '../posts/components/post.css';
-@import '../posts/pages/components/pages.css';
+@import './post.css';
+@import '../routes/index/page.css';
+@import '../routes/post/page.css';

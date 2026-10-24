@@ -5,11 +5,11 @@ import * as path from 'node:path'
 import { Effect, Schema } from 'effect'
 import { SqlClient } from 'effect/sql'
 
-import { makePostFiles } from '../src/posts/files.ts'
-import { isPostFileName, isPostId, PostRecord } from '../src/posts/post.ts'
-import { toPostRow } from '../src/posts/rows.ts'
-import { SiteConfigCommands } from '../src/site/commands.ts'
-import type { SiteText } from '../src/site/site.ts'
+import { makePostFiles } from '../src/data/posts/files.ts'
+import { isPostFileName, isPostId, PostRecord } from '../src/data/posts/post.ts'
+import { toPostRow } from '../src/data/posts/rows.ts'
+import { SiteConfigCommands } from '../src/data/site/commands.ts'
+import type { SiteText } from '../src/data/site/site.ts'
 import testPosts from './content/posts.json'
 
 export const TEST_CONTENT_DIR = path.join(import.meta.dir, 'content')

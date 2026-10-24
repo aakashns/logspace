@@ -2,7 +2,7 @@
 // resized copies under variants/<id>/<file>/<width>-<version>.webp, the site's logos, icon, and
 // banner image under site/<file>, the banner's resized copies under site-variants/<file>/, and
 // link previews' images under link-images/<version>-<width>.webp. Keys are always built from a
-// checked post id and file name (see isPostFileName in ../posts/post.ts), a site image's file
+// checked post id and file name (see isPostFileName in ../data/posts/post.ts), a site image's file
 // name, or a checked link image name, so none can point outside its folder.
 //
 // The fs backend keeps each key as a file of that name under MEDIA_DIR, written with Bun's file
@@ -16,21 +16,21 @@ import * as fsp from 'node:fs/promises'
 import * as path from 'node:path'
 import { Clock, Context, Effect, Layer, Predicate } from 'effect'
 
-import { AppConfig } from '../config.ts'
-import { mimeType } from '../posts/post.ts'
+import { mimeType } from '../data/posts/post.ts'
+import { AppConfig } from './config.ts'
 
 // Where each kind of file is kept.
 export const mediaKeys = {
   postFile: (id: string, name: string) => `posts/${id}/${name}`,
   postFiles: (id: string) => `posts/${id}/`,
-  // A post's file's resized copies, each <width>-<version>.webp (see ../posts/media.ts).
+  // A post's file's resized copies, each <width>-<version>.webp (see ../data/posts/media.ts).
   variants: (id: string, name: string) => `variants/${id}/${name}/`,
   postVariants: (id: string) => `variants/${id}/`,
   siteFile: (name: string, generation?: string) =>
     generation ? `site/generations/${generation}/${name}` : `site/${name}`,
-  // The banner image's resized copies, each <width>-<version>.webp (see ../site/files.ts).
+  // The banner image's resized copies, each <width>-<version>.webp (see ../data/site/files.ts).
   siteVariants: (name: string) => `site-variants/${name}/`,
-  // A link preview's image, resized (see ../posts/link-previews/link-previews.ts).
+  // A link preview's image, resized (see ../data/link-previews/link-previews.ts).
   linkImage: (name: string) => `link-images/${name}`,
 }
 

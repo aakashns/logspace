@@ -8,9 +8,9 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 import { Effect, Layer, Redacted } from 'effect'
 
-import { AppConfig } from '../src/config.ts'
+import { SiteConfigCommands } from '../src/data/site/commands.ts'
+import { AppConfig } from '../src/lib/config.ts'
 import { AppLive } from '../src/server.ts'
-import { SiteConfigCommands } from '../src/site/commands.ts'
 import { seedDatabase, seedMedia, TEST_SITE_CONFIG } from '../test/seed.ts'
 
 const root = path.join(import.meta.dir, '..')

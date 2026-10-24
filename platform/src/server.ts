@@ -6,23 +6,30 @@ import { Effect, Layer } from 'effect'
 import { HttpRouter } from 'effect/http'
 import { SqlClient } from 'effect/sql'
 
-import { AdminRoutes } from './admin/handlers.tsx'
-import { AdminAuth } from './admin/session.ts'
-import { AppConfig } from './config.ts'
-import { AssetRoutes, Assets } from './http/assets.ts'
-import { AppMiddleware } from './http/middleware.ts'
+import { LinkPreviews } from './data/link-previews/link-previews.ts'
+import { PostCommands } from './data/posts/commands.ts'
+import { PostMedia } from './data/posts/media.ts'
+import { PostQueries } from './data/posts/queries.ts'
+import { SiteConfigCommands } from './data/site/commands.ts'
+import { SiteConfigQueries } from './data/site/queries.ts'
+import { AppConfig } from './lib/config.ts'
 import { DatabaseLive, runMigrations } from './lib/database.ts'
+import { Assets } from './lib/http/assets.ts'
+import { AppMiddleware } from './lib/http/middleware.ts'
+import { AdminAuth } from './lib/http/session.ts'
 import { Images } from './lib/images.ts'
 import { MediaStorage } from './lib/media-storage.ts'
 import { PublicHttpLive, PublicNetwork } from './lib/public-http.ts'
-import { PostCommands } from './posts/commands.ts'
-import { PostRoutes } from './posts/handlers.ts'
-import { LinkPreviews } from './posts/link-previews/link-previews.ts'
-import { PostMedia } from './posts/media.ts'
-import { PostQueries } from './posts/queries.ts'
-import { SiteConfigCommands } from './site/commands.ts'
-import { SiteRoutes } from './site/handlers.ts'
-import { SiteConfigQueries } from './site/queries.ts'
+import { ComposeRoutes } from './routes/admin/compose/handler.tsx'
+import { ConfigRoutes } from './routes/admin/config/handler.tsx'
+import { AdminIndexRoutes } from './routes/admin/index/handler.tsx'
+import { LoginRoutes } from './routes/admin/login/handler.tsx'
+import { AssetRoutes } from './routes/assets/handler.ts'
+import { FeedRoutes } from './routes/feeds/handler.ts'
+import { IndexRoutes } from './routes/index/handler.tsx'
+import { LinkImageRoutes } from './routes/link-images/handler.ts'
+import { PostRoutes } from './routes/post/handler.tsx'
+import { SiteFileRoutes } from './routes/site-files/handler.ts'
 
 // No consumer gets the connection until its schema is ready. The migrate CLI uses DatabaseLive
 // directly so a dry run doesn't apply migrations.
@@ -74,10 +81,16 @@ export const ROUTER_CONFIG = { ignoreTrailingSlash: false }
 
 // ServerLive serves these routes; tests drive them through an in-memory web handler.
 export const AppRoutes = Layer.mergeAll(
+  IndexRoutes,
   PostRoutes,
-  SiteRoutes,
-  AdminRoutes,
+  FeedRoutes,
+  SiteFileRoutes,
+  LinkImageRoutes,
   AssetRoutes,
+  LoginRoutes,
+  AdminIndexRoutes,
+  ComposeRoutes,
+  ConfigRoutes,
   AppMiddleware,
 )
 

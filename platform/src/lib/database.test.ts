@@ -7,7 +7,7 @@ import { Effect, Layer, Redacted, Schema } from 'effect'
 import { SqlClient } from 'effect/sql'
 
 import { makeTestApp, TEST_CONFIG } from '../../test/app.ts'
-import { AppConfig } from '../config.ts'
+import { AppConfig } from './config.ts'
 import { DatabaseLive, runMigrations } from './database.ts'
 
 const migrate = (databasePath: string, dryRun = false) =>

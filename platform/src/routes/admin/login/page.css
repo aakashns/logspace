@@ -1,0 +1,16 @@
+/*
+ * The login form (see page.tsx).
+ */
+@layer components {
+  .login-form {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+    max-width: 20rem;
+
+    & button {
+      margin-top: 0.5rem;
+    }
+  }
+}

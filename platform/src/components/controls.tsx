@@ -1,11 +1,11 @@
 // The buttons in the navbar and on posts. The only script on any page is Datastar, and these (and
-// the composer, in admin/compose.tsx) are what it runs: each expression below is a constant
+// the composer, in ../routes/admin/compose/page.tsx) are what it runs: each expression below is a constant
 // string, so nothing a user typed can end up in one. Values they need (like the link to share)
 // are passed in data-* attributes and read with `el.dataset`. Until Datastar loads, after the
 // page does, they do nothing.
 import type { Child, Html } from '#jsx/jsx-runtime'
 
-import { routes } from '../routes.ts'
+import { urls } from '../lib/urls.ts'
 import {
   CheckIcon,
   ComposeIcon,
@@ -71,7 +71,7 @@ export function ThemeToggle(): Html {
 export function RssLink(): Html {
   return (
     <Tooltip label="RSS feed">
-      <a href={routes.rss()} aria-label="RSS feed" class="nav-button">
+      <a href={urls.rss()} aria-label="RSS feed" class="nav-button">
         <RssIcon />
       </a>
     </Tooltip>
@@ -82,7 +82,7 @@ export function RssLink(): Html {
 export function ComposeLink(): Html {
   return (
     <Tooltip label="New Post">
-      <a href={routes.admin.newPost()} aria-label="New Post" class="nav-button">
+      <a href={urls.admin.newPost()} aria-label="New Post" class="nav-button">
         <ComposeIcon />
       </a>
     </Tooltip>
@@ -92,7 +92,7 @@ export function ComposeLink(): Html {
 // Ends the admin session.
 export function LogoutButton(): Html {
   return (
-    <form method="post" action={routes.admin.logout()}>
+    <form method="post" action={urls.admin.logout()}>
       <Tooltip label="Log out">
         <button type="submit" aria-label="Log out" class="nav-button">
           <LogoutIcon />

@@ -19,7 +19,7 @@ import protectContentAccess from '../../db/migrations/0007_protect_content_acces
 import dropDrafts from '../../db/migrations/0008_drop_drafts.sql' with { type: 'text' }
 import datesInUtc from '../../db/migrations/0009_dates_in_utc.sql' with { type: 'text' }
 import dropArticles from '../../db/migrations/0010_drop_articles.sql' with { type: 'text' }
-import { AppConfig } from '../config.ts'
+import { AppConfig } from './config.ts'
 
 const MIGRATIONS = [
   { id: '0001', name: 'create_posts', sql: createPosts },

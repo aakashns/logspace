@@ -2,10 +2,10 @@
 // stylesheet) and the navbar around its content.
 import { raw, type Child, type Html } from '#jsx/jsx-runtime'
 
-import type { PageMeta, PreloadImage } from '../posts/presentation.ts'
-import { routes } from '../routes.ts'
-import { getIconHref, getSiteImageHref } from '../site/site-images.ts'
-import { isSiteConfigured, type SavedSiteConfig, type SiteConfig } from '../site/site.ts'
+import type { PageMeta, PreloadImage } from '../data/posts/presentation.ts'
+import { getIconHref, getSiteImageHref } from '../data/site/site-images.ts'
+import { isSiteConfigured, type SavedSiteConfig, type SiteConfig } from '../data/site/site.ts'
+import { urls } from '../lib/urls.ts'
 import { ComposeLink, RssLink, ThemeToggle } from './controls.tsx'
 import { SiteLogo } from './site-logo.tsx'
 import type { Stylesheets } from './stylesheet.ts'
@@ -13,7 +13,7 @@ import type { Stylesheets } from './stylesheet.ts'
 // The app's name, which pages show as the site's title until the site has one.
 const APP_NAME = 'LogSpace'
 
-// What every page needs to know about the request it's for (see http/pages.ts).
+// What every page needs to know about the request it's for (see ../lib/http/pages.ts).
 export interface PageContext {
   readonly site: SavedSiteConfig
   // The user's saved theme; undefined follows the system preference.
@@ -22,7 +22,7 @@ export interface PageContext {
   // link to the composer).
   readonly admin?: boolean | undefined
   // The Content-Security-Policy nonce for this response, which Datastar runs its expressions
-  // with (see ../http/pages.ts).
+  // with (see ../lib/http/pages.ts).
   readonly nonce: string
   readonly stylesheets: Stylesheets
   // Where Datastar is served, with its hash in the name.
@@ -95,13 +95,13 @@ export function Document(props: DocumentProps): Html {
               sizes="192x192"
             />
             <link rel="apple-touch-icon" href={getIconHref(site, 'apple-touch-icon.png')} />
-            <link rel="manifest" href={routes.manifest()} />
+            <link rel="manifest" href={urls.manifest()} />
             {configured ? (
               <link
                 rel="alternate"
                 type="application/rss+xml"
                 title={site.siteTitle}
-                href={site.siteUrl + routes.rss()}
+                href={site.siteUrl + urls.rss()}
               />
             ) : null}
             <style>{raw(page.stylesheets.site)}</style>
@@ -132,7 +132,7 @@ export function Document(props: DocumentProps): Html {
           <body data-signals="{_shared: ''}">
             <header class="navbar">
               <div class="navbar-content">
-                <a href={routes.home()} class="navbar-title">
+                <a href={urls.home()} class="navbar-title">
                   <SiteLogo site={site} height="1.2rem" />
                 </a>
                 <div class="nav-actions">

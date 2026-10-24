@@ -20,7 +20,7 @@ const KINDS: [RegExp, Kind][] = [
 const SKIPPED = /\.lock$|\/test\/content\/|\.woff2$|datastar\.js$/
 
 let verbose = process.argv[2] === '-v'
-let root = fileURLToPath(new URL('../../', import.meta.url))
+let root = fileURLToPath(new URL('../..', import.meta.url))
 let files = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard'], {
   cwd: root,
   encoding: 'utf8',

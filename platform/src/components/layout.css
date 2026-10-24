@@ -1,5 +1,5 @@
 /*
- * The page around every page's content (see ../document.tsx and ../controls.tsx): the navbar,
+ * The page around every page's content (see document.tsx and controls.tsx): the navbar,
  * its buttons and their tooltips, and the content column.
  */
 @layer components {

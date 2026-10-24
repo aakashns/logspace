@@ -34,7 +34,7 @@ bun run test:browser   # the composer in Chromium and WebKit; CI doesn't run the
 bun run build && bun scripts/smoke-test.ts dist/logspace   # if the build changed
 ```
 
-Tests use temporary data. [platform/AGENTS.md](platform/AGENTS.md) has the conventions, `platform/src/posts/post.ts` the post format, and [the tour below](#platform-code) how the app fits together.
+Tests use temporary data. [platform/AGENTS.md](platform/AGENTS.md) has the conventions, `platform/src/data/posts/post.ts` the post format, and [the tour below](#platform-code) how the app fits together.
 
 ## Pull requests
 
@@ -53,8 +53,8 @@ The platform (the app, in `platform/`) is built with:
   for the theme toggle, share buttons, and the admin composer.
 - **A tiny JSX runtime** (`src/lib/jsx`, about 110 lines) that renders TSX straight to HTML strings: no
   virtual DOM, no hydration.
-- **CQRS**: writes go through each feature's `commands.ts`, and reads through its `queries.ts`,
-  which query the database on every request.
+- **CQRS**: writes go through `commands.ts`, and reads through `queries.ts`, in `src/data/`, which
+  query the database on every request.
 
 ### A tour of the code
 
@@ -68,140 +68,125 @@ and write locks. `MigratedDatabase` runs migrations before exposing SQL; the mig
 uses the raw connection so it can do a dry run.
 
 `AppServices` takes `AppConfig` and `PublicNetwork`, so tests can control both. `AppLive` supplies
-the normal network implementation for servers and scripts. The routes are each feature's
-(`PostRoutes`, `SiteRoutes`, `AdminRoutes`, `AssetRoutes`) and `AppMiddleware`. `provideMerge` is used only where the dependency must also
+the normal network implementation for servers and scripts. `AppRoutes` merges every route's
+table (`IndexRoutes`, `PostRoutes`, …) with `AppMiddleware`. `provideMerge` is used only where the dependency must also
 remain available to the caller.
 
 `ServerLive` serves the routes on `AppConfig`'s port with Bun's HTTP listener; the CLI and the
 browser tests use it. `src/entry.ts` is the binary's command line (`start` by default, and
 `deploy`, `migrate`, `set-admin-password`, `upgrade`, `version`, `help`).
 
-#### 2. The layout: a folder for each feature, each the same shape
+#### 2. The layout: routes, data, components, and lib
 
 ```
 src/
-  entry.ts  server.ts  config.ts  routes.ts   the root: the CLI, the wiring, settings, and URLs
-  components/     the page shell every page uses, and the CSS every page loads
-  http/           what every route shares: pages, forms, responses, middleware, assets
-  lib/            no product in it: the database, media storage, images, the network, JSX
-  posts/          posts; pages/, feeds/, link-previews/, composer/, and manage/ inside
-  site/           the site's settings and files; config/ is /admin/config
-  admin/          logging in, sessions, and the layout of the pages under /admin
-  cli/            the binary's commands other than start
+  entry.ts  server.ts   the command line, and the wiring
+  routes/               a folder for each URL; the tree mirrors the site
+  data/                 a folder for each thing the app stores
+  components/           what several routes' pages share, and the CSS every page loads
+  lib/                  what everything shares: config, URLs, the database, storage, images, HTTP
+  cli/                  the binary's commands other than start
 ```
 
-A feature folder holds the same kinds of files, told apart by name:
+Two questions find any code: which URL is it, and what does it store? Routes use data and
+components; data never uses routes or components; and pages only render what they're given. Lint
+(`.oxlintrc.json`) holds each part of `src/` to that. Code used by one route lives in that route's
+folder.
 
-| File           | Holds                                                                                                     |
-| -------------- | --------------------------------------------------------------------------------------------------------- |
-| the model      | What things are, pure (like `posts/post.ts`): no database, files, HTTP, or pages                          |
-| `queries.ts`   | Reads                                                                                                     |
-| `commands.ts`  | Writes, and the typed errors they fail with                                                               |
-| `handlers.tsx` | The feature's routes, with its route table at the bottom. A feature's `handlers.ts` merges its children's |
-| `components/`  | Its pages and parts of pages (TSX), with the CSS for them beside them                                     |
-| `*.test.ts`    | Its tests, beside what they test                                                                          |
+`lib/urls.ts` builds every URL the app links to.
 
-Code lives in the closest folder that holds everything that uses it, so a helper only the composer
-uses is in `posts/composer/`, and one posts and the site both use is at the root. A folder's own
-files are what other features use; its subfolders are its own. Lint (`.oxlintrc.json`) keeps the
-kinds apart, by name wherever they are: the model imports none of the others, reads never import
-writes, writes and `lib/` know nothing of requests or pages, components only render what they're
-given, and public pages and routes never import the admin's.
+#### 3. Routes: `routes/`
 
-`src/routes.ts` builds every URL the app links to.
+| Folder           | URLs                                                                         |
+| ---------------- | ---------------------------------------------------------------------------- |
+| `index/`         | `/`, the home page                                                           |
+| `post/`          | `/posts/<id>`, and its files at `/posts/<id>/<file>`                         |
+| `feeds/`         | `/sitemap.xml`, `/robots.txt`, `/rss.xml`                                    |
+| `site-files/`    | `/site.webmanifest`, `/favicon.ico`, `/apple-touch-icon.png`, `/site/<file>` |
+| `link-images/`   | `/link-images/<file>`, link previews' images                                 |
+| `assets/`        | `/assets/<file>`, `/fonts/<file>`: Datastar and the fonts                    |
+| `admin/login/`   | `/admin/login`, `/admin/logout`                                              |
+| `admin/index/`   | `/admin`, the list of posts                                                  |
+| `admin/compose/` | `/admin/posts/new`, `/admin/posts/<id>/edit`, and what the composer posts to |
+| `admin/config/`  | `/admin/config`, the site's settings                                         |
 
-#### 3. What everything shares: `lib/`, `http/`, and `components/`
-
-Shared resources are Effect services (`Context.Service`) with a `layer` that builds them.
-Database migrations are an Effect function, `runMigrations`, used by startup and the CLI.
-
-| `lib/`                         | Does                                                                                                                                                                                                          |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `database.ts`                  | The SQLite connection (`@effect/sql-sqlite-bun`, in WAL mode) and the migrations, which write the same journal LogSpace 0.1 (the Remix version) did, so its databases upgrade in place                        |
-| `media-storage.ts`             | Uploaded files as plain files under `MEDIA_DIR` (`posts/<id>/<file>`, `variants/…`, `site/…`, `link-images/…`), written atomically with `Bun.write` and served straight from disk; or in memory for the tests |
-| `images.ts`                    | Everything Bun.Image does: reading and resizing photos, and making the logos, icons, and banner image                                                                                                         |
-| `public-http.ts`               | Fetching other sites, only at public addresses on standard ports                                                                                                                                              |
-| `image-widths.ts`, `issues.ts` | The widths photos are resized to, and `{ field, message }` issues for forms                                                                                                                                   |
-
-A handler reads the request, calls queries or one command, and picks a response.
-`http/middleware.ts` wraps every request, in this order: the proxy's forwarded host, the
-cross-origin form check, the gate that keeps an unconfigured site private, then the handler, with
-404s, 500s, and security headers.
-
-| `http/`        | Does                                                                                               |
-| -------------- | -------------------------------------------------------------------------------------------------- |
-| `pages.ts`     | What a page needs from the request (`PageContext`), and its response with a per-response CSP nonce |
-| `forms.ts`     | Reading a form within the upload limits (`UploadTooLarge` → the 413 page)                          |
-| `responses.ts` | Files with ranges, ETags, and caching; redirects                                                   |
-| `forwarded.ts` | The protocol and host behind Caddy (`TRUST_PROXY=1`)                                               |
-| `assets.ts`    | Datastar, fonts, and the stylesheets, embedded in the binary                                       |
-
-Components are plain functions from props to `Html`. `lib/jsx/jsx-runtime.ts` escapes every
-string and attribute; the only way to write markup unescaped is `raw()`, which is used only for
-HTML the app renders itself (captions, the stylesheet, JSON-LD). Start with
-`components/document.tsx`, the `<html>` around every page. CSS is plain CSS beside the components
-it styles; `components/stylesheet.ts` joins what `components/site.css` imports, minifies it, and
-inlines it into each page. The pages under `/admin` add what `components/admin.css` imports.
+Each has the same files: `handler.tsx`, its handlers with its route table at the bottom;
+`page.tsx` and `page.css`, what it shows; and its tests. `admin/admin.tsx` and `admin/layout.tsx`
+are what every page under `/admin` shares: the login check, and the layout. A handler reads the
+request, calls queries or one command, and picks a response.
 
 **Datastar** runs the theme toggle (`data-on:click`) and share buttons (`data-on:click`,
-`data-class`, `data-attr`, one `_shared` signal) in `components/controls.tsx`, and the composer
-(below). Every expression is a one-line constant string. Values like the URL to share are passed
-in `data-*` attributes and read with `el.dataset`, so nothing a user typed can end up in an
-expression. Everything else works without JavaScript: navigation is links, forms are forms, and
-the delete dialog uses `command`/`commandfor`.
+`data-class`, `data-attr`, one `_shared` signal) in `components/controls.tsx`, and the composer in
+`admin/compose/`: its file inputs and remove buttons post the form for its media
+(`data-on:change`, with `data-indicator:_uploading`), and typing posts it for the preview
+(`data-on:input__throttle.100ms.trailing`); the server answers with HTML for those parts. The
+composer keeps nothing on the server until it's posted, which is a plain form submission, read
+into a post by `form.ts`. Every expression is a one-line constant string. Values like the URL to
+share are passed in `data-*` attributes and read with `el.dataset`, so nothing a user typed can
+end up in an expression. Everything else works without JavaScript: navigation is links, forms are
+forms, and the delete dialog uses `command`/`commandfor`.
 
-#### 4. Posts: `posts/`
+#### 4. Data: `data/`
 
-| File              | What it holds                                                                                                                                           |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `post.ts`         | What a post is (`PostRecord`, an Effect `Schema`), and the checks a post passes before it's saved, reported as `{ field, message }` issues for the form |
-| `rows.ts`         | How a post maps to a row of the `posts` table                                                                                                           |
-| `presentation.ts` | Posts as pages show them: media URLs, image sizes, `srcset`s, captions rendered to HTML, link previews, and page metadata                               |
-| `caption.ts`      | Captions: paragraphs, line breaks, **bold**, _italic_, and URLs as links, and the first URL for its preview                                             |
-| `format.ts`       | Dates and sizes                                                                                                                                         |
-| `queries.ts`      | `PostQueries`: posts and their images' sizes, presented                                                                                                 |
-| `commands.ts`     | `PostCommands` (below), and `PostRejected` (with the issues to show) and `PostNotFound`                                                                 |
-| `files.ts`        | `makePostFiles`: stateless upload and removal helpers, also used by test seeding                                                                        |
-| `media.ts`        | `PostMedia`: a post's files, and its resized photos, made on first request and stored. Concurrent requests for one share a single resize                |
-| `components/`     | A post, as the feed, its page, and the composer's preview show it                                                                                       |
+Each folder has what a thing is (pure: no database, files, HTTP, or pages), its reads
+(`queries.ts`), and its writes (`commands.ts`), which fail with typed errors. Every read queries
+the database, and nothing is kept between requests, so an edit made in the database directly
+(like with `sqlite3`) shows up on the next request. Storage and database failures are defects (a
+500, logged), as they're not something a user can fix.
+
+| File                    | What it holds                                                                                                                                           |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `posts/post.ts`         | What a post is (`PostRecord`, an Effect `Schema`), and the checks a post passes before it's saved, reported as `{ field, message }` issues for the form |
+| `posts/rows.ts`         | How a post maps to a row of the `posts` table                                                                                                           |
+| `posts/presentation.ts` | Posts as pages show them: media URLs, image sizes, `srcset`s, captions rendered to HTML, link previews, and page metadata                               |
+| `posts/caption.ts`      | Captions: paragraphs, line breaks, **bold**, _italic_, and URLs as links, and the first URL for its preview                                             |
+| `posts/queries.ts`      | `PostQueries`: posts and their images' sizes, presented                                                                                                 |
+| `posts/commands.ts`     | `PostCommands` (below), `PostRejected` (with the issues to show), and `PostNotFound`                                                                    |
+| `posts/media.ts`        | `PostMedia`: a post's files, and its resized photos, made on first request and stored; concurrent requests for one share a single resize                |
+| `posts/files.ts`        | `makePostFiles`: stateless upload and removal helpers, also used by test seeding                                                                        |
+| `site/site.ts`          | The site's settings, and their checks                                                                                                                   |
+| `site/site-images.ts`   | The URLs pages link the site's icon, logos, and banner image with                                                                                       |
+| `site/queries.ts`       | `SiteConfigQueries`, and `configuredSite` for what's only served once the settings are saved                                                            |
+| `site/commands.ts`      | `SiteConfigCommands`: saving `/admin/config`, turning uploads into the site's image files, or `SiteConfigRejected`                                      |
+| `site/files.ts`         | The site's image files, from storage, or the default icons that `Images` caches                                                                         |
+| `link-previews/`        | `LinkPreviews` fetches previews in the background, never on a page's time, and saves each one's image as resized WebP copies                            |
 
 `PostCommands` has `save`, which publishes a post or saves an edit of one, `delete`, and the
 composer's `upload`, which saves a post's files as they're chosen. Uploads are saved before the
 post is checked, so a rejected form doesn't need its files chosen again, and a chosen file never
 takes the name of one the post has, so nothing published changes until the post is saved.
-Saving, or closing the composer (`discard`), removes the post's files it doesn't name. Storage and
-database failures are defects (a 500, logged), as they're not something a user can fix.
+Saving, or closing the composer (`discard`), removes the post's files it doesn't name.
 
-Every read queries the database, and nothing is kept between requests, so an edit made in the
-database directly (like with `sqlite3`) shows up on the next request.
+#### 5. Components: `components/`
 
-- `pages/`: the home page, a post's page, and its files.
-- `feeds/`: `sitemap.xml` and `rss.xml`.
-- `link-previews/`: `LinkPreviews` fetches link previews in the background, never on a page's
-  time, and saves each one's image as resized WebP copies, so cards load from the site itself, at
-  the size they're shown.
-- `composer/`: writing and editing posts, at `/admin/posts/new` and `/admin/posts/<id>/edit`.
-  `compose.ts` reads its form into a post and its uploads. Its file inputs and remove buttons post
-  the form for its media (`data-on:change`, with `data-indicator:_uploading`), and typing posts it
-  for the preview (`data-on:input__throttle.100ms.trailing`); the server answers with HTML for
-  those parts. It keeps nothing on the server until it's posted, which is a plain form submission.
-- `manage/`: the list of posts at `/admin`.
+Components are plain functions from props to `Html`. `lib/jsx/jsx-runtime.ts` escapes every
+string and attribute; the only way to write markup unescaped is `raw()`, which is used only for
+HTML the app renders itself (captions, the stylesheet, JSON-LD). Start with `document.tsx`, the
+`<html>` around every page; `post.tsx` is a post, as the home page, its own page, and the
+composer's preview show it. CSS is plain CSS beside what it styles. `stylesheet.ts` joins what
+`site.css` imports, minifies it, and inlines it into each page; the pages under `/admin` add what
+`admin.css` imports.
 
-#### 5. The site: `site/`
+#### 6. Lib: `lib/`
 
-`site.ts` holds the site's settings and their checks, and `site-images.ts` the URLs pages link the
-site's icon, logos, and banner image with. `SiteConfigQueries` (`queries.ts`) reads the settings,
-and `configuredSite` fails for what's only served once they're saved. `files.ts` has stateless
-Effect functions for the site's image files, whose dependencies are storage and `Images`, which
-owns the cached default icons. `SiteConfigCommands` (`commands.ts`) saves `/admin/config`,
-turning uploads into the site's image files, or fails with `SiteConfigRejected`. `handlers.ts`
-serves `robots.txt`, the web app manifest, and the site's images; `config/` is `/admin/config`.
+Shared resources are Effect services (`Context.Service`) with a `layer` that builds them.
+Database migrations are an Effect function, `runMigrations`, used by startup and the CLI.
 
-#### 6. Admin: `admin/`
-
-`session.ts` is the admin password check and the signed session cookie (`AdminAuth`), and
-`handlers.tsx` logging in and out. `pages.tsx` is what every page under `/admin` shares: its
-layout and the login check, which the composer, `/admin`, and `/admin/config` use.
+| File                 | Does                                                                                                                                                                                                          |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `config.ts`          | `AppConfig`, from environment variables                                                                                                                                                                       |
+| `urls.ts`            | Every URL the app links to                                                                                                                                                                                    |
+| `database.ts`        | The SQLite connection (`@effect/sql-sqlite-bun`, in WAL mode) and the migrations, which write the same journal LogSpace 0.1 (the Remix version) did, so its databases upgrade in place                        |
+| `media-storage.ts`   | Uploaded files as plain files under `MEDIA_DIR` (`posts/<id>/<file>`, `variants/…`, `site/…`, `link-images/…`), written atomically with `Bun.write` and served straight from disk; or in memory for the tests |
+| `images.ts`          | Everything Bun.Image does: reading and resizing photos, and making the logos, icons, and banner image                                                                                                         |
+| `public-http.ts`     | Fetching other sites, only at public addresses on standard ports                                                                                                                                              |
+| `http/pages.ts`      | What a page needs from the request (`PageContext`), and its response with a per-response CSP nonce                                                                                                            |
+| `http/session.ts`    | The admin password check and the signed session cookie (`AdminAuth`)                                                                                                                                          |
+| `http/forms.ts`      | Reading a form within the upload limits (`UploadTooLarge` → the 413 page)                                                                                                                                     |
+| `http/responses.ts`  | Files with ranges, ETags, and caching; redirects                                                                                                                                                              |
+| `http/forwarded.ts`  | The protocol and host behind Caddy (`TRUST_PROXY=1`)                                                                                                                                                          |
+| `http/assets.ts`     | Datastar, fonts, and the stylesheets, embedded in the binary                                                                                                                                                  |
+| `http/middleware.ts` | Wraps every request, in this order: the proxy's forwarded host, the cross-origin form check, the gate that keeps an unconfigured site private, then the handler, with 404s, 500s, and security headers        |
 
 #### 7. Tests
 
@@ -211,9 +196,9 @@ called directly with `app.run(effect)`. `test/content/` has the posts they start
 
 #### Browser tests
 
-`*.pw.ts` (like `src/posts/composer/composer.pw.ts`) drive the composer in Chromium and WebKit
-with Playwright, which also needs Node.js 20 or newer: publishing each kind of post, with and
-without JavaScript. Each test starts the app with its own temporary data and port
+`*.pw.ts` (like `src/routes/admin/compose/compose.pw.ts`) drive the composer in Chromium and
+WebKit with Playwright, which also needs Node.js 20 or newer: publishing each kind of post, with
+and without JavaScript. Each test starts the app with its own temporary data and port
 (`browser/fixtures.ts`). Install the browsers once with `bun run test:browser:install`, then run
 `bun run test:browser`. CI doesn't run them.
 

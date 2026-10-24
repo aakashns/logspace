@@ -4,7 +4,7 @@
 import { readFileSync } from 'node:fs'
 import { Context, Effect, Layer, Predicate, Schema } from 'effect'
 
-import type { SiteImage, SiteImageKind } from '../site/site.ts'
+import type { SiteImage, SiteImageKind } from '../data/site/site.ts'
 import defaultIconPath from './default-icon.png' with { type: 'file' }
 import type { ImageInfo } from './image-widths.ts'
 
@@ -99,7 +99,7 @@ const LOGO_HEIGHT = 64
 // The icon is at least this many pixels square.
 const ICON_SIZE = 512
 // The banner image is at most this wide, the width link previews are made for. The home page
-// shows WebP copies of it resized to fit the screen (see ../site/files.ts), so this one is
+// shows WebP copies of it resized to fit the screen (see ../data/site/files.ts), so this one is
 // mostly what link previews fetch.
 const BANNER_WIDTH = 1200
 // What each site image can be uploaded as. Bun.Image reads GIFs too, but not SVGs, which couldn't

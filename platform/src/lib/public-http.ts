@@ -7,7 +7,7 @@ import { BlockList, isIP } from 'node:net'
 import { Context, Effect, Layer } from 'effect'
 import { HttpClient, HttpClientError, HttpClientRequest, HttpClientResponse } from 'effect/http'
 
-import { AppConfig } from '../config.ts'
+import { AppConfig } from './config.ts'
 
 // The OS boundary is injectable so tests drive the real policy and fetching workflow without
 // dialing private services (or any external network).
