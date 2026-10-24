@@ -8,7 +8,7 @@
     gap: 1.25rem;
     padding-block: 2rem;
 
-    /* Smaller than an article's title: these pages are tools, not reading. */
+    /* Smaller than a public page's title: these pages are tools, not reading. */
     & > .page-title,
     & > .admin-heading .page-title {
       font-size: 1.5rem;
@@ -37,12 +37,6 @@
   textarea.input {
     resize: vertical;
     line-height: 1.5;
-  }
-
-  /* Suits long Markdown, where the markup should stand out. */
-  .input.monospace {
-    font-family: var(--font-mono);
-    font-size: 0.875rem;
   }
 
   .button,

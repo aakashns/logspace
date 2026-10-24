@@ -25,7 +25,7 @@ import { HttpClient } from 'effect/http'
 
 import { AppConfig } from '../config.ts'
 import { getResizedSources, type ImageInfo } from '../domain/images.ts'
-import { getDomain, getFirstLink } from '../domain/links.ts'
+import { getFirstLink } from '../domain/caption.ts'
 import type { LinkPreview, Photo, Post } from '../domain/presentation.ts'
 import { LinkMetadata, parseLinkMetadata } from '../domain/link-metadata.ts'
 import { routes } from '../routes.ts'
@@ -245,4 +245,8 @@ function linkImage(info: ImageInfo): Photo | undefined {
     width: info.width,
     height: info.height,
   }
+}
+
+function getDomain(url: string): string {
+  return new URL(url).hostname.replace(/^www\./, '')
 }

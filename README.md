@@ -19,9 +19,9 @@ Replace the domains with yours. Setup asks for an admin password, starts LogSpac
 
 1. Open `https://example.com/admin` and log in.
 2. Save your site title, URL, and description. Add a welcome message, logo, and icon if you like. Your site becomes public once these settings are saved.
-3. Choose **New Post**, pick text, photos, video, or article, and publish. Return to `/admin` to edit posts or change settings.
+3. Choose **New Post**, write something, add photos or a video if you like, and publish. Return to `/admin` to edit posts or change settings.
 
-Write in Markdown and upload media directly. Every post has its own link; readers can follow along with RSS. Light and dark themes are built in.
+Write like a tweet, with **bold**, *italic*, and links that turn clickable on their own, and upload media directly. Every post has its own link; readers can follow along with RSS. Light and dark themes are built in.
 
 ## Updates and backups
 

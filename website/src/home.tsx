@@ -4,8 +4,7 @@ import { Wordmark } from "./wordmark.tsx";
 const github = "https://github.com/aakashns/logspace";
 const url = "https://logspace.app/";
 const title = "LogSpace — Self-host your personal website";
-const description =
-  "Publish blog posts, photos, and videos on your own domain.";
+const description = "Publish posts, photos, and videos on your own domain.";
 const install = `curl -fsSL ${url}install.sh | sh`;
 
 // Made by `bun run screenshots` from Mira's fictional site, as <name>-dark.webp and
@@ -17,8 +16,8 @@ const screenshots = [
     caption: "Your home page, with every post in one feed.",
   },
   {
-    name: "article",
-    alt: "An article on Mira’s site, with its title, summary, cover image, and text.",
+    name: "post",
+    alt: "A post on Mira’s site, with its caption and a photo.",
     caption: "Each post gets a page of its own.",
   },
   {
@@ -100,7 +99,7 @@ export function Home() {
           personal website
         </h1>
         <p class="lede">
-          Publish blog posts, photos, <br class="mobile" />
+          Publish posts, photos, <br class="mobile" />
           and videos on your own domain.
         </p>
 
@@ -166,11 +165,11 @@ export function Home() {
           <h2 id="features">Features</h2>
           <ul>
             <li>
-              <strong>Posts, photos, and videos.</strong> Share short updates or
-              long articles, and upload media. They all appear in one feed.
+              <strong>Posts, photos, and videos.</strong> Share short updates
+              and upload media. They all appear in one feed.
             </li>
             <li>
-              <strong>Write in your browser.</strong> Use Markdown, edit
+              <strong>Write in your browser.</strong> Add bold and italic, edit
               published posts, and change your site’s title, description, and
               images.
             </li>

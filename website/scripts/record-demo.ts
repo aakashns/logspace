@@ -65,10 +65,7 @@ try {
   }
   await page.goto(baseURL);
   await imagesReady();
-  explain(
-    "Browse the feed",
-    "Text posts, photos, and articles appear together.",
-  );
+  explain("Browse the feed", "Text posts, photos, and videos appear together.");
   await page.screenshot({ path: join(temporary, "poster.png") });
   await hold(3000);
   await scrollTo(560);
@@ -76,20 +73,16 @@ try {
   await scrollTo(1250);
   await hold(2600);
   await page.locator('a.post-link[href="/posts/mirastory1"]').click();
-  await expect(
-    page.getByRole("heading", {
-      name: "A notebook, a long walk, and no plans",
-    }),
-  ).toBeVisible();
+  await expect(page.getByText("No route, no list, no podcast.")).toBeVisible();
   await imagesReady();
   explain(
-    "Read a blog post",
-    "Open an article to read the full text on its own page.",
+    "Open a post",
+    "Every post has a page of its own, with a link to share.",
   );
   await hold(2600);
   await scrollTo(620);
   await hold(2600);
-  await page.getByRole("link", { name: "Compose", exact: true }).click();
+  await page.getByRole("link", { name: "New Post", exact: true }).click();
   await expect(page.getByLabel("Caption", { exact: true })).toBeFocused();
   explain(
     "Write a post",

@@ -59,7 +59,7 @@ async function joinImports(file: string): Promise<string> {
 
 // Comments and whitespace out. Not a CSS parser: it's only for these stylesheets, which have no
 // strings or URLs with spaces in them, and it keeps the space before a colon, which in a selector
-// like `.prose :is(img)` means a descendant. Bun's CSS minifier isn't used, as it rewrites
+// like `.feed :is(img)` means a descendant. Bun's CSS minifier isn't used, as it rewrites
 // light-dark() (which every browser this site supports has) into a much bigger fallback.
 function minify(css: string): string {
   return css

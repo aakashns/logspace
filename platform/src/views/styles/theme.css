@@ -76,7 +76,7 @@
     --border: light-dark(oklch(0.922 0 0), oklch(1 0 0 / 10%));
     --input: light-dark(oklch(0.922 0 0), oklch(1 0 0 / 15%));
     --ring: light-dark(oklch(0.708 0 0), oklch(0.556 0 0));
-    /* Links in post captions and articles; lighter than --primary in dark mode so it stays legible. */
+    /* Links in post captions; lighter than --primary in dark mode so it stays legible. */
     --link: light-dark(oklch(0.5 0.134 242.749), oklch(0.685 0.169 237.323));
     /* Backgrounds for icon buttons (theme toggle, share) on hover and press. */
     --control-hover: color-mix(in oklch, var(--foreground) 10%, transparent);

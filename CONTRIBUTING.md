@@ -80,17 +80,17 @@ The CLI and browser tests use this same server.
 
 No database, files, or HTTP: lint fails if anything here imports them (`.oxlintrc.json`).
 
-| File                                                                     | What it holds                                                                                                                                           |
-| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `post.ts`                                                                | What a post is (`PostRecord`, an Effect `Schema`), and the checks a post passes before it's saved, reported as `{ field, message }` issues for the form |
-| `post-rows.ts`                                                           | How a post maps to a row of the `posts` table                                                                                                           |
-| `presentation.ts`                                                        | Posts as pages show them: media URLs, image sizes, `srcset`s, captions rendered to HTML, link previews, and page metadata                               |
-| `markdown.ts`                                                            | Captions (tweet-like Markdown) and article bodies (with images and videos from the post's files)                                                        |
-| `site.ts`                                                                | The site's settings, and their checks                                                                                                                   |
-| `site-images.ts`                                                         | The URLs pages link the site's icon, logos, and banner image with                                                                                       |
-| `post-form.ts`                                                           | Reading the admin post form into a post and its uploads                                                                                                 |
-| `feeds.ts`                                                               | `sitemap.xml`, `rss.xml`, and `robots.txt`                                                                                                              |
-| `images.ts`, `links.ts`, `link-metadata.ts`, `format.ts`, `constants.ts` | Image widths, URLs in text, link-preview parsing, dates and sizes, and limits                                                                           |
+| File                                                         | What it holds                                                                                                                                           |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `post.ts`                                                    | What a post is (`PostRecord`, an Effect `Schema`), and the checks a post passes before it's saved, reported as `{ field, message }` issues for the form |
+| `post-rows.ts`                                               | How a post maps to a row of the `posts` table                                                                                                           |
+| `presentation.ts`                                            | Posts as pages show them: media URLs, image sizes, `srcset`s, captions rendered to HTML, link previews, and page metadata                               |
+| `caption.ts`                                                 | Captions: paragraphs, line breaks, **bold**, *italic*, and URLs as links, and the first URL for its preview                                             |
+| `site.ts`                                                    | The site's settings, and their checks                                                                                                                   |
+| `site-images.ts`                                             | The URLs pages link the site's icon, logos, and banner image with                                                                                       |
+| `post-form.ts`                                               | Reading the admin post form into a post and its uploads                                                                                                 |
+| `feeds.ts`                                                   | `sitemap.xml`, `rss.xml`, and `robots.txt`                                                                                                              |
+| `images.ts`, `link-metadata.ts`, `format.ts`, `constants.ts` | Image widths, link-preview parsing, dates and sizes, and limits                                                                                         |
 
 `src/routes.ts` builds every URL the app links to.
 
@@ -158,7 +158,7 @@ unconfigured site private, then the handler, with 404s, 500s, and security heade
 
 Components are plain functions from props to `Html`. `jsx-runtime.ts` escapes every string and
 attribute; the only way to write markup unescaped is `raw()`, which is used only for HTML the app
-renders itself (Markdown output, the stylesheet, JSON-LD). Start with `document.tsx`, the
+renders itself (captions, the stylesheet, JSON-LD). Start with `document.tsx`, the
 `<html>` around every page. CSS is plain CSS in `views/styles/`, joined and minified by
 `stylesheet.ts`, and inlined into each page. The admin pages add `admin.css`.
 
@@ -194,7 +194,7 @@ the app with its own temporary data and port. Install the browsers once with `bu
   there's no `unsafe-eval` or `unsafe-inline`. Other responses (files, feeds) run no scripts.
   Pages also send `frame-ancestors 'none'`, `base-uri 'self'`, `object-src 'none'`, and
   `form-action 'self'`.
-- **User content**: Markdown is rendered with raw HTML escaped, and the containers it goes in
+- **User content**: captions are rendered with HTML escaped, and the containers they go in
   carry `data-ignore`, so Datastar never evaluates attributes in it, even if escaping failed.
 - **Admin**: one password, compared in constant time; a session cookie signed with HMAC-SHA256,
   `HttpOnly`, `SameSite=Lax`, `Secure` in production, sent only to `/admin`, and holding a

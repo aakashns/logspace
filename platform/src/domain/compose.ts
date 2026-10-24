@@ -16,7 +16,7 @@ import { uploadName } from './post-form.ts'
 
 export interface ComposeValues {
   readonly id: string
-  // Markdown, as typed.
+  // As typed.
   readonly caption: string
   readonly photos: readonly string[]
   readonly video?: string | undefined
@@ -115,9 +115,8 @@ function unusedName(name: string, taken: ReadonlySet<string | undefined>): strin
 // preview shows it as it is.
 export function composePost(values: ComposeValues, date: string): PostRecord {
   let { id, photos, video, poster } = values
-  // Markdown is kept as typed, since leading spaces can matter; only a blank caption is none.
-  let caption = values.caption.trim() === '' ? undefined : values.caption
-  let base = { id, date, ...(caption !== undefined && { caption }) }
+  let caption = values.caption.trim() || undefined
+  let base = { id, date, ...(caption && { caption }) }
   if (video) {
     return { ...base, type: 'video', video: { file: video, ...(poster && { poster }) } }
   }

@@ -4,10 +4,9 @@ import { Context, Effect, Layer } from 'effect'
 import { SqlClient } from 'effect/sql'
 
 import type { ImageInfo } from '../domain/images.ts'
-import { findImageNames, findPosterCandidates, renderArticle } from '../domain/markdown.ts'
 import { fromPostRow, POST_COLUMNS, type PostRow } from '../domain/post-rows.ts'
 import { sortNewestFirst, type PostRecord } from '../domain/post.ts'
-import { toPost, type ArticlePost, type Post } from '../domain/presentation.ts'
+import { toPost, type Post } from '../domain/presentation.ts'
 import { routes } from '../routes.ts'
 import { MediaStorage, mediaKeys } from '../services/media-storage.ts'
 
@@ -23,8 +22,6 @@ export class PostQueries extends Context.Service<
     readonly findRecord: (id: string) => Effect.Effect<PostRecord | undefined>
     // The size and version of one of a post's images, if it's one.
     readonly imageInfo: (id: string, name: string) => Effect.Effect<ImageInfo | undefined>
-    // An article's body as HTML.
-    readonly articleHtml: (post: ArticlePost) => Effect.Effect<string>
     // A post that may not be published yet, as the composer previews it: its files are served
     // from /admin, with their sizes and versions.
     readonly preview: (record: PostRecord) => Effect.Effect<Post>
@@ -88,32 +85,6 @@ export class PostQueries extends Context.Service<
         return info
       })
 
-      // The posters of an article's videos are found by name in storage (clip.mp4's is clip.jpg),
-      // since they're named only by convention.
-      let articleHtml = Effect.fn('PostQueries.articleHtml')(function* (post: ArticlePost) {
-        let { body } = post.article
-        let candidates = findPosterCandidates(post.id, body)
-        let [found, imageRows] = yield* Effect.all(
-          [
-            Effect.forEach(candidates, (name) => storage.has(mediaKeys.postFile(post.id, name)), {
-              concurrency: 'unbounded',
-            }),
-            Effect.orDie(selectImages(post.id)),
-          ],
-          { concurrency: 'unbounded' },
-        )
-        let names = new Set(findImageNames(post.id, body))
-        let images = new Map(
-          imageRows
-            .filter(({ name }) => names.has(name))
-            .map(({ name, width, height, version }) => [name, { width, height, version }]),
-        )
-        return renderArticle(post.id, body, {
-          posters: candidates.filter((_, i) => found[i]),
-          images,
-        })
-      })
-
       let preview = Effect.fn('PostQueries.preview')(function* (record: PostRecord) {
         let imageRows = yield* Effect.orDie(selectImages(record.id))
         let images = new Map(imageRows.map((row) => [row.name, row]))
@@ -125,7 +96,6 @@ export class PostQueries extends Context.Service<
         find,
         findRecord,
         imageInfo,
-        articleHtml,
         preview,
         files: (id) =>
           Effect.map(storage.list(mediaKeys.postFiles(id)), (files) =>

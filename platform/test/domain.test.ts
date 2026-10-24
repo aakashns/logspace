@@ -3,13 +3,7 @@ import { describe, expect, it } from 'bun:test'
 
 import { getForwardedOrigin } from '../src/http/forwarded.ts'
 import { parseLinkMetadata } from '../src/domain/link-metadata.ts'
-import { formatLinkText, getFirstLink, splitLinks } from '../src/domain/links.ts'
-import {
-  captionText,
-  findImageNames,
-  renderArticle,
-  renderCaption,
-} from '../src/domain/markdown.ts'
+import { captionText, getFirstLink, renderCaption } from '../src/domain/caption.ts'
 import { fromPostRow, toPostRow } from '../src/domain/post-rows.ts'
 import { isUploadableFileName, parsePostRecord, type PostRecord } from '../src/domain/post.ts'
 import { getPostMeta, toPost } from '../src/domain/presentation.ts'
@@ -63,11 +57,6 @@ describe('parsePostRecord', () => {
         city: 'Pune',
         video: { file: 'a.mp4', poster: 'a.jpg', width: 64, height: 36 },
       },
-      {
-        ...text,
-        type: 'article',
-        article: { title: 'T', summary: 'S', body: '# B', cover: { file: 'c.jpg', alt: '' } },
-      },
     ]
     for (let post of posts) {
       let result = parsePostRecord(JSON.parse(JSON.stringify(post)))
@@ -93,131 +82,50 @@ describe('isUploadableFileName', () => {
 })
 
 describe('captions', () => {
-  it('renders Markdown and keeps line breaks', () => {
-    expect(renderCaption('**Hi** _there_\nnext line\n\n1. one\n2. two')).toBe(
-      '<p><strong>Hi</strong> <em>there</em><br>next line</p>\n<ol>\n<li>one</li>\n<li>two</li>\n</ol>',
+  let link = (url: string, text: string) =>
+    `<a target="_blank" rel="noopener" href="${url}">${text}</a>`
+
+  it('keeps line breaks and paragraphs, with bold and italic as the only formatting', () => {
+    expect(renderCaption('**Hi** *there*\nnext line\n\n\n# Not a heading\n- or a list')).toBe(
+      '<p><strong>Hi</strong> <em>there</em><br>next line</p>\n' +
+        '<p># Not a heading<br>- or a list</p>',
+    )
+    expect(renderCaption('**a *b* c** 2 * 3 * 4 _x_ `y` [z](https://a.com)')).toBe(
+      `<p><strong>a <em>b</em> c</strong> 2 * 3 * 4 _x_ \`y\` [z](${link('https://a.com', 'a.com')})</p>`,
     )
   })
 
   it('turns URLs into shortened links that open in a new tab', () => {
-    expect(
-      renderCaption('See https://www.remix.run/docs. Or [the blog](https://remix.run/blog)'),
-    ).toBe(
-      '<p>See <a target="_blank" rel="noopener" href="https://www.remix.run/docs">remix.run/docs</a>.' +
-        ' Or <a target="_blank" rel="noopener" href="https://remix.run/blog">the blog</a></p>',
+    expect(renderCaption('See https://www.remix.run/docs. And (https://x.com/a)!')).toBe(
+      `<p>See ${link('https://www.remix.run/docs', 'remix.run/docs')}. ` +
+        `And (${link('https://x.com/a', 'x.com/a')})!</p>`,
     )
-  })
-
-  it('escapes HTML', () => {
-    expect(renderCaption('<script>x</script>')).toBe('<p>&lt;script&gt;x&lt;/script&gt;</p>')
-  })
-
-  it('links URLs in bold, in angle brackets, or as a link’s text once, and not in code', () => {
-    let link = (url: string, text: string) =>
-      `<a target="_blank" rel="noopener" href="${url}">${text}</a>`
-    expect(renderCaption('**https://a.com/x** then more')).toBe(
-      `<p><strong>${link('https://a.com/x', 'a.com/x')}</strong> then more</p>`,
+    expect(renderCaption('**https://a.com/x_y*z** then more')).toBe(
+      `<p><strong>${link('https://a.com/x_y*z', 'a.com/x_y*z')}</strong> then more</p>`,
     )
-    expect(renderCaption('<https://a.com> [https://b.com](https://b.com)')).toBe(
-      `<p>${link('https://a.com', 'a.com')} ${link('https://b.com', 'b.com')}</p>`,
+    expect(renderCaption(`https://example.com/${'a'.repeat(50)}`)).toContain(
+      `>example.com/${'a'.repeat(27)}…</a>`,
     )
-    expect(renderCaption('`https://a.com`')).toBe('<p><code>https://a.com</code></p>')
-  })
-
-  it('drops links to other schemes, like javascript:', () => {
-    expect(renderCaption('[hi](javascript:alert(1))')).toBe('<p>hi</p>')
-  })
-
-  it('strips Markdown for plain text', () => {
-    expect(
-      captionText('**Title**\n\nSome _text_ and [a link](https://remix.run)\n\n- a\n- b'),
-    ).toBe('Title\nSome text and a link\na\nb')
-  })
-})
-
-describe('links', () => {
-  it('finds URLs without trailing punctuation', () => {
-    expect(splitLinks('See https://remix.run/docs. And (https://x.com/a)!')).toEqual([
-      'See ',
-      { url: 'https://remix.run/docs' },
-      '. And (',
-      { url: 'https://x.com/a' },
-      ')!',
-    ])
-    expect(getFirstLink('no links here')).toBeUndefined()
   })
 
   it('leaves URLs that don’t parse as plain text', () => {
     let text = 'Broken https://[bad-host] then https://remix.run'
-    expect(splitLinks(text)).toEqual([
-      'Broken https://[bad-host] then ',
-      { url: 'https://remix.run' },
-    ])
+    expect(renderCaption(text)).toBe(
+      `<p>Broken https://[bad-host] then ${link('https://remix.run', 'remix.run')}</p>`,
+    )
     expect(getFirstLink(text)).toBe('https://remix.run')
     expect(getFirstLink('Only https://[bad-host]')).toBeUndefined()
   })
 
-  it('shortens how links read', () => {
-    expect(formatLinkText('https://www.remix.run/')).toBe('remix.run')
-    expect(formatLinkText(`https://example.com/${'a'.repeat(50)}`).length).toBe(40)
-  })
-})
-
-describe('renderArticle', () => {
-  let files = (posters: string[]) => ({ posters, images: new Map() })
-
-  it('points relative links and images into the post folder', () => {
-    let html = renderArticle('p', '[doc](notes.pdf) [site](https://example.com) [about](/about)')
-    expect(html).toMatch(/<a href="\/posts\/p\/notes\.pdf"/)
-    expect(html).toMatch(/<a href="https:\/\/example\.com"/)
-    expect(html).toMatch(/<a href="\/about"/)
+  it('escapes HTML', () => {
+    expect(renderCaption('<script>x</script> <0> & "')).toBe(
+      '<p>&lt;script&gt;x&lt;/script&gt; &lt;0&gt; &amp; "</p>',
+    )
+    expect(renderCaption('https://a.com/?a=1&b=2')).toContain('href="https://a.com/?a=1&amp;b=2"')
   })
 
-  it('lazy-loads standalone images, sized with resized copies when their size is known', () => {
-    expect(renderArticle('p', '![A desk](desk.jpg)')).toMatch(
-      /<img src="\/posts\/p\/desk\.jpg" alt="A desk" loading="lazy"/,
-    )
-    let sized = renderArticle('p', '![A desk](desk.jpg)', {
-      posters: [],
-      images: new Map([['desk.jpg', { width: 500, height: 400, version: 'v1' }]]),
-    })
-    expect(sized).toContain(
-      '<img src="/posts/p/desk.jpg?v=v1" srcset="/posts/p/desk.jpg?w=320&amp;v=v1 320w',
-    )
-    expect(sized).toContain(
-      ' width="500" height="400" alt="A desk" loading="lazy" decoding="async">',
-    )
-  })
-
-  it('turns standalone videos into players, with a matching poster image', () => {
-    expect(renderArticle('p', '![A clip](clip.mp4)', files(['clip.jpg']))).toMatch(
-      /<video src="\/posts\/p\/clip\.mp4" poster="\/posts\/p\/clip\.jpg"/,
-    )
-    expect(renderArticle('p', '![A clip](clip.mp4)', files([]))).not.toMatch(/poster=/)
-  })
-
-  it('escapes raw HTML', () => {
-    expect(
-      renderArticle('p', 'Hi <script>alert(1)</script>\n\n<iframe src="x"></iframe>'),
-    ).not.toMatch(/<script|<iframe/)
-    expect(renderArticle('p', '```\n<b>x</b>\n```')).toBe(
-      '<pre><code>&lt;b&gt;x&lt;/b&gt;\n</code></pre>',
-    )
-  })
-
-  it('drops links to other schemes, like javascript:', () => {
-    expect(renderArticle('p', '[hi](javascript:alert(1)) ![x](javascript:alert(1))')).toBe(
-      '<p>hi <img src="" alt="x"></p>',
-    )
-  })
-
-  it('finds files whose names are percent-encoded, encoding them once', () => {
-    expect(renderArticle('p', '[a](my%20notes.pdf)')).toBe(
-      '<p><a href="/posts/p/my%20notes.pdf">a</a></p>',
-    )
-    expect(findImageNames('p', '![a](my%20desk.jpg)\n\nNot alone: ![b](b.jpg)')).toEqual([
-      'my desk.jpg',
-    ])
+  it('strips formatting for plain text', () => {
+    expect(captionText('**Title**\n\nSome *text*\nnext')).toBe('Title\nSome text\nnext')
   })
 })
 
@@ -281,7 +189,7 @@ describe('presentation', () => {
     expect(meta.title?.length).toBe(60)
     expect(meta.title?.endsWith('…')).toBe(true)
     expect(meta.description).toMatch(/More$/)
-    expect(meta.published).toEqual({ date: DATE, kind: 'SocialMediaPosting' })
+    expect(meta.published).toBe(DATE)
   })
 
   it('shows dates in UTC', () => {
@@ -357,7 +265,7 @@ describe('the post form', () => {
       video_file: 'x.mp4',
       video_width: '640',
       video_height: 'tall',
-      article_title: 'ignored',
+      photo_file: 'ignored.jpg',
     })) {
       form.append(name, value)
     }

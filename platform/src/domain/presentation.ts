@@ -6,10 +6,10 @@ import { routes } from '../routes.ts'
 import { FULL_WIDTH_IMAGE_SIZES, HALF_WIDTH_IMAGE_SIZES } from './constants.ts'
 import { clamp } from './format.ts'
 import { getImageSources, getSrcset, type ImageInfo } from './images.ts'
-import { captionText, renderCaption } from './markdown.ts'
+import { captionText, renderCaption } from './caption.ts'
 import type { PhotoRecord, PostRecord } from './post.ts'
 
-export type Post = TextPost | PhotosPost | VideoPost | ArticlePost
+export type Post = TextPost | PhotosPost | VideoPost
 
 interface BasePost {
   readonly id: string
@@ -34,17 +34,6 @@ export interface PhotosPost extends BasePost {
 export interface VideoPost extends BasePost {
   readonly type: 'video'
   readonly video: Video
-}
-
-export interface ArticlePost extends BasePost {
-  readonly type: 'article'
-  // The body is Markdown (see renderArticle).
-  readonly article: {
-    readonly title: string
-    readonly summary: string
-    readonly body: string
-    readonly cover?: Photo | undefined
-  }
 }
 
 // A photo's width and height (in pixels) are read from the file when it's saved, so the page
@@ -127,14 +116,6 @@ export function toPost(
       }
       return { ...base, type: 'video', video }
     }
-    case 'article': {
-      let { title, summary, body, cover } = post.article
-      return {
-        ...base,
-        type: 'article',
-        article: { title, summary, body, cover: cover && photo(cover) },
-      }
-    }
   }
 }
 
@@ -157,54 +138,37 @@ export interface PageMeta {
   readonly description?: string | undefined
   // Site-relative or absolute URL of the image shown when the page is shared.
   readonly image?: MetaImage | undefined
-  // For posts: when it was published, and the kind of schema.org object it is.
-  readonly published?:
-    { readonly date: string; readonly kind: 'BlogPosting' | 'SocialMediaPosting' } | undefined
+  // For posts: when it was published.
+  readonly published?: string | undefined
   // Keeps the page out of search results (e.g. "not found" pages).
   readonly noindex?: boolean | undefined
 }
 
-export interface MetaImage {
+interface MetaImage {
   readonly url: string
   readonly alt?: string | undefined
   readonly width?: number | undefined
   readonly height?: number | undefined
 }
 
-// What the post's page tells search engines and link previews: an article's title, summary, and
-// cover, or for other posts the start of the caption and the first photo or the video's poster.
+// What the post's page tells search engines and link previews: the start of the caption, and the
+// first photo or the video's poster.
 export function getPostMeta(post: Post): PageMeta {
-  let path = routes.post(post.id)
-  let text = post.caption ? captionText(post.caption).trim() : ''
-  let caption = text.replace(/\s+/g, ' ')
+  let text = post.caption ? captionText(post.caption) : ''
   let [firstLine = ''] = text.split('\n')
-  let published = {
-    date: post.date,
-    kind: post.type === 'article' ? ('BlogPosting' as const) : ('SocialMediaPosting' as const),
-  }
-
-  if (post.type === 'article') {
-    let { title, summary, cover } = post.article
-    return { path, title, description: summary, image: cover && toImage(cover), published }
-  }
-
-  let image =
-    post.type === 'photos'
-      ? toImage(post.photos[0])
-      : post.type === 'video' && post.video.posterImage
-        ? { url: post.video.posterImage, width: post.video.width, height: post.video.height }
-        : undefined
+  let [photo] = post.type === 'photos' ? post.photos : []
+  let image = photo
+    ? { url: photo.src, alt: photo.alt, width: photo.width, height: photo.height }
+    : post.type === 'video' && post.video.posterImage
+      ? { url: post.video.posterImage, width: post.video.width, height: post.video.height }
+      : undefined
   return {
-    path,
+    path: routes.post(post.id),
     title: clamp(firstLine, 60) || 'Post',
-    description: clamp(caption, 160) || undefined,
+    description: clamp(text.replace(/\s+/g, ' '), 160) || undefined,
     image,
-    published,
+    published: post.date,
   }
-}
-
-function toImage(photo: Photo): MetaImage {
-  return { url: photo.src, alt: photo.alt, width: photo.width, height: photo.height }
 }
 
 // An image to preload, with the srcset and sizes of its <img> so the same copy is fetched.
@@ -216,20 +180,15 @@ export interface PreloadImage {
 
 // The image that's likely the largest thing on screen when `post` is the first post shown (in
 // the feed, or with `full` on the post's own page), for the document to preload: the first photo,
-// an article's cover, or a video's poster.
+// or a video's poster.
 export function getPriorityImage(post: Post, full = false): PreloadImage | undefined {
-  let photo = (photo: Photo, sizes = FULL_WIDTH_IMAGE_SIZES): PreloadImage => ({
-    href: photo.src,
-    srcset: photo.srcset,
-    sizes: photo.srcset ? sizes : undefined,
-  })
   switch (post.type) {
     case 'photos': {
+      let [{ src, srcset }] = post.photos
       let inGrid = !full && post.photos.length > 1
-      return photo(post.photos[0], inGrid ? HALF_WIDTH_IMAGE_SIZES : FULL_WIDTH_IMAGE_SIZES)
+      let sizes = inGrid ? HALF_WIDTH_IMAGE_SIZES : FULL_WIDTH_IMAGE_SIZES
+      return { href: src, srcset, sizes: srcset ? sizes : undefined }
     }
-    case 'article':
-      return post.article.cover && photo(post.article.cover)
     case 'video':
       return post.video.poster ? { href: post.video.poster } : undefined
     case 'text':
@@ -237,11 +196,9 @@ export function getPriorityImage(post: Post, full = false): PreloadImage | undef
   }
 }
 
-// One line describing a post, for the admin's list: an article's title, else the caption's first
-// line, else its media.
+// One line describing a post, for the admin's list: the caption's first line, else its media.
 export function summarizePost(post: Post): string {
-  if (post.type === 'article') return post.article.title
-  let firstLine = post.caption ? captionText(post.caption).trim().split('\n')[0] : ''
+  let firstLine = post.caption ? captionText(post.caption).split('\n')[0] : ''
   if (firstLine) return firstLine
   if (post.type === 'photos') {
     return post.photos.length === 1 ? '1 photo' : `${post.photos.length} photos`

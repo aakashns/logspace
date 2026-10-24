@@ -9,7 +9,7 @@ import {
   LINK_THUMBNAIL_SIZES,
 } from '../domain/constants.ts'
 import { formatPostDate } from '../domain/format.ts'
-import type { ArticlePost, LinkPreview, Photo, Post, Video } from '../domain/presentation.ts'
+import type { LinkPreview, Photo, Post, Video } from '../domain/presentation.ts'
 import { routes } from '../routes.ts'
 import { ShareButton } from './controls.tsx'
 
@@ -31,8 +31,8 @@ export function PostMeta(props: { post: Post; siteUrl: string }): Html {
   )
 }
 
-// The caption, rendered from Markdown with its URLs turned into links. Datastar ignores it, as it
-// does all HTML made from what someone wrote.
+// The caption as HTML (see domain/caption.ts). Datastar ignores it, as it does all HTML made from
+// what someone wrote.
 export function Caption(props: { html: string }): Html {
   return (
     <div class="caption" data-ignore>
@@ -41,7 +41,7 @@ export function Caption(props: { html: string }): Html {
   )
 }
 
-// What goes under the caption: photos, a video, an article card, or a link preview. The feed
+// What goes under the caption: photos, a video, or a link preview. The feed
 // shows up to four photos in a grid; the post page (`full`) shows them all, one after another.
 export function PostMedia(props: {
   post: Post
@@ -59,8 +59,6 @@ export function PostMedia(props: {
       )
     case 'video':
       return <VideoPlayer video={post.video} />
-    case 'article':
-      return <ArticleCard article={post.article} priority={priority} />
     case 'text':
       return preview ? <LinkCard preview={preview} /> : null
   }
@@ -130,25 +128,6 @@ function VideoPlayer(props: { video: Video }): Html {
   )
 }
 
-// In the feed the whole post links to the article, so the card itself isn't a link.
-function ArticleCard(props: {
-  article: ArticlePost['article']
-  priority?: boolean | undefined
-}): Html {
-  let { article, priority } = props
-  return (
-    <div class="media-frame card">
-      {article.cover ? (
-        <PostImage photo={article.cover} priority={priority} class="card-image" />
-      ) : null}
-      <div class="card-text">
-        <h2>{article.title}</h2>
-        <p>{article.summary}</p>
-      </div>
-    </div>
-  )
-}
-
 function LinkCard(props: { preview: LinkPreview }): Html {
   let { preview } = props
   return (
@@ -156,7 +135,7 @@ function LinkCard(props: { preview: LinkPreview }): Html {
       href={preview.url}
       target="_blank"
       rel="noopener"
-      class={`media-frame card link-card${preview.smallImage ? ' small-card' : ''}`}
+      class={`media-frame link-card${preview.smallImage ? ' small-card' : ''}`}
     >
       {preview.image ? (
         <PostImage

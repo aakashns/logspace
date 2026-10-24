@@ -118,7 +118,7 @@ export function Document(props: DocumentProps): Html {
             {image?.width ? <meta property="og:image:width" content={image.width} /> : null}
             {image?.height ? <meta property="og:image:height" content={image.height} /> : null}
             {meta.published ? (
-              <meta property="article:published_time" content={meta.published.date} />
+              <meta property="article:published_time" content={meta.published} />
             ) : null}
             <meta name="twitter:card" content={image ? 'summary_large_image' : 'summary'} />
             {image ? <meta name="twitter:image" content={image.url} /> : null}
@@ -177,12 +177,12 @@ function getStructuredData(
   }
   return {
     '@context': 'https://schema.org',
-    '@type': meta.published.kind,
+    '@type': 'SocialMediaPosting',
     headline: meta.title,
     description,
     url,
     mainEntityOfPage: url,
-    datePublished: meta.published.date,
+    datePublished: meta.published,
     image,
     author,
   }

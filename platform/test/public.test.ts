@@ -131,7 +131,7 @@ describe('the home page', () => {
     )
     let html = await (await app.fetch(`/posts/${id}`)).text()
     expect(html).toContain(
-      '<div class="caption" data-ignore><p>Hi &lt;b data-on:click=&quot;alert(1)&quot;&gt;there&lt;/b&gt;',
+      '<div class="caption" data-ignore><p>Hi &lt;b data-on:click="alert(1)"&gt;there&lt;/b&gt;',
     )
     expect(html).not.toMatch(/<b data-on/)
   })
@@ -173,8 +173,8 @@ describe('feeds and files for machines', () => {
       )
       .join('\n')
     expect(html).not.toMatch(/ (src|href|poster|srcset)="\//)
-    // An article's whole body, and a photos post's photos.
-    expect(html).toMatch(/<h2[^>]*>Small releases beat big launches<\/h2>/)
+    // A text post's caption, and a photos post's photos.
+    expect(html).toContain('<strong>No build step</strong>')
     expect(html).toMatch(/<img src="https:\/\/example\.com\/posts\/drdp3ei6fd\/hike-1\.jpg\?v=/)
     expect(html).toMatch(/<video src="https:\/\/example\.com\/posts\/steq6e0rsh\/flower\.mp4"/)
   })
@@ -231,23 +231,14 @@ describe('a post’s page and files', () => {
     }
   })
 
-  it('renders an article body, with its photos sized and its videos’ posters', async () => {
-    let article = defined(
-      (await posts()).find((post) => post.type === 'article'),
-      'an article',
-    )
-    let html = await (await app.fetch(`/posts/${article.id}`)).text()
-    expect(html).toMatch(/<h2[^>]*>/)
-    // notebook.mp4's poster is notebook.jpg, found in media storage.
+  it('renders a caption’s bold, italic, and links', async () => {
+    let html = await (await app.fetch('/posts/xf6ddthtoo')).text()
     expect(html).toContain(
-      `<video src="/posts/${article.id}/notebook.mp4" poster="/posts/${article.id}/notebook.jpg"`,
+      '<div class="caption" data-ignore><p>Rebuilt this site on Remix 3 over the weekend. ' +
+        '<strong>No build step</strong>, Web APIs everywhere, and the whole page ships ' +
+        '<em>almost no</em> JavaScript.</p>\n' +
+        '<p><a target="_blank" rel="noopener" href="https://remix.run">remix.run</a></p></div>',
     )
-    expect(html).toMatch(
-      new RegExp(
-        `<img src="/posts/${article.id}/desk\\.jpg\\?v=[0-9a-f]{12}" srcset="[^"]+ 32w" sizes="[^"]+" width="32" height="21" alt="My desk on a typical Tuesday" loading="lazy"`,
-      ),
-    )
-    expect(html).toMatch(/<div class="prose" data-ignore>/)
   })
 
   it('renders a caption whose link is malformed, without a preview', async () => {
@@ -270,7 +261,7 @@ describe('a post’s page and files', () => {
     expect(html).not.toMatch(/href="https:\/\/\[bad-host\]"/)
     // The preview card is for the first link that's a real URL.
     expect(html).toMatch(
-      /<a href="https:\/\/remix\.run" target="_blank" rel="noopener" class="media-frame card link-card"/,
+      /<a href="https:\/\/remix\.run" target="_blank" rel="noopener" class="media-frame link-card"/,
     )
   })
 
@@ -439,6 +430,6 @@ describe('link previews', () => {
   it('shows a card without an image until its copies are saved', async () => {
     // The shared app's cache has no copies for this link.
     let html = await (await app.fetch(`/posts/${(await textPost()).id}`)).text()
-    expect(html).toMatch(/class="media-frame card link-card"><div class="card-text">/)
+    expect(html).toMatch(/class="media-frame link-card"><div class="card-text">/)
   })
 })
