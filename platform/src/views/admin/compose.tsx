@@ -12,7 +12,7 @@ import type { Array as Arr } from 'effect'
 
 import type { Html } from '#jsx/jsx-runtime'
 
-import type { ArticleValues, ComposeValues } from '../../domain/compose.ts'
+import { composeTextValues, type ArticleValues, type ComposeValues } from '../../domain/compose.ts'
 import { FULL_WIDTH_IMAGE_SIZES, HALF_WIDTH_IMAGE_SIZES } from '../../domain/constants.ts'
 import type { PostIssue } from '../../domain/post.ts'
 import type { LinkPreview, Photo, Post, Video } from '../../domain/presentation.ts'
@@ -200,17 +200,7 @@ export function DraftNote(props: { state: DraftState; values?: ComposeValues | u
   let saved = props.state === 'saved' ? props.values : undefined
   return (
     <span id={COMPOSER_IDS.draft} role="status" class="muted draft-note">
-      {saved ? (
-        <SavedDefaults
-          id={saved.id}
-          values={{
-            caption: saved.caption,
-            city: saved.city,
-            article_title: saved.article?.title ?? '',
-            article_summary: saved.article?.summary ?? '',
-          }}
-        />
-      ) : null}
+      {saved ? <SavedDefaults id={saved.id} values={composeTextValues(saved)} /> : null}
       {props.state ? text[props.state] : ''}
     </span>
   )

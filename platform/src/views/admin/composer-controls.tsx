@@ -296,6 +296,8 @@ const RECOVER =
 // Run before Datastar's patch watcher. A stream snapshot can have been rendered before a save
 // whose response has already arrived. Every response also belongs to a particular post; none
 // of its patches (including media and redirects) may be applied to a different composer.
+// Our own lost save may also be newer than the last acknowledgment but older than local typing.
+// Advance the defaults before morphing that snapshot, preserving live values for the retry.
 const BEFORE_UPDATE =
   "if (evt.detail.type === 'datastar-patch-elements' && evt.detail.argsRaw.composer) { " +
   'const update = JSON.parse(evt.detail.argsRaw.composer); ' +
@@ -309,15 +311,22 @@ const BEFORE_UPDATE =
   ' } ' +
   '} else { ' +
   'if (version) { if (!$_epochs.includes(version.epoch)) $_epochs.push(version.epoch); $_epoch = version.epoch; $_revision = version.revision; } ' +
-  "if (stream) { $_resetComposer = ($_draft && $_draft !== update.id) || (update.previousId === id && ['published', 'retired'].includes(update.previousState)); } " +
+  "if (stream) { $_resetComposer = ($_draft && $_draft !== update.id) || (update.previousId === id && ['published', 'retired'].includes(update.previousState)); " +
+  "if (!$_resetComposer && $_previewError && update.id === id && update.by === form.elements.namedItem('tab').value) { " +
+  'evt.detail.keepFields = true; for (const [name, value] of Object.entries(update.fields)) { ' +
+  'const field = form.elements.namedItem(name); if (field instanceof HTMLTextAreaElement || field instanceof HTMLInputElement) { ' +
+  'const local = field.value; field.defaultValue = value; field.value = local; } } } } ' +
   "else { if (update.kind === 'preview') $_previewError = false; " +
   "if (update.kind === 'media') { $_mediaError = false; $_previewError = false; } " +
   "if (update.kind === 'publish') { $_publishError = false; $_mediaError = false; $_previewError = false; } } } }"
 
+// A morph initializes the incoming city signal in a mutation observer. When retaining local
+// fields, restore the local visibility after that initialization, including an emptied city.
 const AFTER_UPDATE =
   "if (evt.detail.el === el) { if (evt.detail.type === 'retrying') $_reconnecting = true; " +
   "if (evt.detail.type === 'datastar-patch-elements') { " +
   "const form = document.querySelector('#composer-page form'); const id = form.elements.namedItem('post_id'); " +
+  "if (evt.detail.keepFields) { const cityVisible = $_city; queueMicrotask(() => { form.elements.namedItem('city').setAttribute('data-signals:_city', String(cityVisible)); $_city = cityVisible; }); } " +
   'if ($_resetComposer) { form.reset(); $_previewError = false; $_mediaError = false; $_publishError = false; $_needsPreview = false; $_resetComposer = false; } ' +
   "$_draft = 'saved' in id.dataset ? id.value : ''; " +
   '{ ' +

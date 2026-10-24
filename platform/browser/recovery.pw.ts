@@ -137,6 +137,101 @@ for (const replace of [false, true]) {
   })
 }
 
+for (const author of ['this tab', 'another tab'] as const) {
+  test(`a reconnect from ${author} reconciles a lost save without misattributing newer typing`, async ({
+    page,
+    context,
+  }) => {
+    const reconnect = Promise.withResolvers<void>()
+    let firstConnection = true
+    await page.route('**/admin/posts/new/updates?*', async (route) => {
+      if (firstConnection) {
+        firstConnection = false
+        await route.fulfill({ contentType: 'text/event-stream', body: await initialEvent(route) })
+      } else {
+        await reconnect.promise
+        await route.continue()
+      }
+    })
+    let save: 'normal' | 'lost-response' | 'offline' = 'normal'
+    await page.route('**/admin/posts/new/preview', async (route) => {
+      if (save === 'normal') return route.continue()
+      if (save === 'lost-response') expect((await route.fetch()).status()).toBe(200)
+      return route.fulfill({ status: 500 })
+    })
+    await openComposer(page)
+    await caption(page, 'Acknowledged caption')
+    const uploaded = page.waitForResponse('**/admin/posts/new/media')
+    await page.getByLabel('Add an article from a Markdown file', { exact: true }).setInputFiles({
+      name: 'article.md',
+      mimeType: 'text/markdown',
+      buffer: Buffer.from('# Original title\n\nArticle body'),
+    })
+    await uploaded
+    await expect(page.getByLabel('Title', { exact: true })).toHaveValue('Original title')
+    await expect(page.locator('#composer-preview')).toContainText('Original title')
+    await page.getByRole('button', { name: 'Add location', exact: true }).click()
+    const fields = [
+      { label: 'Caption', saved: 'Committed caption', local: 'Newer local caption' },
+      { label: 'City', saved: 'Hanoi', local: '' },
+      { label: 'Title', saved: 'Committed title', local: 'Newer local title' },
+      { label: 'Summary (optional)', saved: 'Committed summary', local: 'Newer local summary' },
+    ]
+    save = 'lost-response'
+    for (const field of fields) {
+      const failed = page.waitForResponse(
+        (response) => response.url().endsWith('/preview') && response.status() === 500,
+      )
+      await page.getByLabel(field.label, { exact: true }).fill(field.saved)
+      await failed
+    }
+    save = 'offline'
+    for (const field of fields) {
+      const failed = page.waitForResponse(
+        (response) => response.url().endsWith('/preview') && response.status() === 500,
+      )
+      if (field.label === 'City')
+        await page.getByRole('button', { name: 'Remove location', exact: true }).click()
+      else await page.getByLabel(field.label, { exact: true }).fill(field.local)
+      await failed
+    }
+    await expect(page.getByRole('alert')).toContainText('try again')
+    const other = await context.newPage()
+    await openComposer(other)
+    if (author === 'another tab') await caption(other, 'Written in the other tab')
+
+    const expected = (field: (typeof fields)[number]) =>
+      author === 'this tab'
+        ? field.local
+        : field.label === 'Caption'
+          ? 'Written in the other tab'
+          : field.saved
+    const retried = page.waitForResponse(
+      (response) => response.url().endsWith('/preview') && response.status() === 200,
+    )
+    save = 'normal'
+    reconnect.resolve()
+    await retried
+    await expect(page.getByRole('alert')).toBeHidden()
+    for (const field of fields) {
+      await expect(page.getByLabel(field.label, { exact: true })).toHaveValue(expected(field))
+      await expect(other.getByLabel(field.label, { exact: true })).toHaveValue(expected(field))
+    }
+    await expect(page.getByLabel('City', { exact: true })).toBeVisible({
+      visible: author === 'another tab',
+    })
+    await expect(
+      page.getByRole('button', {
+        name: author === 'this tab' ? 'Add location' : 'Remove location',
+        exact: true,
+      }),
+    ).toBeVisible()
+    await page.reload()
+    for (const field of fields)
+      await expect(page.getByLabel(field.label, { exact: true })).toHaveValue(expected(field))
+  })
+}
+
 test('failed uploads stay visible through previews and reconnects and can be retried', async ({
   page,
   context,

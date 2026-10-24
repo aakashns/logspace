@@ -44,6 +44,14 @@ export const ComposeValues = Schema.Struct({
 })
 export type ComposeValues = typeof ComposeValues.Type
 
+// Text fields whose saved values are the browser's baseline for morphing the composer.
+export const composeTextValues = (values: ComposeValues) => ({
+  caption: values.caption,
+  city: values.city,
+  article_title: values.article?.title ?? '',
+  article_summary: values.article?.summary ?? '',
+})
+
 // Ordered within one server lifetime; the epoch distinguishes a restarted server.
 export interface DraftVersion {
   readonly epoch: string

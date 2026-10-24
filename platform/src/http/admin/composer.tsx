@@ -18,6 +18,7 @@ import type { PostRejected } from '../../commands/errors.ts'
 import { PostCommands } from '../../commands/posts.ts'
 import {
   composePost,
+  composeTextValues,
   filesNoLongerUsed,
   readComposeForm,
   withArticleText,
@@ -80,6 +81,8 @@ interface ComposerUpdate {
   id: string
   kind: 'stream' | 'preview' | 'media' | 'publish'
   version?: DraftVersion | undefined
+  by?: string | undefined
+  fields?: ReturnType<typeof composeTextValues> | undefined
   previousId?: string | undefined
   previousState?: 'active' | 'published' | 'retired' | undefined
 }
@@ -185,12 +188,20 @@ export const composerUpdates = loggedIn(() =>
         first = false
         return initial || change.by !== tab
       }),
-      Stream.mapEffect((version) =>
+      Stream.mapEffect(({ by, ...version }) =>
         Effect.gen(function* () {
           let previousState = previousId ? yield* queries.composerState(previousId) : undefined
           let props = yield* currentComposer(previousState === 'active' ? previousId : undefined)
           return patchEvents(
-            { id: props.values.id, kind: 'stream', version, previousId, previousState },
+            {
+              id: props.values.id,
+              kind: 'stream',
+              version,
+              by,
+              fields: composeTextValues(props.values),
+              previousId,
+              previousState,
+            },
             [COMPOSER_IDS.composer, <Composer {...props} tab={tab} />, 'outer'],
           )
         }),
