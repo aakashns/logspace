@@ -207,7 +207,7 @@ describe('feeds and files for machines', () => {
       await response.body?.cancel()
     }
     expect((await app.fetch('/site/favicon.ico')).status).toBe(404)
-    expect((await app.fetch('/site/logo.png')).status).toBe(404)
+    expect((await app.fetch('/site/logo.webp')).status).toBe(404)
   })
 
   it('answers unknown paths with a 404', async () => {

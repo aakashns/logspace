@@ -1,5 +1,5 @@
 // The site's configuration: what's particular to this site, like its title, the home page's
-// introduction, and its logo and icon. It's set at /admin/config and stored in the `config`
+// introduction, and its logos and icon. It's set at /admin/config and stored in the `config`
 // table, one row per setting (images as JSON). The title, URL, and description are required:
 // until they're saved the site isn't configured, and its public pages send visitors to
 // /admin/login. Any other setting that's never been saved has its default.
@@ -35,11 +35,13 @@ export const SiteImage = Schema.Struct({
 })
 export type SiteImage = typeof SiteImage.Type
 
-export const SITE_IMAGE_KINDS = ['logo', 'icon', 'bannerImage'] as const
+// `logo` is for the light theme and `darkLogo` for the dark one.
+export const SITE_IMAGE_KINDS = ['logo', 'darkLogo', 'icon', 'bannerImage'] as const
 export type SiteImageKind = (typeof SITE_IMAGE_KINDS)[number]
 
-// The images uploaded at /admin/config. Without a logo the navbar shows the site's title, and
-// without an icon the site has LogSpace's.
+// The images uploaded at /admin/config. Each theme shows its own logo, or the other theme's if it
+// has none; without either the navbar shows the site's title. Without an icon the site has
+// LogSpace's.
 export type SiteImages = { readonly [K in SiteImageKind]?: SiteImage }
 
 export type SiteConfig = SiteText & SiteImages

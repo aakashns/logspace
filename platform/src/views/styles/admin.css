@@ -229,8 +229,8 @@
   }
 
   /*
-   * Light and dark gray squares, the usual sign of transparency, a shade darker in the dark theme
-   * so the logo (drawn in the text color) stands out in either.
+   * Light and dark gray squares, the usual sign of transparency, a shade darker in the dark theme.
+   * A logo's preview is in its own theme, whichever one the page is in.
    */
   .checkered {
     background-image: repeating-conic-gradient(
@@ -238,6 +238,20 @@
       light-dark(#f4f4f4, #262626) 0 50%
     );
     background-size: 1rem 1rem;
+  }
+  .light-preview {
+    color-scheme: light;
+  }
+  .dark-preview {
+    color-scheme: dark;
+  }
+
+  .logo-preview {
+    width: auto;
+    max-width: 100%;
+    height: 2rem;
+    object-fit: contain;
+    object-position: left center;
   }
 
   /* Cropped as the home page shows it. */

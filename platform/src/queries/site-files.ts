@@ -1,5 +1,5 @@
 // The files the site serves for its images: the icons (favicon, home screen and manifest icons),
-// the logo, and the banner image, with the banner's resized copies. Icons are made from
+// the logos, and the banner image, with the banner's resized copies. Icons are made from
 // LogSpace's mark until an icon is uploaded.
 import { Context, Effect, Layer } from 'effect'
 
@@ -49,7 +49,9 @@ export class SiteFiles extends Context.Service<
             let file = { blob, size: blob.size, type: icon.type, lastModified: STARTED_AT }
             return { file, version: DEFAULT_ICON_VERSION }
           }
-          let image = [images.logo, images.bannerImage].find((image) => image?.file === name)
+          let image = [images.logo, images.darkLogo, images.bannerImage].find(
+            (image) => image?.file === name,
+          )
           return image ? yield* stored(name, image.version) : undefined
         }),
         // Unlike PostMedia, two requests for a copy that isn't made yet both make it: there's
@@ -90,7 +92,7 @@ export function getIconHref(images: SiteImages, name: string): string {
   return `${path}?v=${version}`
 }
 
-// The URL of the logo or banner image.
+// The URL of a logo or the banner image.
 export function getSiteImageHref(image: SiteImage): string {
   return `${routes.siteFile(image.file)}?v=${image.version}`
 }
