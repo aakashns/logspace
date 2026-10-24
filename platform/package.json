@@ -7,9 +7,9 @@
     "#jsx/*": "./src/lib/jsx/*.ts"
   },
   "scripts": {
-    "dev": "NODE_ENV=development bun --watch src/entry.ts start",
+    "dev": "NODE_ENV=development bun --watch src/cli/index.ts start",
     "dev:demo": "bun scripts/dev-demo.ts",
-    "start": "NODE_ENV=production bun src/entry.ts start",
+    "start": "NODE_ENV=production bun src/cli/index.ts start",
     "build": "bun scripts/build.ts",
     "test": "bun test",
     "test:browser": "playwright test",

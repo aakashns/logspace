@@ -5,10 +5,10 @@ import { BunRuntime, BunServices } from '@effect/platform-bun'
 import { Console, Effect, Option } from 'effect'
 import { Argument, Command, Flag } from 'effect/cli'
 
-import { VERSION } from './cli/shell.ts'
+import { VERSION } from './shell.ts'
 
 const runServer = Effect.flatMap(
-  Effect.promise(() => import('./cli/start.ts')),
+  Effect.promise(() => import('./start.ts')),
   (module) => module.start,
 )
 
@@ -26,7 +26,7 @@ const deploy = Command.make(
   },
   ({ domains }) =>
     Effect.flatMap(
-      Effect.promise(() => import('./cli/deploy.ts')),
+      Effect.promise(() => import('./deploy.ts')),
       (module) => module.deploy(domains),
     ),
 ).pipe(
@@ -37,7 +37,7 @@ const deploy = Command.make(
 
 const setAdminPassword = Command.make('set-admin-password', {}, () =>
   Effect.flatMap(
-    Effect.promise(() => import('./cli/admin-password.ts')),
+    Effect.promise(() => import('./admin-password.ts')),
     (module) => module.setAdminPassword,
   ),
 ).pipe(Command.withDescription('Set the password for /admin (as root)'))
@@ -52,7 +52,7 @@ const migrate = Command.make(
   },
   ({ dryRun }) =>
     Effect.flatMap(
-      Effect.promise(() => import('./cli/migrate.ts')),
+      Effect.promise(() => import('./migrate.ts')),
       (module) => module.migrate(dryRun),
     ),
 ).pipe(
@@ -73,7 +73,7 @@ const upgrade = Command.make(
   },
   ({ version, yes }) =>
     Effect.flatMap(
-      Effect.promise(() => import('./cli/upgrade.ts')),
+      Effect.promise(() => import('./upgrade.ts')),
       (module) => module.upgrade(Option.getOrUndefined(version), yes),
     ),
 ).pipe(Command.withDescription('Replace this binary with the latest release, or the given one'))

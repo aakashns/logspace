@@ -73,19 +73,19 @@ table (`IndexRoutes`, `PostRoutes`, …) with `AppMiddleware`. `provideMerge` is
 remain available to the caller.
 
 `ServerLive` serves the routes on `AppConfig`'s port with Bun's HTTP listener; the CLI and the
-browser tests use it. `src/entry.ts` is the binary's command line (`start` by default, and
+browser tests use it. `src/cli/index.ts` is the binary's command line (`start` by default, and
 `deploy`, `migrate`, `set-admin-password`, `upgrade`, `version`, `help`).
 
 #### 2. The layout: routes, data, components, and lib
 
 ```
 src/
-  entry.ts  server.ts   the command line, and the wiring
+  server.ts             the wiring
   routes/               a folder for each URL; the tree mirrors the site
   data/                 a folder for each thing the app stores
   components/           what several routes' pages share, and the CSS every page loads
   lib/                  what everything shares: config, URLs, the database, storage, images, HTTP
-  cli/                  the binary's commands other than start
+  cli/                  the binary's command line, and its commands
 ```
 
 Two questions find any code: which URL is it, and what does it store? Routes use data and

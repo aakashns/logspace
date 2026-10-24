@@ -1,4 +1,4 @@
-// What the binary's commands share (see ../entry.ts).
+// What the binary's commands share (see index.ts).
 import { Config, Effect, PlatformError, Runtime, Schema, Stream } from 'effect'
 import { ChildProcess, ChildProcessSpawner } from 'effect/process'
 
@@ -7,11 +7,11 @@ import packageJson from '../../package.json' with { type: 'json' }
 // The release this is (package.json's version).
 export const VERSION = packageJson.version
 
-// Whether this is the built binary, rather than `bun src/entry.ts` in a checkout.
+// Whether this is the built binary, rather than `bun src/cli/index.ts` in a checkout.
 export const IS_BINARY = Bun.isStandaloneExecutable
 
 // A failure to report with its message alone (without a stack), like a usage mistake or a
-// failed download. entry.ts prints it, so the runtime doesn't log it again.
+// failed download. index.ts prints it, so the runtime doesn't log it again.
 export class CommandError extends Schema.TaggedError<CommandError>()('CommandError', {
   message: Schema.String,
 }) {

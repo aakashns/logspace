@@ -111,4 +111,4 @@ await Effect.runPromise(
 );
 
 process.argv = [process.argv[0]!, process.argv[1]!, "start"];
-await import("../../platform/src/entry.ts");
+await import("../../platform/src/cli/index.ts");
