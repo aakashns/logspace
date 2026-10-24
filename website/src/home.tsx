@@ -129,6 +129,10 @@ export function Home() {
               Readers can follow along in an RSS reader, no account needed.
             </li>
             <li>
+              <strong>Optimized for SEO.</strong> Pages come with a sitemap,
+              canonical URLs, structured data, and rich previews when shared.
+            </li>
+            <li>
               <strong>Single binary.</strong> Runs as one program and keeps your
               posts in a SQLite database, and your photos and videos on the
               server’s disk.
