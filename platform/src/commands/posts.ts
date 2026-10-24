@@ -3,7 +3,12 @@
 import { Context, DateTime, Effect, Layer, Option, Schema, Semaphore } from 'effect'
 import { SqlClient } from 'effect/sql'
 
-import { composerFiles, ComposeValues, isEmptyComposer } from '../domain/compose.ts'
+import {
+  composerFiles,
+  ComposeValues,
+  isEmptyComposer,
+  type DraftVersion,
+} from '../domain/compose.ts'
 import { fromPostRow, POST_COLUMNS, toPostRow, type PostRow } from '../domain/post-rows.ts'
 import {
   getPostFileNames,
@@ -40,11 +45,13 @@ export class PostCommands extends Context.Service<
       submission: PostSubmission,
       by?: string,
     ) => Effect.Effect<PostRecord, PostRejected>
-    // Saves what's in the composer as the draft, so the composer can pick it up again, and says
-    // whether it did: an empty composer isn't saved over nothing. There's one draft at a time, so
-    // this replaces any other, and deletes its files unless its post is published. A published
-    // post can't be saved as a draft.
-    readonly saveDraft: (values: ComposeValues, by?: string) => Effect.Effect<boolean, PostRejected>
+    // Saves what's in the composer as the draft and returns its version. An empty composer
+    // isn't saved over nothing. There's one draft at a time, so this replaces any other and
+    // deletes its files unless its post is published. A published post can't become a draft.
+    readonly saveDraft: (
+      values: ComposeValues,
+      by?: string,
+    ) => Effect.Effect<DraftVersion | undefined, PostRejected>
     // Saves files chosen in the composer as a new post's, before it's published, replacing any of
     // the same names, deletes the ones it no longer uses, and saves the draft (as saveDraft does,
     // and says so). A published post's files can't be changed this way.
@@ -53,7 +60,7 @@ export class PostCommands extends Context.Service<
       uploads: PostSubmission['uploads'],
       unused: readonly string[],
       by?: string,
-    ) => Effect.Effect<boolean, PostRejected>
+    ) => Effect.Effect<DraftVersion | undefined, PostRejected>
     // Deletes a post discarded in the composer, before it was published: its files and its draft.
     readonly discard: (id: string) => Effect.Effect<void, PostRejected>
     readonly edit: (
@@ -121,9 +128,9 @@ export class PostCommands extends Context.Service<
           let record = yield* check(submission)
           // Together, so a draft saved at the same time is either deleted or refused (see
           // writeDraft).
-          let drafts = yield* Effect.gen(function* () {
+          yield* Effect.gen(function* () {
             yield* sql`insert into posts ${sql.insert({ ...toPostRow(record) })}`
-            return yield* sql`delete from drafts where id = ${id} returning id`
+            yield* sql`delete from drafts where id = ${id}`
           }).pipe(
             sql.withTransaction,
             // A primary key clash (SQLite calls it a constraint error).
@@ -133,7 +140,9 @@ export class PostCommands extends Context.Service<
                 : Effect.die(error),
             ),
           )
-          if (drafts.length > 0) yield* draftChanges.changed(by)
+          // Even a never-saved post needs a new version, so a reconnect can reconcile a lost
+          // publish response without mistaking it for an unchanged, empty composer.
+          yield* draftChanges.changed(by)
           return record
         })
       })
@@ -210,20 +219,20 @@ export class PostCommands extends Context.Service<
           return others.map((row) => row.id)
         }).pipe(sql.withTransaction, Effect.orDie)
         if (replaced === undefined) return yield* alreadyPublished
-        yield* draftChanges.changed(by)
+        let version = yield* draftChanges.changed(by)
         for (let other of replaced) {
           if (Option.isSome(yield* findRecord(other))) continue
           yield* files.removeAll(other)
         }
+        return version
       })
 
       let saveDraft = Effect.fn('PostCommands.saveDraft')(function* (
         values: ComposeValues,
         by?: string,
       ) {
-        if (!(yield* draftable(values))) return false
-        yield* writeDraft(values, by)
-        return true
+        if (!(yield* draftable(values))) return undefined
+        return yield* writeDraft(values, by)
       })
 
       let updateFiles = Effect.fn('PostCommands.updateFiles')(function* (
@@ -237,25 +246,25 @@ export class PostCommands extends Context.Service<
         yield* Effect.forEach(uploads, ({ name, file }) => files.save(id, name, file), {
           discard: true,
         })
-        if (save) yield* writeDraft(values, by)
+        let version = save ? yield* writeDraft(values, by) : undefined
         let used = new Set(composerFiles(values))
         yield* Effect.forEach(
           unused.filter((name) => !used.has(name)),
           (name) => files.remove(id, name),
           { discard: true },
         )
-        return save
+        return version
       })
 
       // Commit retirement first. Failed cleanup can leave unserved files, never a live draft
       // that names removed media, and a stale tab cannot resurrect the retired id.
       let discard = Effect.fn('PostCommands.discard')(function* (id: string) {
         yield* unpublished(id)
-        let drafts = yield* Effect.gen(function* () {
+        yield* Effect.gen(function* () {
           yield* sql`insert or ignore into retired_drafts (id) values (${id})`
-          return yield* sql`delete from drafts where id = ${id} returning id`
+          yield* sql`delete from drafts where id = ${id}`
         }).pipe(sql.withTransaction, Effect.orDie)
-        if (drafts.length > 0) yield* draftChanges.changed()
+        yield* draftChanges.changed()
         yield* files.removeAll(id)
       })
 

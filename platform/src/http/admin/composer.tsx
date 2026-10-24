@@ -10,7 +10,7 @@
 // as the draft is now, sent whenever it changes. The tab that made a change already shows it (and
 // may have more typed since), so each request says which tab it's from, and that tab isn't sent
 // its own change.
-import { Clock, Effect, Result, Stream } from 'effect'
+import { Clock, Effect, Result, Schema, Stream } from 'effect'
 import { HttpServerRequest, HttpServerResponse } from 'effect/http'
 
 import type { Html } from '#jsx/jsx-runtime'
@@ -18,15 +18,17 @@ import type { PostRejected } from '../../commands/errors.ts'
 import { PostCommands } from '../../commands/posts.ts'
 import {
   composePost,
+  composeTextValues,
   filesNoLongerUsed,
   readComposeForm,
   withArticleText,
   type ComposeValues,
+  type DraftVersion,
 } from '../../domain/compose.ts'
 import { MAX_UPLOAD_FILE_SIZE, MAX_UPLOAD_TOTAL_SIZE } from '../../domain/constants.ts'
 import { findArticleFiles } from '../../domain/markdown.ts'
 import { dateAtOffset, offsetOf } from '../../domain/post-form.ts'
-import { newPostId, type PostIssue } from '../../domain/post.ts'
+import { isPostId, newPostId, type PostIssue } from '../../domain/post.ts'
 import { LinkPreviews } from '../../queries/link-previews.ts'
 import { PostMedia } from '../../queries/post-media.ts'
 import { PostQueries } from '../../queries/posts.ts'
@@ -75,11 +77,22 @@ const fromDatastar = Effect.map(
 // inside of one to morph (`inner`), as server-sent events.
 type Patch = [id: string, html: Html, mode?: 'outer' | 'inner']
 
-const patchEvents = (...patches: Patch[]) =>
+interface ComposerUpdate {
+  id: string
+  kind: 'stream' | 'preview' | 'media' | 'publish'
+  version?: DraftVersion | undefined
+  by?: string | undefined
+  fields?: ReturnType<typeof composeTextValues> | undefined
+  previousId?: string | undefined
+  previousState?: 'active' | 'published' | 'retired' | undefined
+}
+
+const patchEvents = (update: ComposerUpdate, ...patches: Patch[]) =>
   patches
     .map(
       ([id, html, mode = 'replace']) =>
         `event: datastar-patch-elements\ndata: selector #${id}\ndata: mode ${mode}\n` +
+        `data: composer ${JSON.stringify(update)}\n` +
         html.value
           .split(/\r\n?|\n/)
           .map((line) => `data: elements ${line}\n`)
@@ -88,11 +101,11 @@ const patchEvents = (...patches: Patch[]) =>
     )
     .join('')
 
-const composerPatch = (...patches: Patch[]) =>
-  HttpServerResponse.text(patchEvents(...patches), { contentType: 'text/event-stream' })
+const composerPatch = (update: ComposerUpdate, ...patches: Patch[]) =>
+  HttpServerResponse.text(patchEvents(update, ...patches), { contentType: 'text/event-stream' })
 
 // What the composer's note says once a command has saved the draft, or not.
-const draftState = (result: Result.Result<boolean, PostRejected>): DraftState =>
+const draftState = (result: Result.Result<DraftVersion | undefined, PostRejected>): DraftState =>
   Result.isFailure(result) ? 'refused' : result.success ? 'saved' : undefined
 
 // The composer for `values`, with its post as it'd be published now.
@@ -126,24 +139,25 @@ const composerProps = (values: ComposeValues, issues?: readonly PostIssue[], dra
 
 // The draft, if there's one, with its id, so its files are its own again. Otherwise a new post,
 // at the newest post's UTC offset. Either way, the browser's own offset replaces it on load.
-const currentComposer = Effect.gen(function* () {
-  let queries = yield* PostQueries
-  let draft = yield* queries.draft
-  if (draft) return yield* composerProps(draft, undefined, 'saved')
-  let [newest] = yield* queries.all
-  return yield* composerProps({
-    id: newPostId(),
-    caption: '',
-    city: '',
-    offset: offsetOf(newest?.date),
-    photos: [],
+const currentComposer = (preferredId?: string) =>
+  Effect.gen(function* () {
+    let queries = yield* PostQueries
+    let draft = yield* queries.draft
+    if (draft) return yield* composerProps(draft, undefined, 'saved')
+    let [newest] = yield* queries.all
+    return yield* composerProps({
+      id: preferredId ?? newPostId(),
+      caption: '',
+      city: '',
+      offset: offsetOf(newest?.date),
+      photos: [],
+    })
   })
-})
 
 // A new tab of the composer, with its own id.
 export const compose = loggedIn(() =>
   Effect.gen(function* () {
-    let props = yield* currentComposer
+    let props = yield* currentComposer()
     return yield* adminPage('New Post', <ComposePage {...props} tab={crypto.randomUUID()} />)
   }),
 )
@@ -153,17 +167,44 @@ export const compose = loggedIn(() =>
 const KEEP_ALIVE = '30 seconds'
 
 // The stream of the composer for one tab: the draft as it is when the stream opens, and again
-// whenever it changes, unless the change was the tab's own. Changes that come faster than they're
-// sent are sent once, as the draft is by then.
+// whenever it changes, unless the change was the tab's own. The first snapshot always reconciles
+// the connection: its latest write may have committed without its response reaching the tab.
+// Changes that come faster than they're sent are sent once, as the draft is by then.
 export const composerUpdates = loggedIn(() =>
   Effect.gen(function* () {
-    let tab = (yield* requestUrl).searchParams.get('tab') ?? ''
+    let params = (yield* requestUrl).searchParams
+    let tab = params.get('tab') ?? ''
+    let signals = Schema.decodeUnknownResult(
+      Schema.fromJsonString(Schema.Struct({ _postId: Schema.optional(Schema.String) })),
+    )(params.get('datastar') ?? '{}')
+    let requestedId = Result.isSuccess(signals) ? signals.success._postId : undefined
+    let previousId = requestedId && isPostId(requestedId) ? requestedId : undefined
+    let queries = yield* PostQueries
+    let first = true
     let composers = (yield* DraftChanges).latest.pipe(
       Stream.buffer({ capacity: 1, strategy: 'sliding' }),
-      Stream.filter((change) => change.by !== tab),
-      Stream.mapEffect(() => currentComposer),
-      Stream.map((props) =>
-        patchEvents([COMPOSER_IDS.composer, <Composer {...props} tab={tab} />, 'outer']),
+      Stream.filter((change) => {
+        let initial = first
+        first = false
+        return initial || change.by !== tab
+      }),
+      Stream.mapEffect(({ by, ...version }) =>
+        Effect.gen(function* () {
+          let previousState = previousId ? yield* queries.composerState(previousId) : undefined
+          let props = yield* currentComposer(previousState === 'active' ? previousId : undefined)
+          return patchEvents(
+            {
+              id: props.values.id,
+              kind: 'stream',
+              version,
+              by,
+              fields: composeTextValues(props.values),
+              previousId,
+              previousState,
+            },
+            [COMPOSER_IDS.composer, <Composer {...props} tab={tab} />, 'outer'],
+          )
+        }),
       ),
     )
     let services = yield* Effect.context<Stream.Services<typeof composers>>()
@@ -180,15 +221,13 @@ export const composerUpdates = loggedIn(() =>
 )
 
 // The composer's media and toolbar, re-rendered, and what's wrong (or nothing).
-const mediaPatch = (props: ComposerProps) =>
+const mediaPatch = (props: ComposerProps, kind: 'media' | 'publish', version?: DraftVersion) =>
   composerPatch(
+    { id: props.values.id, kind, version },
     [COMPOSER_IDS.issues, <ComposerIssues issues={props.issues} refresh />],
     [COMPOSER_IDS.media, <ComposerMedia {...props} />],
     [COMPOSER_IDS.tools, <ComposerTools values={props.values} />],
-    [
-      COMPOSER_IDS.draft,
-      <DraftNote state={props.draft} saved={props.draft === 'saved' ? props.values : undefined} />,
-    ],
+    [COMPOSER_IDS.draft, <DraftNote state={props.draft} values={props.values} />],
   )
 
 // Files chosen are saved right away, and the media is shown with them; files taken out are
@@ -215,11 +254,15 @@ export const updateComposerMedia = loggedIn(() =>
         cover: saved(values.cover),
       }
     }
-    return mediaPatch(yield* composerProps(values, [...issues, ...rejected], draftState(result)))
+    return mediaPatch(
+      yield* composerProps(values, [...issues, ...rejected], draftState(result)),
+      'media',
+      Result.isSuccess(result) ? result.success : undefined,
+    )
   }).pipe(
     Effect.catchTag('UploadTooLarge', () =>
       Effect.succeed(
-        composerPatch([
+        composerPatch({ id: '', kind: 'media' }, [
           COMPOSER_IDS.issues,
           <ComposerIssues issues={[{ message: COMPOSER_TOO_LARGE }]} clearFiles />,
         ]),
@@ -245,11 +288,13 @@ export const previewComposer = loggedIn(() =>
     let result = yield* Effect.result((yield* PostCommands).saveDraft(values, tabOf(form)))
     let draft = draftState(result)
     return composerPatch(
+      {
+        id: values.id,
+        kind: 'preview',
+        version: Result.isSuccess(result) ? result.success : undefined,
+      },
       [COMPOSER_IDS.preview, <ComposerPreview {...yield* composerProps(values)} />, 'inner'],
-      [
-        COMPOSER_IDS.draft,
-        <DraftNote state={draft} saved={draft === 'saved' ? values : undefined} />,
-      ],
+      [COMPOSER_IDS.draft, <DraftNote state={draft} values={values} />],
     )
   }),
 )
@@ -264,7 +309,7 @@ export const publishComposer = loggedIn(() =>
     let rejectedWith = (issues: readonly PostIssue[]) =>
       Effect.flatMap(composerProps(values, issues), (props) =>
         datastar
-          ? Effect.succeed(mediaPatch(props))
+          ? Effect.succeed(mediaPatch(props, 'publish'))
           : // A new page, so a new tab.
             adminPage('New Post', <ComposePage {...props} tab={crypto.randomUUID()} />, {
               status: 400,
@@ -279,7 +324,7 @@ export const publishComposer = loggedIn(() =>
     return yield* (yield* PostCommands).publish({ post, uploads, issues }, tab).pipe(
       Effect.map((published) =>
         datastar
-          ? composerPatch([
+          ? composerPatch({ id: values.id, kind: 'publish' }, [
               COMPOSER_IDS.issues,
               <ComposerIssues redirect={routes.post(published.id)} />,
             ])
