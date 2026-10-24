@@ -112,7 +112,8 @@ HTML in the Markdown is shown as text, not rendered.
 - Uploads can be up to 100 MB each and 120 MB in one save (`MAX_UPLOAD_*` in
   `src/domain/constants.ts`); upload bigger sets over more than one save.
 - A post's files are only served once it's published (the composer shows them from `/admin`).
-  Files uploaded for a new post that's never published stay unserved in storage, unless it's
-  discarded.
+  In the composer, taking media out (or replacing it) deletes its file, and discarding the post
+  deletes them all; a new post that's left without being published or discarded leaves its files
+  unserved in storage.
 - Replacing a file under a new name leaves the old one in storage. Deleting a post deletes all its
   files.

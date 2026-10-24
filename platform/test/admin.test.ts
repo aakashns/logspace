@@ -626,6 +626,50 @@ describe('the composer', () => {
     expect(video).not.toMatch(/name="(video|poster)"/)
   })
 
+  it('deletes the files of media taken out, and only those', async () => {
+    let id = 'composer11'
+    let media = (fields: [string, string | File][]) =>
+      composerPost('/admin/posts/new/media', [['id', id], ...fields])
+    await media([
+      ['photo_uploads', photo('a.jpg')],
+      ['photo_uploads', photo('b.jpg')],
+    ])
+    await app.adminFetch(`/admin/posts/${id}/files/a.jpg?w=320&v=x`)
+    await media([
+      ['photo', 'a.jpg'],
+      ['photo', 'b.jpg'],
+      ['remove', 'a.jpg'],
+    ])
+    expect(await hasPostFile(id, 'a.jpg')).toBe(false)
+    expect(await hasPostFile(id, 'b.jpg')).toBe(true)
+    let info = await app.run(
+      Effect.flatMap(PostQueries, (queries) => queries.imageInfo(id, 'a.jpg')),
+    )
+    expect(info).toBeUndefined()
+
+    // A removed article takes its cover and the files its body used, but not a link that can't
+    // be a file.
+    await media([
+      ['photo', 'b.jpg'],
+      ['remove', 'b.jpg'],
+    ])
+    await media([
+      ['article_body', 'Hi ![Desk](desk.jpg) and [notes](notes/today)'],
+      ['article_files', photo('desk.jpg')],
+      ['cover_upload', photo('cover.jpg')],
+    ])
+    expect(await hasPostFile(id, 'desk.jpg')).toBe(true)
+    let removed = await media([
+      ['article_body', 'Hi ![Desk](desk.jpg) and [notes](notes/today)'],
+      ['cover', 'cover.jpg'],
+      ['remove_article', 'article'],
+    ])
+    expect(removed.status).toBe(200)
+    expect(await hasPostFile(id, 'desk.jpg')).toBe(false)
+    expect(await hasPostFile(id, 'cover.jpg')).toBe(false)
+    expect(await hasPostFile(id, 'b.jpg')).toBe(false)
+  })
+
   it('takes one kind of media at a time', async () => {
     let events = await (
       await composerPost('/admin/posts/new/media', [

@@ -15,6 +15,8 @@ export class PostFiles extends Context.Service<
     // info. Its type is its name's (see mimeType), not what the browser claimed, since the type
     // is what it's served as.
     readonly save: (id: string, name: string, file: Blob) => Effect.Effect<void>
+    // Removes one of a post's files, with its resized copies and info.
+    readonly remove: (id: string, name: string) => Effect.Effect<void>
     // Removes all of a post's files, with their resized copies and info.
     readonly removeAll: (id: string) => Effect.Effect<void>
   }
@@ -51,13 +53,22 @@ export class PostFiles extends Context.Service<
           .pipe(Effect.orDie)
       })
 
+      let remove = Effect.fn('PostFiles.remove')(function* (id: string, name: string) {
+        if (!isPostFileName(name)) return yield* Effect.die(`Invalid post file name "${name}"`)
+        yield* storage.remove(mediaKeys.postFile(id, name))
+        yield* removePrefix(mediaKeys.variants(id, name))
+        yield* sql`delete from post_images where post_id = ${id} and name = ${name}`.pipe(
+          Effect.orDie,
+        )
+      })
+
       let removeAll = Effect.fn('PostFiles.removeAll')(function* (id: string) {
         yield* removePrefix(mediaKeys.postFiles(id))
         yield* removePrefix(mediaKeys.postVariants(id))
         yield* sql`delete from post_images where post_id = ${id}`.pipe(Effect.orDie)
       })
 
-      return PostFiles.of({ save, removeAll })
+      return PostFiles.of({ save, remove, removeAll })
     }),
   )
 }

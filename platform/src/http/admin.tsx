@@ -9,6 +9,7 @@ import { PostCommands } from '../commands/posts.ts'
 import { SiteConfigCommands } from '../commands/site-config.ts'
 import {
   composePost,
+  filesNoLongerUsed,
   readComposeForm,
   withArticleText,
   type ComposeValues,
@@ -381,12 +382,14 @@ const mediaPatch = (props: ComposerProps) =>
     [COMPOSER_IDS.tools, <ComposerTools values={props.values} />],
   )
 
-// Files chosen are saved right away, and the media is shown with them. Files too big to send at
-// all are dropped from the form, with a note saying why.
+// Files chosen are saved right away, and the media is shown with them; files taken out are
+// deleted. Files too big to send at all are dropped from the form, with a note saying why.
 const updateComposerMedia = loggedIn(() =>
   Effect.gen(function* () {
-    let { values, uploads, issues } = yield* readComposer(yield* readForm())
-    let rejected = yield* (yield* PostCommands).upload(values.id, uploads).pipe(
+    let form = yield* readComposer(yield* readForm())
+    let { values, uploads, issues } = form
+    let commands = yield* PostCommands
+    let rejected = yield* commands.updateFiles(values.id, uploads, filesNoLongerUsed(form)).pipe(
       Effect.as([]),
       Effect.catchTag('PostRejected', (rejected) => Effect.succeed(rejected.issues)),
     )

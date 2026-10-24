@@ -12,6 +12,7 @@ import {
   type PostIssue,
   type PostRecord,
 } from './post.ts'
+import { findArticleFiles } from './markdown.ts'
 import { uploadName } from './post-form.ts'
 
 export interface ComposeValues {
@@ -38,13 +39,14 @@ export interface ArticleValues {
 }
 
 // A submitted composer: what it holds, the files chosen with it (already named in `values`), the
-// chosen files that couldn't be added, and a Markdown file chosen for the article, whose text
-// `withArticleText` adds.
+// chosen files that couldn't be added, a Markdown file chosen for the article, whose text
+// `withArticleText` adds, and the files the post used before this submission changed it.
 export interface ComposeForm {
   values: ComposeValues
   uploads: { name: string; file: File }[]
   issues: PostIssue[]
   articleFile?: File | undefined
+  used: string[]
 }
 
 type MediaKind = 'photos' | 'video' | 'article'
@@ -65,13 +67,13 @@ export function readComposeForm(formData: FormData): ComposeForm {
     return typeof value === 'string' ? value.replace(/\r\n?/g, '\n') : ''
   }
   let remove = text('remove')
-  let fileNames = (name: string) =>
+  let submitted = (name: string) =>
     formData
       .getAll(name)
       .flatMap((value) =>
         typeof value === 'string' && isPostFileName(value.trim()) ? [value.trim()] : [],
       )
-      .filter((file) => file !== remove)
+  let fileNames = (name: string) => submitted(name).filter((file) => file !== remove)
   // A file input left empty sends an empty file.
   let chosen = (name: string) =>
     formData.getAll(name).filter((value) => value instanceof File && value.size > 0)
@@ -80,6 +82,11 @@ export function readComposeForm(formData: FormData): ComposeForm {
   let [video] = fileNames('video')
   let [poster] = video ? fileNames('poster') : []
   let body = text('article_body')
+  let id = text('id').trim()
+  let used = [
+    ...['photo', 'video', 'poster', 'cover'].flatMap(submitted),
+    ...(body.trim() === '' ? [] : findArticleFiles(id, body)),
+  ]
   let article: ArticleValues | undefined =
     body.trim() !== '' && formData.get('remove_article') === null
       ? {
@@ -161,7 +168,7 @@ export function readComposeForm(formData: FormData): ComposeForm {
 
   let offset = text('offset').trim()
   let values: ComposeValues = {
-    id: text('id').trim(),
+    id,
     caption: text('caption'),
     city: text('city').trim(),
     offset: /^[+-](0\d|1[0-4]):[0-5]\d$/.test(offset) ? offset : '+00:00',
@@ -176,7 +183,24 @@ export function readComposeForm(formData: FormData): ComposeForm {
     uploads,
     issues,
     articleFile: articleFile instanceof File ? articleFile : undefined,
+    used,
   }
+}
+
+// The files the post used before the submission and doesn't now: a photo, poster, or cover that
+// was removed, a video or article that was removed or replaced, and the files a removed
+// article's body used. They can be deleted, as nothing will show them. A body's relative links
+// that can't be files (like `notes/today`) aren't.
+export function filesNoLongerUsed(form: ComposeForm): string[] {
+  let { photos, video, poster, cover, article, id } = form.values
+  let using = new Set([
+    ...photos,
+    video,
+    poster,
+    cover,
+    ...(article ? findArticleFiles(id, article.body) : []),
+  ])
+  return [...new Set(form.used)].filter((file) => isPostFileName(file) && !using.has(file))
 }
 
 const ONE_KIND =

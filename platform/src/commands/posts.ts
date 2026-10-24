@@ -30,10 +30,12 @@ export class PostCommands extends Context.Service<
   {
     readonly publish: (submission: PostSubmission) => Effect.Effect<PostRecord, PostRejected>
     // Saves files chosen in the composer as a new post's, before it's published, replacing any of
-    // the same names. A published post's files can't be replaced this way.
-    readonly upload: (
+    // the same names, and deletes the ones it no longer uses. A published post's files can't be
+    // changed this way.
+    readonly updateFiles: (
       id: string,
       uploads: PostSubmission['uploads'],
+      unused: readonly string[],
     ) => Effect.Effect<void, PostRejected>
     // Deletes the files of a post discarded in the composer, before it was published.
     readonly discard: (id: string) => Effect.Effect<void, PostRejected>
@@ -123,14 +125,16 @@ export class PostCommands extends Context.Service<
         }
       })
 
-      let upload = Effect.fn('PostCommands.upload')(function* (
+      let updateFiles = Effect.fn('PostCommands.updateFiles')(function* (
         id: string,
         uploads: PostSubmission['uploads'],
+        unused: readonly string[],
       ) {
         yield* unpublished(id)
         yield* Effect.forEach(uploads, ({ name, file }) => files.save(id, name, file), {
           discard: true,
         })
+        yield* Effect.forEach(unused, (name) => files.remove(id, name), { discard: true })
       })
 
       let discard = Effect.fn('PostCommands.discard')(function* (id: string) {
@@ -168,7 +172,7 @@ export class PostCommands extends Context.Service<
         yield* files.removeAll(id)
       })
 
-      return PostCommands.of({ publish, upload, discard, edit, delete: remove })
+      return PostCommands.of({ publish, updateFiles, discard, edit, delete: remove })
     }),
   )
 }
