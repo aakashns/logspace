@@ -11,18 +11,28 @@ import { AdminAuth, type Session } from '../../lib/http/session.ts'
 import { urls } from '../../lib/urls.ts'
 import { AdminMessage, AdminPage } from './layout.tsx'
 
-// An admin page's response.
+// An admin page's response, with the page's styles (beyond the admin layout's).
 export const adminPage = (
   title: string,
   content: Child,
-  options?: { status?: number | undefined; loggedIn?: boolean | undefined },
+  options?: {
+    styles?: string | undefined
+    status?: number | undefined
+    loggedIn?: boolean | undefined
+  },
 ) =>
   Effect.gen(function* () {
     let page = yield* pageContext
     let { pathname } = yield* requestUrl
     return pageResponse(
       page,
-      <AdminPage page={page} path={pathname} title={title} loggedIn={options?.loggedIn}>
+      <AdminPage
+        page={page}
+        path={pathname}
+        title={title}
+        styles={options?.styles ?? ''}
+        loggedIn={options?.loggedIn}
+      >
         {content}
       </AdminPage>,
       options,

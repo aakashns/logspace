@@ -76,9 +76,6 @@ export const AppServices = Layer.mergeAll(
 // The normal assembly for servers and scripts. Tests can supply a network to AppServices.
 export const AppLive = AppServices.pipe(Layer.provide(PublicNetwork.layer))
 
-// How routes match: /posts/<id>/ (with a trailing slash) isn't /posts/<id>, as in LogSpace 0.1.
-export const ROUTER_CONFIG = { ignoreTrailingSlash: false }
-
 // ServerLive serves these routes; tests drive them through an in-memory web handler.
 export const AppRoutes = Layer.mergeAll(
   IndexRoutes,
@@ -99,7 +96,7 @@ export const AppRoutes = Layer.mergeAll(
 export const ServerLive = Layer.unwrap(
   Effect.gen(function* () {
     let { port, hostname } = yield* AppConfig
-    return HttpRouter.serve(AppRoutes, { disableLogger: true, routerConfig: ROUTER_CONFIG }).pipe(
+    return HttpRouter.serve(AppRoutes, { disableLogger: true }).pipe(
       Layer.provideMerge(AppLive),
       Layer.provideMerge(
         BunHttpServer.layer({

@@ -10,7 +10,7 @@ import { PostQueries } from '../../data/posts/queries.ts'
 import { configuredSite } from '../../data/site/queries.ts'
 import { pageContext, pageResponse, param, requestUrl } from '../../lib/http/pages.ts'
 import { fileResponse, IMMUTABLE, notFound } from '../../lib/http/responses.ts'
-import { PostNotFound, PostPage } from './page.tsx'
+import { POST_PAGE_STYLES, PostNotFound, PostPage } from './page.tsx'
 
 const showPost = Effect.gen(function* () {
   let page = yield* pageContext
@@ -19,7 +19,11 @@ const showPost = Effect.gen(function* () {
     let { pathname } = yield* requestUrl
     return pageResponse(
       page,
-      <Document page={page} meta={{ path: pathname, title: 'Post not found', noindex: true }}>
+      <Document
+        page={page}
+        meta={{ path: pathname, title: 'Post not found', noindex: true }}
+        styles={POST_PAGE_STYLES}
+      >
         <PostNotFound />
       </Document>,
       { status: 404 },
@@ -29,7 +33,12 @@ const showPost = Effect.gen(function* () {
   let preview = yield* (yield* LinkPreviews).forPost(post)
   return pageResponse(
     page,
-    <Document page={page} meta={getPostMeta(post)} preloadImage={getPriorityImage(post, true)}>
+    <Document
+      page={page}
+      meta={getPostMeta(post)}
+      preloadImage={getPriorityImage(post, true)}
+      styles={POST_PAGE_STYLES}
+    >
       <PostPage post={post} siteUrl={site.siteUrl} preview={preview} />
     </Document>,
   )

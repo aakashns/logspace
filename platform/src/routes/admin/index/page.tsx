@@ -1,8 +1,12 @@
 import type { Html } from '#jsx/jsx-runtime'
 
+import { stylesheet } from '../../../components/stylesheet.ts'
 import { formatPostDate } from '../../../data/posts/format.ts'
 import { summarizePost, type Post } from '../../../data/posts/presentation.ts'
 import { urls } from '../../../lib/urls.ts'
+import css from './page.css' with { type: 'text' }
+
+export const POSTS_PAGE_STYLES = stylesheet(css)
 
 // /admin: links to configure the site and write a post, and every post, newest first.
 export function PostsPage(props: { posts: readonly Post[] }): Html {

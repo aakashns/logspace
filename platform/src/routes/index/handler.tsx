@@ -10,7 +10,7 @@ import { configuredSite } from '../../data/site/queries.ts'
 import { getBannerSrcset, getSiteImageHref } from '../../data/site/site-images.ts'
 import { pageContext, pageResponse } from '../../lib/http/pages.ts'
 import { urls } from '../../lib/urls.ts'
-import { BANNER_IMAGE_SIZES, HomePage } from './page.tsx'
+import { BANNER_IMAGE_SIZES, HOME_PAGE_STYLES, HomePage } from './page.tsx'
 
 const home = Effect.gen(function* () {
   let page = yield* pageContext
@@ -27,6 +27,7 @@ const home = Effect.gen(function* () {
     <Document
       page={page}
       meta={{ path: urls.home() }}
+      styles={HOME_PAGE_STYLES}
       // The banner, when there's one, is at the top, above the first post.
       preloadImage={
         bannerImage

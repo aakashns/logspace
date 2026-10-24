@@ -7,12 +7,13 @@ import { redirect } from '../../../lib/http/responses.ts'
 import { AdminAuth } from '../../../lib/http/session.ts'
 import { urls } from '../../../lib/urls.ts'
 import { adminPage, message, privately } from '../admin.tsx'
-import { LoginPage } from './page.tsx'
+import { LOGIN_PAGE_STYLES, LoginPage } from './page.tsx'
 
 const loginPage = (error?: string) =>
   Effect.gen(function* () {
     let { enabled } = yield* AdminAuth
     return yield* adminPage('Log in', <LoginPage enabled={enabled} error={error} />, {
+      styles: LOGIN_PAGE_STYLES,
       status: error ? 401 : 200,
       loggedIn: false,
     })

@@ -25,6 +25,14 @@ describe('a post’s page and files', () => {
     }
   })
 
+  it('serves a post’s page with a trailing slash too', async () => {
+    let response = await app.fetch('/posts/xf6ddthtoo/')
+    expect(response.status).toBe(200)
+    expect(await response.text()).toContain(
+      '<link rel="canonical" href="https://example.com/posts/xf6ddthtoo">',
+    )
+  })
+
   it('renders a caption’s bold, italic, and links', async () => {
     let html = await (await app.fetch('/posts/xf6ddthtoo')).text()
     expect(html).toContain(

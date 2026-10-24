@@ -73,19 +73,19 @@ table (`IndexRoutes`, `PostRoutes`, …) with `AppMiddleware`. `provideMerge` is
 remain available to the caller.
 
 `ServerLive` serves the routes on `AppConfig`'s port with Bun's HTTP listener; the CLI and the
-browser tests use it. `src/entry.ts` is the binary's command line (`start` by default, and
+browser tests use it. `src/cli/index.ts` is the binary's command line (`start` by default, and
 `deploy`, `migrate`, `set-admin-password`, `upgrade`, `version`, `help`).
 
 #### 2. The layout: routes, data, components, and lib
 
 ```
 src/
-  entry.ts  server.ts   the command line, and the wiring
+  server.ts             the wiring
   routes/               a folder for each URL; the tree mirrors the site
   data/                 a folder for each thing the app stores
-  components/           what several routes' pages share, and the CSS every page loads
+  components/           what several routes' pages share, and the CSS every page inlines
   lib/                  what everything shares: config, URLs, the database, storage, images, HTTP
-  cli/                  the binary's commands other than start
+  cli/                  the binary's command line, and its commands
 ```
 
 Two questions find any code: which URL is it, and what does it store? Routes use data and
@@ -163,9 +163,10 @@ Components are plain functions from props to `Html`. `lib/jsx/jsx-runtime.ts` es
 string and attribute; the only way to write markup unescaped is `raw()`, which is used only for
 HTML the app renders itself (captions, the stylesheet, JSON-LD). Start with `document.tsx`, the
 `<html>` around every page; `post.tsx` is a post, as the home page, its own page, and the
-composer's preview show it. CSS is plain CSS beside what it styles. `stylesheet.ts` joins what
-`site.css` imports, minifies it, and inlines it into each page; the pages under `/admin` add what
-`admin.css` imports.
+composer's preview show it. CSS is plain CSS beside what it styles, imported as text by the file
+beside it and minified with `stylesheet()`. Every page inlines `DOCUMENT_STYLES` (the reset, the
+theme, and the navbar's) and its own styles, which its handler passes: `page.tsx` exports them,
+with `POST_STYLES` if it shows posts, and the pages under `/admin` add the admin layout's.
 
 #### 6. Lib: `lib/`
 
@@ -185,7 +186,7 @@ Database migrations are an Effect function, `runMigrations`, used by startup and
 | `http/forms.ts`      | Reading a form within the upload limits (`UploadTooLarge` → the 413 page)                                                                                                                                     |
 | `http/responses.ts`  | Files with ranges, ETags, and caching; redirects                                                                                                                                                              |
 | `http/forwarded.ts`  | The protocol and host behind Caddy (`TRUST_PROXY=1`)                                                                                                                                                          |
-| `http/assets.ts`     | Datastar, fonts, and the stylesheets, embedded in the binary                                                                                                                                                  |
+| `http/assets.ts`     | Datastar, fonts, and every page's styles with the heading font, embedded in the binary                                                                                                                        |
 | `http/middleware.ts` | Wraps every request, in this order: the proxy's forwarded host, the cross-origin form check, the gate that keeps an unconfigured site private, then the handler, with 404s, 500s, and security headers        |
 
 #### 7. Tests

@@ -72,15 +72,17 @@ describe('the home page', () => {
     expect(html).toMatch(/<a href="\/rss\.xml" aria-label="RSS feed"/)
   })
 
-  it('inlines the stylesheet, with its imports joined and the heading font embedded', async () => {
+  it('inlines every page’s styles, with the heading font embedded, and its own', async () => {
     let html = await (await app.fetch('/')).text()
     let style = html.match(/<style>(.*?)<\/style>/s)?.[1] ?? ''
-    expect(style).not.toMatch(/@import/)
     expect(style).toMatch(/^@layer reset,theme,components;/)
     expect(style).toMatch(/font-family:'Instrument Sans'/)
     expect(style).toMatch(/url\("data:font\/woff2;base64,/)
     expect(style).not.toMatch(/instrument-sans-latin-600\.woff2/)
-    // Admin styles are only on admin pages.
+    expect(style).toMatch(/\.feed-post\{/)
+    expect(style).toMatch(/\.banner\{/)
+    // Other pages' styles are only on those pages.
+    expect(style).not.toMatch(/\.post-page\{/)
     expect(style).not.toMatch(/\.admin-page/)
     expect(html).not.toMatch(/rel="stylesheet"/)
   })

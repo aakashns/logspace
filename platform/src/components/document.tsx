@@ -6,9 +6,16 @@ import type { PageMeta, PreloadImage } from '../data/posts/presentation.ts'
 import { getIconHref, getSiteImageHref } from '../data/site/site-images.ts'
 import { isSiteConfigured, type SavedSiteConfig, type SiteConfig } from '../data/site/site.ts'
 import { urls } from '../lib/urls.ts'
-import { ComposeLink, RssLink, ThemeToggle } from './controls.tsx'
+import { ComposeLink, CONTROLS_STYLES, RssLink, ThemeToggle } from './controls.tsx'
+import layoutCss from './layout.css' with { type: 'text' }
+import resetCss from './reset.css' with { type: 'text' }
 import { SiteLogo } from './site-logo.tsx'
-import type { Stylesheets } from './stylesheet.ts'
+import { stylesheet } from './stylesheet.ts'
+import themeCss from './theme.css' with { type: 'text' }
+
+// What every page inlines before its own styles: the reset, the theme, and the navbar's. The
+// page gets it from Assets, which embeds the heading font (see ../lib/http/assets.ts).
+export const DOCUMENT_STYLES = stylesheet(resetCss, themeCss, layoutCss) + CONTROLS_STYLES
 
 // The app's name, which pages show as the site's title until the site has one.
 const APP_NAME = 'LogSpace'
@@ -24,7 +31,8 @@ export interface PageContext {
   // The Content-Security-Policy nonce for this response, which Datastar runs its expressions
   // with (see ../lib/http/pages.ts).
   readonly nonce: string
-  readonly stylesheets: Stylesheets
+  // DOCUMENT_STYLES, with the heading font embedded.
+  readonly stylesheet: string
   // Where Datastar is served, with its hash in the name.
   readonly datastarHref: string
 }
@@ -35,15 +43,15 @@ export interface DocumentProps {
   // The page's main image, usually what Lighthouse calls the Largest Contentful Paint, which is
   // fetched before anything else (see getPriorityImage).
   readonly preloadImage?: PreloadImage | undefined
+  // The page's own styles, inlined after every page's (see stylesheet.ts).
+  readonly styles: string
   // Extra navbar buttons, shown at the far right after the theme toggle.
   readonly navActions?: Child | undefined
-  // Adds the admin pages' styles.
-  readonly admin?: boolean | undefined
   readonly children?: Child | undefined
 }
 
 export function Document(props: DocumentProps): Html {
-  let { page, meta, preloadImage, navActions, admin, children } = props
+  let { page, meta, preloadImage, styles, navActions, children } = props
   // The admin pages are shown before the site is configured, so its required settings can be
   // missing. Then the title is the app's, URLs are relative to the page, and there's no RSS feed.
   let saved = page.site
@@ -104,8 +112,7 @@ export function Document(props: DocumentProps): Html {
                 href={site.siteUrl + urls.rss()}
               />
             ) : null}
-            <style>{raw(page.stylesheets.site)}</style>
-            {admin ? <style>{raw(page.stylesheets.admin)}</style> : null}
+            <style>{raw(page.stylesheet + styles)}</style>
             <title>{meta.title ? `${meta.title} · ${site.siteTitle}` : site.siteTitle}</title>
             <meta name="description" content={description} />
             {meta.noindex ? <meta name="robots" content="noindex" /> : null}

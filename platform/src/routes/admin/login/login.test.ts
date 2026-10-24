@@ -29,6 +29,9 @@ describe('logging in', () => {
     expect(response.status).toBe(200)
     expect(html).toMatch(/<input [^>]*type="password"/)
     expect(html).toMatch(/<meta name="robots" content="noindex">/)
+    // The admin layout's styles, then the page's own, and no other page's.
+    expect(html).toMatch(/\.admin-page\{.*\.login-form\{/s)
+    expect(html).not.toMatch(/\.composer\{/)
     expect(response.headers.get('X-Robots-Tag')).toBe('noindex')
   })
 

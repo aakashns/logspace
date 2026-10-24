@@ -72,7 +72,7 @@ console.log(`
   Data            ${directory} (deleted when this stops)
 `)
 
-const server = Bun.spawn(['bun', '--no-env-file', '--watch', 'src/entry.ts', 'start'], {
+const server = Bun.spawn(['bun', '--no-env-file', '--watch', 'src/cli/index.ts', 'start'], {
   cwd: root,
   // Only what's set here, so a developer's .env, proxy, or real data paths can't leak in.
   env: {
