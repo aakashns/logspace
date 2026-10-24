@@ -4,14 +4,13 @@
 // write, Datastar posts the form, and gets HTML for parts of the page: the media when files are
 // added or removed (the files are saved under the post's id right away), and the preview as you
 // type. Posting is a plain form submission, which publishes the post and goes to it.
-import { Clock, Effect } from 'effect'
+import { DateTime, Effect } from 'effect'
 import { HttpServerResponse } from 'effect/http'
 
 import type { Html } from '#jsx/jsx-runtime'
 import { PostCommands } from '../../commands/posts.ts'
 import { composePost, readComposeForm, type ComposeValues } from '../../domain/compose.ts'
 import { MAX_UPLOAD_FILE_SIZE, MAX_UPLOAD_TOTAL_SIZE } from '../../domain/constants.ts'
-import { dateAtOffset, offsetOf } from '../../domain/post-form.ts'
 import { newPostId, type PostIssue } from '../../domain/post.ts'
 import { LinkPreviews } from '../../queries/link-previews.ts'
 import { PostMedia } from '../../queries/post-media.ts'
@@ -49,12 +48,8 @@ const patch = (...patches: [id: string, html: Html, mode?: 'inner'][]) =>
     { contentType: 'text/event-stream' },
   )
 
-// Now, at the newest post's UTC offset, since the server can't know the browser's. The post's
-// edit page can change it.
-const newPostDate = Effect.gen(function* () {
-  let [newest] = yield* (yield* PostQueries).all
-  return dateAtOffset(yield* Clock.currentTimeMillis, offsetOf(newest?.date))
-})
+// Now, in UTC, to the second (a post's date has no milliseconds).
+const newPostDate = Effect.map(DateTime.now, (now) => DateTime.formatIso(now).slice(0, 19) + 'Z')
 
 // The composer for `values`, with its post as it'd be published now.
 const composerProps = (values: ComposeValues, issues?: readonly PostIssue[]) =>
@@ -74,12 +69,12 @@ const composePage = (values: ComposeValues, issues?: readonly PostIssue[]) =>
 export const compose = loggedIn(() => composePage({ id: newPostId(), caption: '', photos: [] }))
 
 // Files chosen are saved right away, and the media and preview are shown with them. The toolbar
-// is sent again too, so its file inputs start empty. A file taken out is left in storage,
-// unserved, as is everything uploaded for a post that's never posted.
+// is sent again too, so its file inputs start empty. A file taken out is deleted (a video with its
+// poster); everything uploaded for a post that's never posted is left in storage, unserved.
 export const updateComposerMedia = loggedIn(() =>
   Effect.gen(function* () {
-    let { values, uploads, issues } = readComposeForm(yield* readForm())
-    let rejected = yield* (yield* PostCommands).upload(values.id, uploads).pipe(
+    let { values, uploads, issues, removed } = readComposeForm(yield* readForm())
+    let rejected = yield* (yield* PostCommands).upload(values.id, uploads, removed).pipe(
       Effect.as([]),
       Effect.catchTag('PostRejected', (error) => Effect.succeed(error.issues)),
     )

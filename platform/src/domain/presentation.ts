@@ -13,7 +13,7 @@ export type Post = TextPost | PhotosPost | VideoPost | ArticlePost
 
 interface BasePost {
   readonly id: string
-  // ISO 8601 with the UTC offset of where it was posted; the post shows that local time.
+  // In UTC, like "2026-10-16T13:12:00Z".
   readonly date: string
   readonly city?: string | undefined
   readonly caption?: string | undefined

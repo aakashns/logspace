@@ -2,7 +2,7 @@
   {
     "id": "drdp3ei6fd",
     "type": "photos",
-    "date": "2026-10-16T18:42:00+05:30",
+    "date": "2026-10-16T13:12:00Z",
     "city": "Ooty",
     "caption": "Caught the last light on the ridge trail this evening. Worth every switchback.",
     "photos": [
@@ -23,14 +23,14 @@
   {
     "id": "xf6ddthtoo",
     "type": "text",
-    "date": "2026-10-15T21:10:00+05:30",
+    "date": "2026-10-15T15:40:00Z",
     "city": "Bengaluru",
     "caption": "Rebuilt this site on Remix 3 over the weekend. No build step, Web APIs everywhere, and the whole page ships almost no JavaScript.\n\nhttps://remix.run"
   },
   {
     "id": "t83tytis1i",
     "type": "article",
-    "date": "2026-10-14T09:15:00+05:30",
+    "date": "2026-10-14T03:45:00Z",
     "city": "Bengaluru",
     "caption": "New post: what a year of building in public taught me about shipping small.",
     "article": {
@@ -45,7 +45,7 @@
   {
     "id": "steq6e0rsh",
     "type": "video",
-    "date": "2026-10-11T07:30:00+05:30",
+    "date": "2026-10-11T02:00:00Z",
     "city": "Bengaluru",
     "caption": "Five seconds of the garden waking up 🌸",
     "video": {

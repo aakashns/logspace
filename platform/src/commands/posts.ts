@@ -30,10 +30,11 @@ export class PostCommands extends Context.Service<
   {
     readonly publish: (submission: PostSubmission) => Effect.Effect<PostRecord, PostRejected>
     // Saves files chosen in the composer as a new post's, before it's published, replacing any of
-    // the same names. A published post's files can't be replaced this way.
+    // the same names, and deletes `removed`. A published post's files can't be changed this way.
     readonly upload: (
       id: string,
       uploads: PostSubmission['uploads'],
+      removed?: readonly string[],
     ) => Effect.Effect<void, PostRejected>
     readonly edit: (
       id: string,
@@ -103,6 +104,7 @@ export class PostCommands extends Context.Service<
       let upload = Effect.fn('PostCommands.upload')(function* (
         id: string,
         uploads: PostSubmission['uploads'],
+        removed: readonly string[] = [],
       ) {
         if (!isPostId(id)) {
           return yield* new PostRejected({
@@ -110,6 +112,8 @@ export class PostCommands extends Context.Service<
           })
         }
         if (Option.isSome(yield* findRecord(id))) return yield* alreadyPublished
+        // First, as a file chosen now can take a removed one's name.
+        yield* Effect.forEach(removed, (name) => files.remove(id, name), { discard: true })
         yield* Effect.forEach(uploads, ({ name, file }) => files.save(id, name, file), {
           discard: true,
         })

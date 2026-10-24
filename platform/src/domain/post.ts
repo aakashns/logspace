@@ -88,13 +88,12 @@ const basePost = {
   id: Schema.String.check(
     valid(isPostId, 'Expected 10 lowercase letters and digits, like "fc7p7vjhx6"'),
   ),
-  // ISO 8601 with the UTC offset of where it was posted; the post shows that local time.
+  // When it was posted, in UTC, to the second.
   date: Schema.String.check(
     valid(
       (date: string) =>
-        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(Z|[+-]\d{2}:\d{2})$/.test(date) &&
-        !Number.isNaN(Date.parse(date)),
-      'Expected a date like "2026-10-16T18:42:00+05:30"',
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(date) && !Number.isNaN(Date.parse(date)),
+      'Expected a UTC date like "2026-10-16T13:12:00Z"',
     ),
   ),
   city: Schema.optionalKey(Schema.String),

@@ -23,12 +23,13 @@ export interface ComposeValues {
   readonly poster?: string | undefined
 }
 
-// A submitted composer: what it holds, the files chosen with it (already named in `values`), and
-// the chosen files that couldn't be added.
+// A submitted composer: what it holds, the files chosen with it (already named in `values`), the
+// chosen files that couldn't be added, and the files it no longer holds.
 export interface ComposeForm {
   values: ComposeValues
   uploads: { name: string; file: File }[]
   issues: PostIssue[]
+  removed: string[]
 }
 
 // Reads a submitted composer. `remove` names a file to take out (the button on its tile sends
@@ -42,13 +43,13 @@ export function readComposeForm(formData: FormData): ComposeForm {
     return typeof value === 'string' ? value.replace(/\r\n?/g, '\n') : ''
   }
   let remove = text('remove')
-  let fileNames = (name: string) =>
+  let listed = (name: string) =>
     formData
       .getAll(name)
       .flatMap((value) =>
         typeof value === 'string' && isPostFileName(value.trim()) ? [value.trim()] : [],
       )
-      .filter((file) => file !== remove)
+  let fileNames = (name: string) => listed(name).filter((file) => file !== remove)
   // A file input left empty sends an empty file.
   let chosen = (name: string) =>
     formData.getAll(name).filter((value) => value instanceof File && value.size > 0)
@@ -97,6 +98,7 @@ export function readComposeForm(formData: FormData): ComposeForm {
     values: { id: text('post_id').trim(), caption: text('caption'), photos, video, poster },
     uploads,
     issues,
+    removed: ['photo', 'video', 'poster'].flatMap(listed).filter((file) => !taken.has(file)),
   }
 }
 

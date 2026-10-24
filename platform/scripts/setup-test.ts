@@ -218,8 +218,6 @@ await expectHttps(
   '-F',
   'id=setuplink1',
   '-F',
-  'offset=+00:00',
-  '-F',
   'caption=http://127.0.0.1/private-preview-probe',
 )
 await expectHttps(`https://${DOMAIN}/`, '200')
