@@ -201,7 +201,7 @@ figcaption {
   display: block;
   width: 100%;
   height: auto;
-  aspect-ratio: 720 / 816;
+  aspect-ratio: 720 / 680;
   background: var(--surface);
   border: 1px solid var(--faint);
   border-radius: 8px;
@@ -209,6 +209,73 @@ figcaption {
 figcaption {
   margin-top: 0.65rem;
   text-align: center;
+}
+
+section + section {
+  margin-top: 3rem;
+}
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1em;
+  margin-bottom: 1rem;
+}
+.section-heading h2 {
+  margin: 0;
+}
+
+/* Two icon buttons in one bordered box, split by a line; the chosen one is filled. */
+.theme-switch {
+  display: flex;
+  border: 1px solid var(--faint);
+  border-radius: 6px;
+}
+.theme-switch button {
+  display: flex;
+  padding: 0.3em 0.6em;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+.theme-switch button:first-child {
+  border-radius: 5px 0 0 5px;
+}
+.theme-switch button + button {
+  border-left: 1px solid var(--faint);
+  border-radius: 0 5px 5px 0;
+}
+.theme-switch button:hover {
+  color: var(--text);
+}
+.theme-switch button[aria-pressed="true"] {
+  color: var(--text);
+  background: var(--faint);
+}
+.theme-switch svg {
+  width: 1.1em;
+  height: 1.1em;
+}
+
+.screenshots[data-theme="dark"] img.light,
+.screenshots[data-theme="light"] img.dark {
+  display: none;
+}
+.screenshot + .screenshot {
+  margin-top: 2.5rem;
+}
+.screenshot figcaption {
+  margin: 0 0 0.5rem;
+  text-align: left;
+}
+.screenshot img {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: var(--surface);
+  border: 1px solid var(--faint);
+  border-radius: 8px;
 }
 
 .sr-only,

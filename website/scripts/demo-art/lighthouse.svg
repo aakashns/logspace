@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 1200 900">
+  <defs>
+    <linearGradient id="sky" x2="0" y2="1"><stop stop-color="#bcd0d6"/><stop offset="1" stop-color="#e9e3d3"/></linearGradient>
+    <linearGradient id="sea" x2="0" y2="1"><stop stop-color="#8fb0b3"/><stop offset="1" stop-color="#4f7a80"/></linearGradient>
+    <filter id="grain"><feTurbulence type="fractalNoise" baseFrequency=".65" numOctaves="3" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncA type="linear" slope=".12"/></feComponentTransfer><feBlend in="SourceGraphic" mode="multiply"/></filter>
+  </defs>
+  <g filter="url(#grain)">
+    <path fill="url(#sky)" d="M0 0h1200v900H0z"/>
+    <g fill="#f5f1e6" opacity=".9">
+      <path d="M140 210q0-40 50-40 20-40 70-30 40-20 70 20 50 0 50 50z"/>
+      <path d="M820 140q0-30 40-30 18-34 60-24 34-16 58 18 40 2 40 36z"/>
+    </g>
+    <path fill="url(#sea)" d="M0 560h1200v340H0z"/>
+    <g fill="none" stroke="#e6e4d6" stroke-width="3" stroke-linecap="round" opacity=".6">
+      <path d="M80 620h130M300 660h90M900 610h160M980 680h120M140 760h110M760 770h150"/>
+    </g>
+    <path d="M520 560l40-50 90-20 120 10 90 30 40 30z" fill="#6a6560"/>
+    <path d="M440 900l40-200 80-90 120-30 140 20 110 90 60 210z" fill="#4c4a48"/>
+    <path d="M480 700l80-90 120-30 140 20 110 90-120-40-130-10-120 30z" fill="#5f5b57"/>
+    <path d="M626 600l14-330h96l14 330z" fill="#f4efe4"/>
+    <path d="M636 368l4-58h96l4 58zM630 520l4-62h108l4 62z" fill="#c4574b"/>
+    <path d="M622 276h132v-16H622z" fill="#3d3b3a"/>
+    <path d="M644 260v-64h88v64z" fill="#f7e0a3"/>
+    <path d="M644 196h88l-14-12h-60z" fill="#3d3b3a"/>
+    <path d="M630 184l58-46 58 46z" fill="#c4574b"/>
+    <path d="M674 418h28v42h-28z" fill="#3d3b3a" opacity=".7"/>
+    <path d="M700 560h120v40H700z" fill="#ece5d6"/>
+    <path d="M690 562l70-36 70 36z" fill="#8f5049"/>
+    <g fill="none" stroke="#585654" stroke-width="3" stroke-linecap="round" opacity=".7">
+      <path d="M300 300q10-9 20 0 10-9 20 0M352 330q8-7 16 0 8-7 16 0M920 380q8-7 16 0 8-7 16 0"/>
+    </g>
+  </g>
+</svg>

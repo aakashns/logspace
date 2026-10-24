@@ -10,7 +10,8 @@
     "build": "bun scripts/build.ts",
     "check": "bun check && bun fmt --check",
     "test": "playwright test",
-    "demo": "bun scripts/record-demo.ts"
+    "demo": "bun scripts/record-demo.ts",
+    "screenshots": "bun scripts/take-screenshots.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.0",

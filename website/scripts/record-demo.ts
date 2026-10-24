@@ -1,167 +1,211 @@
-import { createRequire } from "node:module";
-import { chromium, expect } from "@playwright/test";
-import { execFileSync, spawn } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { execFileSync } from "node:child_process";
+import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { expect } from "@playwright/test";
+import {
+  baseURL,
+  compose,
+  password,
+  root,
+  startDemoSite,
+} from "./demo-site.ts";
 
-const root = fileURLToPath(new URL("../", import.meta.url));
-const temporary = await mkdtemp(join(tmpdir(), "logspace-demo-"));
-const port = 44119;
-const baseURL = `http://127.0.0.1:${port}`;
-const password = "fictional-demo-password";
-const server = spawn("bun", [join(root, "scripts/demo-server.ts")], {
-  cwd: join(root, "../platform"),
-  env: {
-    ...process.env,
-    NODE_ENV: "production",
-    LOGSPACE_DEMO: "1",
-    PORT: String(port),
-    ADMIN_PASSWORD: password,
-    AUTH_SESSION_SECRET: "fictional-demo-session-secret",
-    DATABASE_PATH: join(temporary, "app.sqlite"),
-    MEDIA_DIR: join(temporary, "media"),
-    CACHE_DIR: join(temporary, "cache"),
-    MEDIA_STORAGE: "fs",
-  },
-  stdio: ["ignore", "pipe", "pipe"],
-});
-let logs = "";
-server.stdout.on("data", (chunk) => {
-  logs += chunk;
-});
-server.stderr.on("data", (chunk) => {
-  logs += chunk;
-});
-const browser = await chromium.launch();
+// The heights of the title bar, the app below it, and the captions below that.
+const BAR = 44;
+const APP = 540;
+const CAPTION = 96;
+
+const site = await startDemoSite();
+const { browser, temporary } = site;
 try {
-  await expect
-    .poll(
-      async () => {
-        if (server.exitCode !== null) throw new Error(logs);
-        return fetch(baseURL)
-          .then((r) => r.status)
-          .catch(() => 0);
-      },
-      { timeout: 30_000 },
-    )
-    .toBe(200);
   const context = await browser.newContext({
     // A narrow viewport keeps the app’s content close to the edges of the recording.
-    viewport: { width: 720, height: 720 },
+    viewport: { width: 720, height: APP },
     colorScheme: "light",
-    recordVideo: { dir: temporary, size: { width: 720, height: 720 } },
+    timezoneId: "America/Los_Angeles",
+    recordVideo: { dir: temporary, size: { width: 720, height: APP } },
   });
   // Authenticate before the recording starts; only the fictional publishing flow is shown.
   await context.request.post(`${baseURL}/admin/login`, { form: { password } });
   const started = Date.now();
   const page = await context.newPage();
   const video = page.video()!;
+  const seconds = () => (Date.now() - started) / 1000;
+  // The address bar's URL from each navigation on, as on Mira's own domain.
+  const addresses: { start: number; url: string }[] = [];
+  page.on("framenavigated", (frame) => {
+    if (frame !== page.mainFrame()) return;
+    const { pathname } = new URL(frame.url());
+    const url = `miraellis.com${pathname === "/" ? "" : pathname}`;
+    if (addresses.at(-1)?.url === url) return;
+    addresses.push({ start: addresses.length ? seconds() : 0, url });
+  });
   const cues: { start: number; title: string; text: string }[] = [];
   function explain(title: string, text: string) {
     cues.push({
-      start: cues.length ? (Date.now() - started) / 1000 : 0,
+      start: cues.length ? seconds() : 0,
       title,
       text,
     });
   }
   // These pauses set the walkthrough’s pace; locators check that each screen is ready.
   const hold = (milliseconds: number) => page.waitForTimeout(milliseconds);
+  const scrollTo = (top: number) =>
+    page.evaluate((top) => window.scrollTo({ top, behavior: "smooth" }), top);
+  async function imagesReady() {
+    await page.evaluate(() =>
+      Promise.all([
+        document.fonts.ready,
+        ...Array.from(
+          document.querySelectorAll<HTMLImageElement>("main img"),
+          (image) => image.decode().catch(() => {}),
+        ),
+      ]),
+    );
+  }
   await page.goto(baseURL);
-  await page.evaluate(() => document.fonts.ready);
-  await expect(page.locator("main img").first()).toBeVisible();
-  await page
-    .locator("main img")
-    .first()
-    .evaluate((image: HTMLImageElement) => image.decode());
+  await imagesReady();
   explain(
     "Browse the feed",
     "Text posts, photos, and articles appear together.",
   );
   await page.screenshot({ path: join(temporary, "poster.png") });
-  await hold(3200);
-  await page.evaluate(() => window.scrollTo({ top: 650, behavior: "smooth" }));
-  await hold(2800);
+  await hold(3000);
+  await scrollTo(560);
+  await hold(2400);
+  await scrollTo(1250);
+  await hold(2600);
   await page.locator('a.post-link[href="/posts/mirastory1"]').click();
   await expect(
-    page.getByRole("heading", { name: "The long way around" }),
+    page.getByRole("heading", {
+      name: "A notebook, a long walk, and no plans",
+    }),
   ).toBeVisible();
+  await imagesReady();
   explain(
     "Read a blog post",
     "Open an article to read the full text on its own page.",
   );
-  await hold(3200);
-  await page.goto(`${baseURL}/admin`);
-  await expect(
-    page.getByRole("link", { name: "New Post", exact: true }),
-  ).toBeVisible();
+  await hold(2600);
+  await scrollTo(620);
+  await hold(2600);
+  await page.getByRole("link", { name: "Compose", exact: true }).click();
+  await expect(page.getByLabel("Caption", { exact: true })).toBeFocused();
   explain(
-    "Manage your site",
-    "Sign in to edit posts, change settings, or create a post.",
+    "Write a post",
+    "Type a caption, add photos, and see a preview as you write.",
   );
-  await hold(2800);
-  await page.getByRole("link", { name: "New Post", exact: true }).click();
-  explain("Write a post", "Choose a format, add text or media, then publish.");
-  await page.getByLabel("Date", { exact: true }).fill("2026-10-22T10:30");
-  await page.getByLabel("UTC offset").fill("-07:00");
-  await page.getByLabel("City (optional)").fill("Portland");
-  await page
-    .getByLabel("Caption", { exact: true })
-    .pressSequentially(
-      "Made a little space for the things I want to remember.\n\nToday: cold air, warm coffee, and the first page of a new notebook.",
-      { delay: 42 },
-    );
-  await hold(1500);
-  await page.getByRole("button", { name: "Publish", exact: true }).click();
-  await expect(
-    page.getByText("Made a little space for the things I want to remember.", {
-      exact: false,
-    }),
-  ).toBeVisible();
+  await hold(800);
+  await compose(page, site.art, 42);
+  await hold(1200);
+  await scrollTo(900);
+  await hold(2400);
+  await page.getByRole("button", { name: "Post", exact: true }).click();
+  await expect(page).toHaveURL(/\/posts\//);
+  await imagesReady();
   explain("Publish and share", "The published post has a URL you can share.");
   await hold(3000);
   await page.goto(baseURL);
+  await imagesReady();
   explain(
     "See the new post",
     "New posts appear at the top of your website’s feed.",
   );
-  await hold(3200);
-  const finished = (Date.now() - started) / 1000;
+  await hold(1200);
+  await scrollTo(560);
+  await hold(2600);
+  explain(
+    "Light or dark",
+    "Readers can switch themes, or follow their system’s setting.",
+  );
+  await hold(800);
+  await page.getByRole("button", { name: "Toggle dark mode" }).click();
+  // Off the button, so its tooltip goes.
+  await page.mouse.move(0, 360);
+  await hold(1800);
+  await scrollTo(1200);
+  await hold(2800);
+  const finished = seconds();
   await context.close();
 
   // Burn the captions into a separate band, so they do not cover the app and
-  // remain visible when the video is shared without its WebVTT track.
-  const captions = await browser.newPage({
-    viewport: { width: 720, height: 96 },
-  });
+  // remain visible when the video is shared without its WebVTT track. Above the
+  // app, a browser's title bar shows where it is.
+  const bands = await browser.newPage();
+  // A band of the video as a PNG, with `texts` put in by selector as text, so
+  // they're never read as HTML.
+  async function band(
+    name: string,
+    height: number,
+    html: string,
+    texts: Record<string, string>,
+  ) {
+    await bands.setViewportSize({ width: 720, height });
+    await bands.setContent(
+      `<html><body style="margin:0;height:${height}px">${html}</body></html>`,
+    );
+    for (const [selector, text] of Object.entries(texts)) {
+      await bands.locator(selector).evaluate((element, text) => {
+        element.textContent = text;
+      }, text);
+    }
+    const file = join(temporary, `${name}.png`);
+    await bands.screenshot({ path: file });
+    return file;
+  }
   const captionFiles: string[] = [];
   for (const [index, cue] of cues.entries()) {
-    await captions.setContent(`<html><body style="margin:0;background:#161616;color:#dedede;font-family:Arial,sans-serif;display:flex;align-items:center;gap:18px;padding:18px 28px;box-sizing:border-box;height:96px">
-      <span style="color:#a1a1a1;font-size:16px;white-space:nowrap">${index + 1} / ${cues.length}</span>
-      <div><div id="title" style="font-size:21px;font-weight:600;margin-bottom:6px"></div><div id="text" style="font-size:17px;color:#b0b0b0"></div></div>
-    </body></html>`);
-    await captions.locator("#title").evaluate((element, text) => {
-      element.textContent = text;
-    }, cue.title);
-    await captions.locator("#text").evaluate((element, text) => {
-      element.textContent = text;
-    }, cue.text);
-    const file = join(temporary, `caption-${index}.png`);
-    await captions.screenshot({ path: file });
-    captionFiles.push(file);
+    captionFiles.push(
+      await band(
+        `caption-${index}`,
+        CAPTION,
+        `<div style="height:100%;background:#161616;color:#dedede;font-family:Arial,sans-serif;display:flex;align-items:center;gap:18px;padding:18px 28px;box-sizing:border-box">
+          <span style="color:#a1a1a1;font-size:16px;white-space:nowrap">${index + 1} / ${cues.length}</span>
+          <div><div id="title" style="font-size:21px;font-weight:600;margin-bottom:6px"></div><div id="text" style="font-size:17px;color:#b0b0b0"></div></div>
+        </div>`,
+        { "#title": cue.title, "#text": cue.text },
+      ),
+    );
   }
-  await captions.close();
-  const filters = ["[0:v]pad=720:816:0:0:color=0x161616[base]"];
-  for (const [index, cue] of cues.entries()) {
-    const input = index === 0 ? "base" : `caption${index - 1}`;
-    const end = cues[index + 1]?.start;
+  const light = (color: string) =>
+    `<span style="width:12px;height:12px;border-radius:50%;background:${color}"></span>`;
+  const addressFiles: string[] = [];
+  for (const [index, address] of addresses.entries()) {
+    addressFiles.push(
+      await band(
+        `address-${index}`,
+        BAR,
+        `<div style="height:100%;background:#ececec;border-bottom:1px solid #d4d4d4;box-sizing:border-box;display:flex;align-items:center;position:relative;font-family:system-ui,sans-serif">
+          <div style="display:flex;gap:8px;padding-left:16px">${light("#ff5f57")}${light("#febc2e")}${light("#28c840")}</div>
+          <div id="url" style="position:absolute;left:50%;transform:translateX(-50%);width:340px;height:26px;border-radius:6px;background:#dcdcdc;color:#4a4a4a;font-size:13px;display:flex;align-items:center;justify-content:center"></div>
+        </div>`,
+        { "#url": address.url },
+      ),
+    );
+  }
+  await bands.close();
+  // Each band from its start until the next one's, at its place in the frame.
+  const timed = (items: { start: number }[], files: string[], y: number) =>
+    items.map((item, index) => ({
+      file: files[index]!,
+      y,
+      start: item.start,
+      end: items[index + 1]?.start,
+    }));
+  const overlays = [
+    ...timed(addresses, addressFiles, 0),
+    ...timed(cues, captionFiles, BAR + APP),
+  ];
+  const filters = [
+    `[0:v]pad=720:${BAR + APP + CAPTION}:0:${BAR}:color=0x161616[v0]`,
+  ];
+  for (const [index, overlay] of overlays.entries()) {
     const enabled =
-      end === undefined
-        ? `gte(t,${cue.start})`
-        : `between(t,${cue.start},${end})`;
+      overlay.end === undefined
+        ? `gte(t,${overlay.start})`
+        : `between(t,${overlay.start},${overlay.end})`;
     filters.push(
-      `[${input}][${index + 1}:v]overlay=0:720:enable='${enabled}'[caption${index}]`,
+      `[v${index}][${index + 1}:v]overlay=0:${overlay.y}:enable='${enabled}'[v${index + 1}]`,
     );
   }
   execFileSync(
@@ -170,11 +214,11 @@ try {
       "-y",
       "-i",
       await video.path(),
-      ...captionFiles.flatMap((file) => ["-i", file]),
+      ...overlays.flatMap((overlay) => ["-i", overlay.file]),
       "-filter_complex",
       filters.join(";"),
       "-map",
-      `[caption${cues.length - 1}]`,
+      `[v${overlays.length}]`,
       "-an",
       "-c:v",
       "libx264",
@@ -190,14 +234,27 @@ try {
     ],
     { stdio: "ignore" },
   );
-  const sharp = createRequire(
-    new URL("../../platform/package.json", import.meta.url),
-  )("sharp");
-  await sharp(join(temporary, "poster.png"))
-    .extend({ bottom: 96, background: "#161616" })
-    .composite([{ input: captionFiles[0], top: 720, left: 0 }])
+  // The poster is the first frame with its bands, as the video starts.
+  const poster = join(temporary, "poster-captioned.png");
+  execFileSync(
+    "ffmpeg",
+    [
+      "-y",
+      "-i",
+      addressFiles[0]!,
+      "-i",
+      join(temporary, "poster.png"),
+      "-i",
+      captionFiles[0]!,
+      "-filter_complex",
+      "vstack=inputs=3",
+      poster,
+    ],
+    { stdio: "ignore" },
+  );
+  await new Bun.Image(await Bun.file(poster).bytes())
     .webp({ quality: 88 })
-    .toFile(join(root, "public/demo-poster.webp"));
+    .write(join(root, "public/demo-poster.webp"));
   const stamp = (seconds: number) =>
     new Date(seconds * 1000).toISOString().slice(11, 23);
   await writeFile(
@@ -214,11 +271,5 @@ try {
     "Recorded public/demo.mp4, demo-poster.webp, and demo.vtt using fictional content.",
   );
 } finally {
-  await browser.close();
-  server.kill("SIGTERM");
-  await new Promise<void>((resolve) => {
-    if (server.exitCode !== null) resolve();
-    else server.once("exit", () => resolve());
-  });
-  await rm(temporary, { recursive: true, force: true });
+  await site.close();
 }
