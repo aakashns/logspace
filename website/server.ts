@@ -1,4 +1,4 @@
-// Builds the website and serves dist/ locally the way Cloudflare Pages does in production: / is
+// Builds the website and serves dist/ locally the way Cloudflare does in production: / is
 // index.html, unknown paths get 404.html with a 404 status, and public/_headers sets the
 // installer's content type. `bun --watch` restarts it when src/ changes, and it rebuilds itself
 // when public/ does.

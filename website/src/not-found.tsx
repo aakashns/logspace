@@ -1,6 +1,6 @@
 import { Document } from "./layout.tsx";
 
-// Cloudflare Pages serves it, with a 404, for any path without a file.
+// Cloudflare serves it, with a 404, for any path without a file.
 export function NotFound() {
   return (
     <Document

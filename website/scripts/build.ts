@@ -1,6 +1,5 @@
 // Builds the website into dist/: public/ as it is, and each page in src/ rendered to HTML.
-// Cloudflare Pages runs it (`bun run build`) for every push that changes the website, and serves
-// dist/.
+// Cloudflare runs it (`bun run build`) for every push, and serves dist/ (see wrangler.jsonc).
 import { cp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
