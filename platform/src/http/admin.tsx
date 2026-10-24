@@ -1,7 +1,7 @@
 // The pages under /admin, for managing the site: logging in and out, the list of posts, the
 // site's settings, and writing, editing, and deleting posts. Every handler here only reads and
 // sends commands; what a command does is in commands/.
-import { Clock, Effect, Result } from 'effect'
+import { Clock, Effect, Result, Stream } from 'effect'
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from 'effect/http'
 
 import type { Child, Html } from '#jsx/jsx-runtime'
@@ -31,9 +31,11 @@ import { PostMedia } from '../queries/post-media.ts'
 import { PostQueries } from '../queries/posts.ts'
 import { SiteConfigQueries } from '../queries/site-config.ts'
 import { routes } from '../routes.ts'
+import { DraftChanges } from '../services/draft-changes.ts'
 import {
   COMPOSER_IDS,
   ComposePage,
+  Composer,
   ComposerIssues,
   ComposerMedia,
   ComposerPreview,
@@ -303,6 +305,11 @@ const deletePost = loggedIn(() =>
 // type. Each of those requests sends the whole form, so each saves it as the draft, which the
 // composer picks up again on any browser until the post is published or discarded. Posting it
 // publishes; it's also a plain form, for a browser without Datastar.
+//
+// Every tab with the composer open also has a stream of updates (composerUpdates): the composer
+// as the draft is now, sent whenever it changes. The tab that made a change already shows it (and
+// may have more typed since), so each request says which tab it's from, and that tab isn't sent
+// its own change.
 
 // The submitted composer, with the text of a Markdown file chosen for the article.
 const readComposer = Effect.fnUntraced(function* (formData: FormData) {
@@ -313,16 +320,24 @@ const readComposer = Effect.fnUntraced(function* (formData: FormData) {
   return withArticleText(form, file.name, text)
 })
 
+// The tab a composer's form was sent from.
+const tabOf = (form: FormData) => {
+  let tab = form.get('tab')
+  return typeof tab === 'string' ? tab : undefined
+}
+
 // Whether Datastar sent the request, rather than the browser posting the form.
 const fromDatastar = Effect.map(
   HttpServerRequest.HttpServerRequest,
   (request) => request.headers['datastar-request'] === 'true',
 )
 
-// What Datastar gets: parts of the composer to replace, by id, or the inside of one to morph
-// (`inner`), as server-sent events.
-function composerPatch(...patches: [id: string, html: Html, mode?: 'inner'][]) {
-  let body = patches
+// What Datastar gets: parts of the composer to replace, by id, or to morph (`outer`), or the
+// inside of one to morph (`inner`), as server-sent events.
+type Patch = [id: string, html: Html, mode?: 'outer' | 'inner']
+
+const patchEvents = (...patches: Patch[]) =>
+  patches
     .map(
       ([id, html, mode = 'replace']) =>
         `event: datastar-patch-elements\ndata: selector #${id}\ndata: mode ${mode}\n` +
@@ -333,8 +348,9 @@ function composerPatch(...patches: [id: string, html: Html, mode?: 'inner'][]) {
         '\n',
     )
     .join('')
-  return HttpServerResponse.text(body, { contentType: 'text/event-stream' })
-}
+
+const composerPatch = (...patches: Patch[]) =>
+  HttpServerResponse.text(patchEvents(...patches), { contentType: 'text/event-stream' })
 
 // What the composer's note says once a command has saved the draft, or not.
 const draftState = (result: Result.Result<boolean, PostRejected>): DraftState =>
@@ -371,30 +387,63 @@ const composerProps = (values: ComposeValues, issues?: readonly PostIssue[], dra
 
 // The draft, if there's one, with its id, so its files are its own again. Otherwise a new post,
 // at the newest post's UTC offset. Either way, the browser's own offset replaces it on load.
+const currentComposer = Effect.gen(function* () {
+  let queries = yield* PostQueries
+  let draft = yield* queries.draft
+  if (draft) return yield* composerProps(draft, undefined, 'saved')
+  let [newest] = yield* queries.all
+  return yield* composerProps({
+    id: newPostId(),
+    caption: '',
+    city: '',
+    offset: offsetOf(newest?.date),
+    photos: [],
+  })
+})
+
+// A new tab of the composer, with its own id.
 const compose = loggedIn(() =>
   Effect.gen(function* () {
-    let queries = yield* PostQueries
-    let draft = yield* queries.draft
-    if (draft) {
-      let props = yield* composerProps(draft, undefined, 'saved')
-      return yield* adminPage('New Post', <ComposePage {...props} />)
-    }
-    let [newest] = yield* queries.all
-    let values: ComposeValues = {
-      id: newPostId(),
-      caption: '',
-      city: '',
-      offset: offsetOf(newest?.date),
-      photos: [],
-    }
-    return yield* adminPage('New Post', <ComposePage {...yield* composerProps(values)} />)
+    let props = yield* currentComposer
+    return yield* adminPage('New Post', <ComposePage {...props} tab={crypto.randomUUID()} />)
+  }),
+)
+
+// Bun closes a connection after 255 seconds without a byte (see cli/start.ts), so an idle stream
+// sends a comment, which browsers ignore, more often than that.
+const KEEP_ALIVE = '30 seconds'
+
+// The stream of the composer for one tab: the draft as it is when the stream opens, and again
+// whenever it changes, unless the change was the tab's own. Changes that come faster than they're
+// sent are sent once, as the draft is by then.
+const composerUpdates = loggedIn(() =>
+  Effect.gen(function* () {
+    let tab = (yield* requestUrl).searchParams.get('tab') ?? ''
+    let composers = (yield* DraftChanges).latest.pipe(
+      Stream.buffer({ capacity: 1, strategy: 'sliding' }),
+      Stream.filter((change) => change.by !== tab),
+      Stream.mapEffect(() => currentComposer),
+      Stream.map((props) =>
+        patchEvents([COMPOSER_IDS.composer, <Composer {...props} tab={tab} />, 'outer']),
+      ),
+    )
+    let services = yield* Effect.context<Stream.Services<typeof composers>>()
+    let events = Stream.merge(
+      Stream.provideContext(composers, services),
+      Stream.tick(KEEP_ALIVE).pipe(Stream.as(': keep-alive\n\n')),
+      // It ends as the server stops (see cli/start.ts).
+      { haltStrategy: 'left' },
+    )
+    return HttpServerResponse.stream(Stream.encodeText(events), {
+      contentType: 'text/event-stream',
+    })
   }),
 )
 
 // The composer's media and toolbar, re-rendered, and what's wrong (or nothing).
 const mediaPatch = (props: ComposerProps) =>
   composerPatch(
-    [COMPOSER_IDS.issues, <ComposerIssues issues={props.issues} />],
+    [COMPOSER_IDS.issues, <ComposerIssues issues={props.issues} refresh />],
     [COMPOSER_IDS.media, <ComposerMedia {...props} />],
     [COMPOSER_IDS.tools, <ComposerTools values={props.values} />],
     [COMPOSER_IDS.draft, <DraftNote state={props.draft} />],
@@ -405,11 +454,12 @@ const mediaPatch = (props: ComposerProps) =>
 // note saying why.
 const updateComposerMedia = loggedIn(() =>
   Effect.gen(function* () {
-    let form = yield* readComposer(yield* readForm())
+    let formData = yield* readForm()
+    let form = yield* readComposer(formData)
     let { values, uploads, issues } = form
     let commands = yield* PostCommands
     let result = yield* Effect.result(
-      commands.updateFiles(values, uploads, filesNoLongerUsed(form)),
+      commands.updateFiles(values, uploads, filesNoLongerUsed(form), tabOf(formData)),
     )
     let rejected = Result.isFailure(result) ? result.failure.issues : []
     if (rejected.length > 0) {
@@ -450,7 +500,7 @@ const previewComposer = loggedIn(() =>
     form.forEach((value, name) => typeof value !== 'string' && files.push(name))
     for (let name of files) form.delete(name)
     let { values } = readComposeForm(form)
-    let result = yield* Effect.result((yield* PostCommands).saveDraft(values))
+    let result = yield* Effect.result((yield* PostCommands).saveDraft(values, tabOf(form)))
     return composerPatch(
       [COMPOSER_IDS.preview, <ComposerPreview {...yield* composerProps(values)} />, 'inner'],
       [COMPOSER_IDS.draft, <DraftNote state={draftState(result)} />],
@@ -462,12 +512,17 @@ const previewComposer = loggedIn(() =>
 const publishComposer = loggedIn(() =>
   Effect.gen(function* () {
     let datastar = yield* fromDatastar
-    let { values, uploads, issues } = yield* readComposer(yield* readForm())
+    let form = yield* readForm()
+    let tab = tabOf(form)
+    let { values, uploads, issues } = yield* readComposer(form)
     let rejectedWith = (issues: readonly PostIssue[]) =>
       Effect.flatMap(composerProps(values, issues), (props) =>
         datastar
           ? Effect.succeed(mediaPatch(props))
-          : adminPage('New Post', <ComposePage {...props} />, { status: 400 }),
+          : // A new page, so a new tab.
+            adminPage('New Post', <ComposePage {...props} tab={crypto.randomUUID()} />, {
+              status: 400,
+            }),
       )
     let post = composePost(values, dateAtOffset(yield* Clock.currentTimeMillis, values.offset))
     if (post.type === 'text' && post.caption === '' && issues.length === 0) {
@@ -475,7 +530,7 @@ const publishComposer = loggedIn(() =>
         { message: 'Write something, or add photos, a video, or an article.' },
       ])
     }
-    return yield* (yield* PostCommands).publish({ post, uploads, issues }).pipe(
+    return yield* (yield* PostCommands).publish({ post, uploads, issues }, tab).pipe(
       Effect.map((published) =>
         datastar
           ? composerPatch([
@@ -530,6 +585,7 @@ export const AdminRoutes = HttpRouter.addAll([
   HttpRouter.route('POST', '/admin/posts/new/media', updateComposerMedia),
   HttpRouter.route('POST', '/admin/posts/new/preview', previewComposer),
   HttpRouter.route('POST', '/admin/posts/new/discard', discardComposer),
+  HttpRouter.route('GET', '/admin/posts/new/updates', composerUpdates),
   HttpRouter.route('GET', '/admin/posts/:id/files/:file', postFile),
   HttpRouter.route('GET', '/admin/posts/:id/edit', editPost),
   HttpRouter.route('POST', '/admin/posts/:id/edit', savePost),

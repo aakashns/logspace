@@ -12,6 +12,7 @@ import {
   type PostIssue,
   type PostRecord,
 } from '../domain/post.ts'
+import { DraftChanges } from '../services/draft-changes.ts'
 import { MediaStorage, mediaKeys } from '../services/media-storage.ts'
 import { PostNotFound, PostRejected } from './errors.ts'
 import { PostFiles } from './post-files.ts'
@@ -31,13 +32,19 @@ const encodeDraft = Schema.encodeEffect(Schema.fromJsonString(ComposeValues))
 export class PostCommands extends Context.Service<
   PostCommands,
   {
+    // The commands that change the draft say so (see DraftChanges), with `by`, the composer
+    // they were sent from.
+    //
     // Publishes a post, and deletes its draft.
-    readonly publish: (submission: PostSubmission) => Effect.Effect<PostRecord, PostRejected>
+    readonly publish: (
+      submission: PostSubmission,
+      by?: string,
+    ) => Effect.Effect<PostRecord, PostRejected>
     // Saves what's in the composer as the draft, so the composer can pick it up again, and says
     // whether it did: an empty composer isn't saved over nothing. There's one draft at a time, so
     // this replaces any other, and deletes its files unless its post is published. A published
     // post can't be saved as a draft.
-    readonly saveDraft: (values: ComposeValues) => Effect.Effect<boolean, PostRejected>
+    readonly saveDraft: (values: ComposeValues, by?: string) => Effect.Effect<boolean, PostRejected>
     // Saves files chosen in the composer as a new post's, before it's published, replacing any of
     // the same names, deletes the ones it no longer uses, and saves the draft (as saveDraft does,
     // and says so). A published post's files can't be changed this way.
@@ -45,6 +52,7 @@ export class PostCommands extends Context.Service<
       values: ComposeValues,
       uploads: PostSubmission['uploads'],
       unused: readonly string[],
+      by?: string,
     ) => Effect.Effect<boolean, PostRejected>
     // Deletes a post discarded in the composer, before it was published: its files and its draft.
     readonly discard: (id: string) => Effect.Effect<void, PostRejected>
@@ -61,6 +69,7 @@ export class PostCommands extends Context.Service<
       let sql = yield* SqlClient.SqlClient
       let files = yield* PostFiles
       let storage = yield* MediaStorage
+      let draftChanges = yield* DraftChanges
 
       let findRecord = (id: string) =>
         sql<PostRow>`select ${sql.literal(POST_COLUMNS)} from posts where id = ${id}`.pipe(
@@ -100,7 +109,10 @@ export class PostCommands extends Context.Service<
         issues: [{ message: 'This post was already published.' }],
       })
       let publishing = new Set<string>()
-      let publish = Effect.fn('PostCommands.publish')(function* (submission: PostSubmission) {
+      let publish = Effect.fn('PostCommands.publish')(function* (
+        submission: PostSubmission,
+        by?: string,
+      ) {
         let { id } = submission.post
         if (publishing.has(id) || Option.isSome(yield* findRecord(id))) {
           return yield* alreadyPublished
@@ -112,9 +124,9 @@ export class PostCommands extends Context.Service<
           let record = yield* check(submission)
           // Together, so a draft saved at the same time is either deleted or refused (see
           // writeDraft).
-          yield* Effect.gen(function* () {
+          let drafts = yield* Effect.gen(function* () {
             yield* sql`insert into posts ${sql.insert({ ...toPostRow(record) })}`
-            yield* sql`delete from drafts where id = ${id}`
+            return yield* sql`delete from drafts where id = ${id} returning id`
           }).pipe(
             sql.withTransaction,
             // A primary key clash (SQLite calls it a constraint error).
@@ -124,6 +136,7 @@ export class PostCommands extends Context.Service<
                 : Effect.die(error),
             ),
           )
+          if (drafts.length > 0) yield* draftChanges.changed(by)
           return record
         }).pipe(Effect.ensuring(Effect.sync(() => publishing.delete(id))))
       })
@@ -142,11 +155,11 @@ export class PostCommands extends Context.Service<
 
       // ---- Drafts
       //
-      // Two tabs can have the composer open, and share the draft: the last to save wins. A tab
-      // left open after its post was discarded or replaced in another (whose files were deleted
-      // with it) could otherwise bring back a draft whose media is gone, or upload files for a
-      // post nothing names any more. So a post that isn't the draft can become it only if its
-      // files are all there.
+      // Two tabs can have the composer open, and share the draft: the last to save wins, and the
+      // other follows (see DraftChanges). A tab that hasn't caught up, after its post was
+      // discarded or replaced in another (whose files were deleted with it), could otherwise
+      // bring back a draft whose media is gone, or upload files for a post nothing names any
+      // more. So a post that isn't the draft can become it only if its files are all there.
       let lostDraft = new PostRejected({
         issues: [
           {
@@ -178,7 +191,7 @@ export class PostCommands extends Context.Service<
       // the post and deletes its draft in one: so a preview sent just before the post was
       // published can't bring it back as a draft. If removing a replaced draft's files fails,
       // they're left under its id.
-      let writeDraft = Effect.fnUntraced(function* (values: ComposeValues) {
+      let writeDraft = Effect.fnUntraced(function* (values: ComposeValues, by?: string) {
         let { id } = values
         let data = yield* encodeDraft(values).pipe(Effect.orDie)
         let updated_at = DateTime.formatIso(yield* DateTime.now)
@@ -191,15 +204,19 @@ export class PostCommands extends Context.Service<
           return others.map((row) => row.id)
         }).pipe(sql.withTransaction, Effect.orDie)
         if (replaced === undefined) return yield* alreadyPublished
+        yield* draftChanges.changed(by)
         for (let other of replaced) {
           if (publishing.has(other) || Option.isSome(yield* findRecord(other))) continue
           yield* files.removeAll(other)
         }
       })
 
-      let saveDraft = Effect.fn('PostCommands.saveDraft')(function* (values: ComposeValues) {
+      let saveDraft = Effect.fn('PostCommands.saveDraft')(function* (
+        values: ComposeValues,
+        by?: string,
+      ) {
         if (!(yield* draftable(values))) return false
-        yield* writeDraft(values)
+        yield* writeDraft(values, by)
         return true
       })
 
@@ -207,6 +224,7 @@ export class PostCommands extends Context.Service<
         values: ComposeValues,
         uploads: PostSubmission['uploads'],
         unused: readonly string[],
+        by?: string,
       ) {
         let { id } = values
         let save = yield* draftable(values, new Set(uploads.map((upload) => upload.name)))
@@ -214,7 +232,7 @@ export class PostCommands extends Context.Service<
           discard: true,
         })
         yield* Effect.forEach(unused, (name) => files.remove(id, name), { discard: true })
-        if (save) yield* writeDraft(values)
+        if (save) yield* writeDraft(values, by)
         return save
       })
 
@@ -222,7 +240,8 @@ export class PostCommands extends Context.Service<
       let discard = Effect.fn('PostCommands.discard')(function* (id: string) {
         yield* unpublished(id)
         yield* files.removeAll(id)
-        yield* sql`delete from drafts where id = ${id}`.pipe(Effect.orDie)
+        let drafts = yield* sql`delete from drafts where id = ${id} returning id`.pipe(Effect.orDie)
+        if (drafts.length > 0) yield* draftChanges.changed()
       })
 
       // A post's type can't change. Uploads replace the post's files of the same names right

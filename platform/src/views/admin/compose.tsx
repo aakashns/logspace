@@ -5,7 +5,9 @@
 // toolbar, which it replaces whole (so their file inputs start empty, and data-init runs again),
 // and the inside of the preview, which Datastar morphs into place (so its photos and video don't
 // flicker as you type). Each of those requests saves the draft, which the note by the Post
-// button says. Their Datastar controls are in ../controls.tsx.
+// button says. Every tab with the composer open follows the draft: when another tab changes it,
+// the server sends the whole composer again, which Datastar morphs into place. Their Datastar
+// controls are in ../controls.tsx.
 import type { Array as Arr } from 'effect'
 
 import type { Html } from '#jsx/jsx-runtime'
@@ -22,6 +24,7 @@ import {
   CityInput,
   ClearFiles,
   ComposerForm,
+  ComposerUpdates,
   MediaPicker,
   OffsetInput,
   PostButton,
@@ -36,6 +39,7 @@ import { PostPage } from '../post-page.tsx'
 import { Caption, PostMedia, PostMeta } from '../post.tsx'
 
 export const COMPOSER_IDS = {
+  composer: 'composer-page',
   issues: 'composer-issues',
   media: 'composer-media',
   tools: 'composer-tools',
@@ -60,10 +64,21 @@ export interface ComposerProps {
   readonly draft?: DraftState
 }
 
-export function ComposePage(props: ComposerProps): Html {
+// The page: the composer, and the stream of it as the draft changes in other tabs. `tab` names
+// this tab, so it isn't sent its own changes.
+export function ComposePage(props: ComposerProps & { tab: string }): Html {
+  return (
+    <>
+      <ComposerUpdates url={routes.admin.newPostUpdates(props.tab)} />
+      <Composer {...props} />
+    </>
+  )
+}
+
+export function Composer(props: ComposerProps & { tab: string }): Html {
   let { values } = props
   return (
-    <section class="admin-page">
+    <section id={COMPOSER_IDS.composer} class="admin-page">
       <div class="admin-heading">
         <h1 class="page-title">New Post</h1>
         {/* Opens the dialog below with command/commandfor, which needs no JavaScript. */}
@@ -81,6 +96,7 @@ export function ComposePage(props: ComposerProps): Html {
       </div>
       <ComposerForm id="composer">
         <input type="hidden" name="id" value={values.id} />
+        <input type="hidden" name="tab" value={props.tab} />
         <OffsetInput value={values.offset} />
         <CaptionInput value={values.caption} />
         <ComposerIssues issues={props.issues} />
@@ -105,10 +121,16 @@ export function ComposePage(props: ComposerProps): Html {
 
 const DISCARD_DIALOG = 'discard-post'
 
-// Discarding the post: a dialog to confirm, outside the composer, since forms can't nest.
+// Discarding the post: a dialog to confirm, outside the composer, since forms can't nest. It stays
+// open when another tab's change is morphed in.
 function DiscardDialog(props: { id: string }): Html {
   return (
-    <dialog id={DISCARD_DIALOG} aria-labelledby={`${DISCARD_DIALOG}-title`} class="dialog">
+    <dialog
+      id={DISCARD_DIALOG}
+      aria-labelledby={`${DISCARD_DIALOG}-title`}
+      class="dialog"
+      data-preserve-attr="open"
+    >
       <form method="post" action={routes.admin.discardNewPost()}>
         <input type="hidden" name="id" value={props.id} />
         <h2 id={`${DISCARD_DIALOG}-title`} class="dialog-title">
@@ -136,13 +158,16 @@ function DiscardDialog(props: { id: string }): Html {
 
 // Why the post wasn't published, or why files weren't added. Once the post is published,
 // `redirect` sends the browser to it; `clearFiles` empties the file inputs, when what was chosen
-// was too big to send.
+// was too big to send; and `refresh` updates the preview, once the media is re-rendered. That's
+// here rather than in the media, so a composer sent from another tab's change doesn't post its
+// preview, which would save the draft back.
 export function ComposerIssues(props: {
   issues?: readonly PostIssue[] | undefined
   redirect?: string | undefined
   clearFiles?: boolean | undefined
+  refresh?: boolean | undefined
 }): Html {
-  let { issues = [], redirect, clearFiles } = props
+  let { issues = [], redirect, clearFiles, refresh } = props
   return (
     <div id={COMPOSER_IDS.issues} class="composer-issues">
       {issues.length > 0 ? (
@@ -156,6 +181,7 @@ export function ComposerIssues(props: {
       ) : null}
       {redirect ? <Redirect href={redirect} /> : null}
       {clearFiles ? <ClearFiles /> : null}
+      {refresh ? <PreviewRefresh /> : null}
     </div>
   )
 }
@@ -193,7 +219,6 @@ export function ComposerMedia(props: ComposerProps): Html {
       {values.video ? <input type="hidden" name="video" value={values.video} /> : null}
       {values.poster ? <input type="hidden" name="poster" value={values.poster} /> : null}
       {values.cover ? <input type="hidden" name="cover" value={values.cover} /> : null}
-      <PreviewRefresh />
     </div>
   )
 }

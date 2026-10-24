@@ -12,9 +12,9 @@ which works like X's: type the caption, add photos, a video, or an article (a Ma
 the toolbar's buttons, and the post shows below as it'll look. The type follows from the media,
 media is uploaded as it's chosen, and the × by the heading discards the post and what was uploaded
 for it. What's written is saved on the server as you write, so leaving the composer and coming back,
-on any browser, picks it up where you left off; there's one draft at a time, and starting another
-(after posting or discarding, or in a composer opened before the draft was saved) replaces it and
-deletes its files. The post is dated when it's posted, at the browser's UTC offset, and each photo's alt text
+on any browser, picks it up where you left off, and a composer open in another tab or browser
+follows along as you write. There's one draft at a time: posting or discarding it starts a new one
+in every open composer, and starting another replaces it and deletes its files. The post is dated when it's posted, at the browser's UTC offset, and each photo's alt text
 is its file name; change those on its edit page.
 
 Every post has:

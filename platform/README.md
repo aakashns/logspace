@@ -76,6 +76,7 @@ Each is an Effect service (`Context.Service`) with a `layer` that builds it.
 | `database.ts`      | The SQLite connection (`@effect/sql-sqlite-bun`, in WAL mode) and the migrations, which write the same journal LogSpace 0.1 (the Remix version) did, so its databases upgrade in place       |
 | `media-storage.ts` | Uploaded files as plain files under `MEDIA_DIR` (`posts/<id>/<file>`, `variants/…`, `site/…`), written atomically with `Bun.write` and served straight from disk; or in memory for the tests |
 | `images.ts`        | Everything Bun.Image does: reading and resizing photos, and making the logo, icons, and banner image                                                                                         |
+| `draft-changes.ts` | Word that the composer's draft changed, and which tab changed it, for every open composer to follow (kept in memory; the draft is in the database)                                           |
 
 ### 4. Writes: `src/commands/`
 
@@ -86,7 +87,8 @@ logged), as they're not something a user can fix.
 
 - `posts.ts`: `publish`, `edit`, `delete`, and the composer's `saveDraft`, `updateFiles`, and
   `discard`. Uploads are saved before the post is checked, so a rejected form doesn't need its
-  files chosen again. The composer's one draft is a row in `drafts`.
+  files chosen again. The composer's one draft is a row in `drafts`, and the commands that change
+  it tell `DraftChanges`.
 - `post-files.ts`: saving one upload (with its image size and hash in `post_images`) and removing
   a post's files.
 - `site-config.ts`: saving `/admin/config`, turning uploads into the site's image files.

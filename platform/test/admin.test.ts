@@ -1084,6 +1084,106 @@ describe('the composer', () => {
       expect((await openComposer()).id).not.toBe(published.id)
     })
 
+    describe('in more than one tab', () => {
+      // A tab's stream of updates, and the composer each of its events sends, as HTML.
+      let openUpdates = async (tab: string) => {
+        let response = await app.adminFetch(`/admin/posts/new/updates?tab=${tab}`)
+        expect(response.headers.get('Content-Type')).toMatch(/^text\/event-stream/)
+        let reader = defined(response.body, 'a stream').pipeThrough(new TextDecoderStream())
+        let events = reader.getReader()
+        let buffered = ''
+        let next = async (): Promise<string> => {
+          let end = buffered.indexOf('\n\n')
+          if (end === -1) {
+            let { value, done } = await events.read()
+            if (done) throw new Error('Expected another event')
+            buffered += value
+            return next()
+          }
+          let event = buffered.slice(0, end)
+          buffered = buffered.slice(end + 2)
+          // Comments keep the connection open.
+          if (event.startsWith(':')) return next()
+          expect(event).toStartWith(
+            'event: datastar-patch-elements\ndata: selector #composer-page\ndata: mode outer\n',
+          )
+          return [...event.matchAll(/^data: elements (.*)$/gm)].map((line) => line[1]).join('\n')
+        }
+        return { next, close: () => events.cancel() }
+      }
+      let write = (tab: string, id: string, caption: string) =>
+        composerPost('/admin/posts/new/preview', [
+          ['id', id],
+          ['tab', tab],
+          ['offset', '+05:30'],
+          ['caption', caption],
+        ])
+
+      it('follows what other tabs write, but not its own', async () => {
+        let { id, html } = await openComposer()
+        let tab = capture(html, /<input type="hidden" name="tab" value="([^"]+)"/)
+        expect(html).toContain(`data-url="/admin/posts/new/updates?tab=${tab}"`)
+        let updates = await openUpdates('second-tab')
+        // The composer as it is when the stream opens, for this tab.
+        let first = await updates.next()
+        expect(captionOf(first)).toBe('')
+        expect(first).toContain('<input type="hidden" name="tab" value="second-tab">')
+
+        await write(tab, id, 'From the first tab')
+        let next = await updates.next()
+        expect(capture(next, /name="id" value="([0-9a-z]{10})"/)).toBe(id)
+        expect(captionOf(next)).toBe('From the first tab')
+        expect(next).toContain('>Saved</span>')
+
+        // Its own change isn't sent back, even when it's the latest as the stream opens (as when
+        // the tab is shown again): the next it's sent is the first tab's. A third tab's stream,
+        // opened after it, has sent the draft first.
+        await updates.close()
+        await write('second-tab', id, 'From the second tab')
+        updates = await openUpdates('second-tab')
+        let waiting = updates.next()
+        let third = await openUpdates('third-tab')
+        expect(captionOf(await third.next())).toBe('From the second tab')
+        await third.close()
+        await write(tab, id, 'From the first tab again')
+        expect(captionOf(await waiting)).toBe('From the first tab again')
+
+        // Once the post is published, it starts a new one.
+        let published = await composerPost(
+          '/admin/posts/new',
+          [
+            ['id', id],
+            ['tab', tab],
+            ['offset', '+05:30'],
+            ['caption', 'Posted'],
+          ],
+          {},
+        )
+        expect(published.status).toBe(303)
+        let fresh = await updates.next()
+        expect(capture(fresh, /name="id" value="([0-9a-z]{10})"/)).not.toBe(id)
+        expect(captionOf(fresh)).toBe('')
+        await updates.close()
+      })
+
+      it('starts a new post when the draft is discarded', async () => {
+        let updates = await openUpdates('second-tab')
+        await updates.next()
+        await write('first-tab', 'drafted010', 'Never mind')
+        expect(captionOf(await updates.next())).toBe('Never mind')
+        await discard('drafted010')
+        let fresh = await updates.next()
+        expect(fresh).not.toContain('drafted010')
+        expect(captionOf(fresh)).toBe('')
+        await updates.close()
+      })
+
+      it('needs an admin login', async () => {
+        let response = await app.fetch('/admin/posts/new/updates?tab=second-tab')
+        expect(response.status).toBe(302)
+      })
+    })
+
     it('ignores a draft that doesn’t decode, and replaces it', async () => {
       for (let data of ['{"id":', '{"id":"drafted008","caption":5}']) {
         await app.seedDatabase()
@@ -1106,8 +1206,10 @@ describe('the composer', () => {
     expect(hint).toMatch(/Path=\/(;|$)/)
     let cookie = defined(hint?.split(';')[0], 'the admin cookie')
     let home = await (await app.fetch('/', { headers: { Cookie: cookie } })).text()
-    expect(home).toMatch(/<header[^]*href="\/admin\/posts\/new" aria-label="Compose"[^]*<\/header>/)
-    expect(await (await app.fetch('/')).text()).not.toContain('aria-label="Compose"')
+    expect(home).toMatch(
+      /<header[^]*href="\/admin\/posts\/new" aria-label="New Post"[^]*<\/header>/,
+    )
+    expect(await (await app.fetch('/')).text()).not.toContain('aria-label="New Post"')
     // Logging out clears it.
     let session = defined(app.sessionCookie(login), 'a session cookie')
     let logout = await app.fetch('/admin/logout', {
