@@ -138,7 +138,7 @@ describe('admin post pages', () => {
     expect((await findPost(post.id))?.caption).not.toBe('Not logged in')
   })
 
-  it('/admin links to the new post page and to each post’s edit page', async () => {
+  it('/admin links to the composer and to each post’s edit page', async () => {
     let html = await (await app.adminFetch('/admin')).text()
     expect(html).toContain('href="/admin/posts/new"')
     for (let post of await posts()) expect(html).toContain(`href="/admin/posts/${post.id}/edit"`)
@@ -244,23 +244,6 @@ describe('admin post pages', () => {
     let again = await submit()
     expect(again.status).toBe(400)
     expect(await again.text()).toMatch(/already published/)
-  })
-
-  it('starts a new post at the newest post’s UTC offset', async () => {
-    let page = await (await app.adminFetch('/admin/posts/new')).text()
-    expect(page).toMatch(/<input [^>]*name="offset"[^>]*value="\+05:30"/)
-    expect(page).toMatch(/<input type="radio" name="type" value="text" checked>/)
-  })
-
-  it('rejects a new text post without a caption', async () => {
-    let id = 'zzzzzzzzzz'
-    let response = await app.adminFetch('/admin/posts/new', {
-      method: 'POST',
-      body: textPostForm({ id, caption: '  ' }),
-    })
-    expect(response.status).toBe(400)
-    expect(await response.text()).toMatch(/Caption: Text posts need a caption/)
-    expect(await findPost(id)).toBeUndefined()
   })
 
   it('an edit can’t change the post’s type', async () => {
@@ -415,45 +398,35 @@ describe('admin post pages', () => {
   let noFile = () => new File([], '', { type: 'application/octet-stream' })
 
   it('the post form uploads files', async () => {
-    let html = await (await app.adminFetch('/admin/posts/new')).text()
+    let post = await samplePost('photos')
+    let html = await (await app.adminFetch(`/admin/posts/${post.id}/edit`)).text()
     expect(html).toMatch(
-      /<form method="post" action="\/admin\/posts\/new" enctype="multipart\/form-data"/,
+      new RegExp(
+        `<form method="post" action="/admin/posts/${post.id}/edit" enctype="multipart/form-data"`,
+      ),
     )
     expect(html).toMatch(/<input type="file" name="photo_upload"/)
     expect(html).toMatch(/<input [^>]*name="photo_uploads" type="file"[^>]*multiple/)
   })
 
-  it('uploads a new photos post’s files, which it’s published with', async () => {
+  it('publishes the files chosen in the composer without Datastar', async () => {
     let id = 'uploadnew1'
     let response = await app.adminFetch('/admin/posts/new', {
       method: 'POST',
-      body: multipartForm(
-        {
-          id,
-          type: 'photos',
-          date: '2026-10-21T09:30',
-          offset: '+05:30',
-          caption: '',
-          photo_file: '',
-          photo_alt: 'First',
-        },
-        [
-          ['photo_upload', new File(['one'], 'My Photo.jpg', { type: 'image/jpeg' })],
-          ['photo_uploads', new File(['two'], 'two.png', { type: 'image/png' })],
-          ['photo_uploads', new File(['three'], 'three.webp', { type: 'text/html' })],
-          // Another type's fields are on the new post page too, but only the chosen type's count.
-          ['video_upload', new File(['v'], 'clip.mp4', { type: 'video/mp4' })],
-        ],
-      ),
+      body: multipartForm({ id, offset: '+05:30', caption: '' }, [
+        ['photo_uploads', new File(['one'], 'My Photo.jpg', { type: 'image/jpeg' })],
+        ['photo_uploads', new File(['two'], 'two.png', { type: 'image/png' })],
+        ['photo_uploads', new File(['three'], 'three.webp', { type: 'text/html' })],
+        ['video_upload', noFile()],
+      ]),
     })
     expect(response.status).toBe(303)
     let saved = await findPost(id)
     expect(saved?.type === 'photos' && saved.photos).toEqual([
-      { src: `/posts/${id}/My-Photo.jpg`, alt: 'First' },
-      { src: `/posts/${id}/two.png`, alt: '' },
-      { src: `/posts/${id}/three.webp`, alt: '' },
+      { src: `/posts/${id}/My-Photo.jpg`, alt: 'My-Photo.jpg' },
+      { src: `/posts/${id}/two.png`, alt: 'two.png' },
+      { src: `/posts/${id}/three.webp`, alt: 'three.webp' },
     ])
-    expect(await hasPostFile(id, 'clip.mp4')).toBe(false)
 
     // Served with the type its name gives, not the one the browser claimed.
     let file = await app.fetch(`/posts/${id}/three.webp`)
@@ -506,32 +479,28 @@ describe('admin post pages', () => {
     let id = 'uploadbad1'
     let response = await app.adminFetch('/admin/posts/new', {
       method: 'POST',
-      body: multipartForm(
-        { id, type: 'video', date: '2026-10-21T09:30', offset: '+05:30', video_file: '' },
-        [
-          ['video_upload', new File(['v'], 'clip.mp4')],
-          ['video_poster_upload', new File(['<svg/>'], 'poster.svg')],
-        ],
-      ),
+      body: multipartForm({ id, offset: '+05:30' }, [
+        ['video_upload', new File(['v'], 'clip.mp4')],
+        ['poster_upload', new File(['<svg/>'], 'poster.svg')],
+      ]),
     })
     let html = await response.text()
     expect(response.status).toBe(400)
-    expect(html).toMatch(/“poster\.svg” can’t be uploaded/)
+    expect(html).toMatch(/“poster\.svg” can’t be added here/)
     expect(await findPost(id)).toBeUndefined()
     expect(await hasPostFile(id, 'poster.svg')).toBe(false)
-    // The video was saved, so the form comes back naming it, and saving again publishes.
+    // The video was saved, so the composer comes back with it, and posting again publishes.
     expect(await hasPostFile(id, 'clip.mp4')).toBe(true)
-    expect(html).toMatch(/<input [^>]*name="video_file"[^>]*value="clip\.mp4"/)
-    expect(html).toMatch(/<code>clip\.mp4<\/code>/)
+    expect(html).toContain('<input type="hidden" name="video" value="clip.mp4">')
   })
 
-  it('doesn’t let a resubmitted new post form replace the published post’s files', async () => {
+  it('doesn’t let a resubmitted composer replace the published post’s files', async () => {
     let post = await firstPost()
     await savePostFile(post.id, 'same.jpg', new File(['original'], 'same.jpg'))
     let response = await app.adminFetch('/admin/posts/new', {
       method: 'POST',
-      body: multipartForm({ ...Object.fromEntries(textPostForm()), id: post.id }, [
-        ['article_uploads', new File(['replaced'], 'same.jpg')],
+      body: multipartForm({ id: post.id, offset: '+05:30', caption: 'Again' }, [
+        ['photo_uploads', new File(['replaced'], 'same.jpg')],
       ]),
     })
     expect(response.status).toBe(400)
@@ -565,6 +534,292 @@ describe('admin post pages', () => {
 
   it('editing an unknown post is a 404', async () => {
     expect((await app.adminFetch('/admin/posts/nosuchpost/edit')).status).toBe(404)
+  })
+})
+
+describe('the composer', () => {
+  let photo = (name: string) =>
+    new File([Bun.file('test/content/posts/drdp3ei6fd/hike-1.jpg')], name, { type: 'image/jpeg' })
+  // The composer's form, as Datastar (or the browser) posts it.
+  let composerForm = (fields: [string, string | File][]) => {
+    let body = new FormData()
+    for (let [name, value] of fields) body.append(name, value)
+    return body
+  }
+  let datastar = { 'Datastar-Request': 'true' }
+  let composerPost = (
+    path: string,
+    fields: [string, string | File][],
+    headers: Record<string, string> = datastar,
+  ) => app.adminFetch(path, { method: 'POST', headers, body: composerForm(fields) })
+
+  it('needs an admin login', async () => {
+    let response = await app.fetch('/admin/posts/new')
+    expect(response.status).toBe(302)
+    expect(response.headers.get('Location')).toBe('/admin/login')
+    let media = await app.fetch('/admin/posts/new/media', {
+      method: 'POST',
+      body: composerForm([
+        ['id', 'composer01'],
+        ['photo_uploads', photo('a.jpg')],
+      ]),
+    })
+    expect(media.status).toBe(302)
+    expect(await hasPostFile('composer01', 'a.jpg')).toBe(false)
+  })
+
+  it('starts a new post at the newest post’s UTC offset, with no date to edit', async () => {
+    let html = await (await app.adminFetch('/admin/posts/new')).text()
+    expect(html).toMatch(/<form id="composer" method="post" action="\/admin\/posts\/new"/)
+    expect(html).toMatch(/<input type="hidden" name="id" value="[0-9a-z]{10}"/)
+    expect(html).toMatch(/<input type="hidden" name="offset" value="\+05:30"/)
+    expect(html).not.toMatch(/name="date"/)
+    expect(html).toMatch(/<input type="file" name="photo_uploads" accept="image\/\*" multiple/)
+  })
+
+  it('uploads photos as they’re chosen, renaming ones whose names are taken', async () => {
+    let id = 'composer02'
+    let response = await composerPost('/admin/posts/new/media', [
+      ['id', id],
+      ['photo', 'image.jpg'],
+      ['photo_uploads', photo('image.jpg')],
+      ['photo_uploads', photo('My Photo.jpg')],
+    ])
+    expect(response.headers.get('Content-Type')).toMatch(/^text\/event-stream/)
+    let events = await response.text()
+    expect(events).toContain('data: selector #composer-media\ndata: mode replace\n')
+    expect(events).toContain('data: selector #composer-tools\n')
+    for (let file of ['image.jpg', 'image-2.jpg', 'My-Photo.jpg']) {
+      expect(events).toContain(`<input type="hidden" name="photo" value="${file}">`)
+    }
+    expect(await hasPostFile(id, 'image-2.jpg')).toBe(true)
+    expect(await hasPostFile(id, 'My-Photo.jpg')).toBe(true)
+    // The composer shows them before the post is published, and nobody else sees them.
+    expect(events).toContain(`/admin/posts/${id}/files/image-2.jpg`)
+    let draft = await app.adminFetch(`/admin/posts/${id}/files/image-2.jpg`)
+    expect(draft.status).toBe(200)
+    expect(draft.headers.get('Content-Type')).toBe('image/jpeg')
+    expect((await app.fetch(`/admin/posts/${id}/files/image-2.jpg`)).status).toBe(302)
+    expect((await app.fetch(`/posts/${id}/image-2.jpg`)).status).toBe(404)
+  })
+
+  it('removes media, and a video’s poster with it', async () => {
+    let photos = await (
+      await composerPost('/admin/posts/new/media', [
+        ['id', 'composer03'],
+        ['photo', 'a.jpg'],
+        ['photo', 'b.jpg'],
+        ['remove', 'a.jpg'],
+      ])
+    ).text()
+    expect(photos).not.toContain('value="a.jpg"')
+    expect(photos).toContain('<input type="hidden" name="photo" value="b.jpg">')
+
+    let video = await (
+      await composerPost('/admin/posts/new/media', [
+        ['id', 'composer03'],
+        ['video', 'clip.mp4'],
+        ['poster', 'clip.jpg'],
+        ['remove', 'clip.mp4'],
+      ])
+    ).text()
+    expect(video).not.toMatch(/name="(video|poster)"/)
+  })
+
+  it('takes one kind of media at a time', async () => {
+    let events = await (
+      await composerPost('/admin/posts/new/media', [
+        ['id', 'composer04'],
+        ['photo', 'a.jpg'],
+        ['video_upload', new File(['v'], 'clip.mp4', { type: 'video/mp4' })],
+      ])
+    ).text()
+    expect(events).toContain('data: selector #composer-issues')
+    expect(events).toMatch(/A post can have photos, a video, or an article, but only one/)
+    expect(events).not.toMatch(/name="video"/)
+    expect(await hasPostFile('composer04', 'clip.mp4')).toBe(false)
+  })
+
+  it('previews the post as it’s written, without saving anything', async () => {
+    let events = await (
+      await composerPost('/admin/posts/new/preview', [
+        ['id', 'composer05'],
+        ['offset', '-07:00'],
+        ['city', 'Lisbon'],
+        ['caption', 'Hello **world**'],
+      ])
+    ).text()
+    expect(events).toContain('data: selector #composer-preview\n')
+    expect(events).toContain('<strong>world</strong>')
+    expect(events).toMatch(/ · Lisbon/)
+    expect(events).toMatch(/datetime="\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}-07:00"/)
+    expect(await findPost('composer05')).toBeUndefined()
+  })
+
+  it('publishes a photos post dated now, with its file names as alt text', async () => {
+    let id = 'composer06'
+    await composerPost('/admin/posts/new/media', [
+      ['id', id],
+      ['photo_uploads', photo('peak.jpg')],
+    ])
+    let before = Date.now()
+    let response = await composerPost(
+      '/admin/posts/new',
+      [
+        ['id', id],
+        ['offset', '+05:30'],
+        ['caption', 'Up top'],
+        ['city', ''],
+        ['photo', 'peak.jpg'],
+      ],
+      {},
+    )
+    expect(response.status).toBe(303)
+    expect(response.headers.get('Location')).toBe(`/posts/${id}`)
+    let post = defined(await findPost(id), 'the post')
+    expect(post.type).toBe('photos')
+    expect(post.caption).toBe('Up top')
+    expect(post.city).toBeUndefined()
+    expect(post.type === 'photos' && post.photos.map((photo) => photo.alt)).toEqual(['peak.jpg'])
+    expect(post.date).toMatch(/\+05:30$/)
+    expect(Math.abs(Date.parse(post.date) - before)).toBeLessThan(5_000)
+    expect((await app.fetch(`/posts/${id}/peak.jpg`)).status).toBe(200)
+    // It's published, so the composer can't change its files.
+    let late = await composerPost('/admin/posts/new/media', [
+      ['id', id],
+      ['photo_uploads', photo('late.jpg')],
+    ])
+    expect(await late.text()).toMatch(/already published/)
+    expect(await hasPostFile(id, 'late.jpg')).toBe(false)
+  })
+
+  it('sends Datastar to the post once it’s published', async () => {
+    let id = 'composer07'
+    let events = await (
+      await composerPost('/admin/posts/new', [
+        ['id', id],
+        ['offset', '+00:00'],
+        ['caption', 'Just text'],
+      ])
+    ).text()
+    expect(events).toContain(`data-href="/posts/${id}"`)
+    expect((await findPost(id))?.type).toBe('text')
+  })
+
+  it('won’t publish an empty post', async () => {
+    let fields: [string, string][] = [
+      ['id', 'composer08'],
+      ['caption', '  \n'],
+    ]
+    let page = await composerPost('/admin/posts/new', fields, {})
+    expect(page.status).toBe(400)
+    expect(await page.text()).toMatch(/Write something, or add photos, a video, or an article/)
+    let events = await (await composerPost('/admin/posts/new', fields)).text()
+    expect(events).toMatch(/Write something, or add photos, a video, or an article/)
+    expect(await findPost('composer08')).toBeUndefined()
+  })
+
+  it('says when files are too big to upload', async () => {
+    let response = await app.adminFetch('/admin/posts/new/media', {
+      method: 'POST',
+      headers: {
+        ...datastar,
+        'Content-Type': 'multipart/form-data; boundary=x',
+        'Content-Length': String(121 * 1024 * 1024),
+      },
+      body: '--x--',
+    })
+    expect(response.status).toBe(200)
+    expect(await response.text()).toMatch(/too big to upload/)
+  })
+
+  it('makes an article from a Markdown file, and uploads the files it uses', async () => {
+    let id = 'composer09'
+    let markdown = '# A year of notes\n\nIt went well.\n\n![My desk](desk.jpg)\n'
+    let added = await (
+      await composerPost('/admin/posts/new/media', [
+        ['id', id],
+        ['article_upload', new File([markdown], 'notes.md', { type: 'text/markdown' })],
+      ])
+    ).text()
+    expect(added).toMatch(/<input name="article_title" value="A year of notes"/)
+    expect(added).toContain('From notes.md · 5 words')
+    expect(added).toContain('<span class="missing-file">desk.jpg</span>')
+    expect(added).toMatch(/<textarea hidden name="article_body">/)
+    // Only photos can go with it, as its cover; the video button is off.
+    expect(added).toMatch(/<input type="file" name="cover_upload"/)
+    expect(added).toMatch(/<input type="file" name="video_upload"[^>]* disabled/)
+
+    let body = '\nIt went well.\n\n![My desk](desk.jpg)\n'
+    let article: [string, string][] = [
+      ['id', id],
+      ['offset', '+05:30'],
+      ['article_title', 'A year of notes'],
+      ['article_summary', 'What I learned'],
+      ['article_body', body],
+      ['article_source', 'notes.md'],
+    ]
+    let uploaded = await (
+      await composerPost('/admin/posts/new/media', [
+        ...article,
+        ['article_files', photo('desk.jpg')],
+      ])
+    ).text()
+    expect(uploaded).not.toContain('missing-file')
+    expect(await hasPostFile(id, 'desk.jpg')).toBe(true)
+    let preview = await (await composerPost('/admin/posts/new/preview', article)).text()
+    expect(preview).toContain('<h1 class="page-title">A year of notes</h1>')
+    expect(preview).toContain(`src="/admin/posts/${id}/files/desk.jpg?v=`)
+
+    let response = await composerPost('/admin/posts/new', article, {})
+    expect(response.status).toBe(303)
+    let post = defined(await findPost(id), 'the article')
+    expect(post.type === 'article' && post.article).toMatchObject({
+      title: 'A year of notes',
+      summary: 'What I learned',
+    })
+    expect(await (await app.fetch(`/posts/${id}`)).text()).toContain(`/posts/${id}/desk.jpg`)
+  })
+
+  it('discards a post, deleting what was uploaded for it', async () => {
+    let id = 'composer10'
+    await composerPost('/admin/posts/new/media', [
+      ['id', id],
+      ['photo_uploads', photo('a.jpg')],
+    ])
+    let page = await (await app.adminFetch('/admin/posts/new')).text()
+    expect(page).toMatch(/<dialog id="discard-post"/)
+    expect(page).toMatch(/<form method="post" action="\/admin\/posts\/new\/discard"/)
+    let discard = (id: string) =>
+      app.adminFetch('/admin/posts/new/discard', {
+        method: 'POST',
+        body: new URLSearchParams({ id }),
+      })
+    let response = await discard(id)
+    expect(response.status).toBe(303)
+    expect(response.headers.get('Location')).toBe('/admin/posts/new')
+    expect(await hasPostFile(id, 'a.jpg')).toBe(false)
+    // A published post's files stay.
+    let published = await samplePost('photos')
+    await discard(published.id)
+    expect(await hasPostFile(published.id, 'hike-1.jpg')).toBe(true)
+  })
+
+  it('is linked from the navbar of every page while logged in', async () => {
+    let login = await app.logIn()
+    let hint = login.headers.getSetCookie().find((cookie) => cookie.startsWith('admin='))
+    expect(hint).toMatch(/Path=\/(;|$)/)
+    let cookie = defined(hint?.split(';')[0], 'the admin cookie')
+    let home = await (await app.fetch('/', { headers: { Cookie: cookie } })).text()
+    expect(home).toMatch(/<header[^]*href="\/admin\/posts\/new" aria-label="Compose"[^]*<\/header>/)
+    expect(await (await app.fetch('/')).text()).not.toContain('aria-label="Compose"')
+    // Logging out clears it.
+    let session = defined(app.sessionCookie(login), 'a session cookie')
+    let logout = await app.fetch('/admin/logout', {
+      method: 'POST',
+      headers: { Cookie: `${session}; ${cookie}` },
+    })
+    expect(logout.headers.getSetCookie().join('\n')).toMatch(/^admin=;.*Max-Age=0/m)
   })
 })
 

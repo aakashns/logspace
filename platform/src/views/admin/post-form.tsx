@@ -1,5 +1,5 @@
-// The new and edit post pages. The new post page has every type's fields, and CSS shows only the
-// chosen type's (see .type-fields in styles/admin.css), so it works without JavaScript.
+// The edit post page, with the fields of the post's type. New posts are written in the composer
+// (compose.tsx).
 import type { Child, Html } from '#jsx/jsx-runtime'
 
 import { MAX_UPLOAD_FILE_SIZE, MAX_UPLOAD_TOTAL_SIZE } from '../../domain/constants.ts'
@@ -10,12 +10,11 @@ import {
   type PhotoValues,
   type PostFormValues,
 } from '../../domain/post-form.ts'
-import { POST_TYPES, type PostIssue } from '../../domain/post.ts'
+import type { PostIssue } from '../../domain/post.ts'
 import { routes } from '../../routes.ts'
 import { Field, FieldRow, TextareaField, TextField, type InputProps } from './fields.tsx'
 
 export interface PostFormProps {
-  readonly isNew: boolean
   readonly values: PostFormValues
   // The post's files in media storage.
   readonly files: readonly { name: string; size: number }[]
@@ -26,20 +25,23 @@ export interface PostFormProps {
 const EMPTY_PHOTO_ROWS = 2
 
 export function PostForm(props: PostFormProps): Html {
-  let { isNew, values, files, issues = [] } = props
-  let action = isNew ? routes.admin.newPost() : routes.admin.editPost(values.id)
-  let fields = { values, invalid: invalidCheck(issues), isNew }
-  // The new post page has every type's fields; an existing post's only has its own type's.
-  let hasFields = (type: string) => isNew || values.type === type
+  let { values, files, issues = [] } = props
+  let fields = { values, invalid: invalidCheck(issues) }
 
   return (
     <section class="admin-page">
-      <h1 class="page-title">{isNew ? 'New Post' : 'Edit Post'}</h1>
+      <h1 class="page-title">Edit Post</h1>
       {issues.length > 0 ? <IssueList issues={issues} /> : null}
 
-      <form method="post" action={action} enctype="multipart/form-data" class="form">
-        {isNew ? <input type="hidden" name="id" value={values.id} /> : null}
-        <TypePicker isNew={isNew} type={values.type} />
+      <form
+        method="post"
+        action={routes.admin.editPost(values.id)}
+        enctype="multipart/form-data"
+        class="form"
+      >
+        <p>
+          Type: {typeName(values.type)} <span class="muted">(can’t be changed)</span>
+        </p>
         <DateFields {...fields} />
         <TextareaField
           label="Caption"
@@ -50,33 +52,31 @@ export function PostForm(props: PostFormProps): Html {
           invalid={fields.invalid('caption')}
           hint="Markdown. Every new line is a line break, and a blank line starts a new paragraph. Required for text posts."
         />
-        <MediaFiles id={values.id} isNew={isNew} files={files} />
-        {hasFields('photos') ? <PhotosFields {...fields} /> : null}
-        {hasFields('video') ? <VideoFields {...fields} /> : null}
-        {hasFields('article') ? <ArticleFields {...fields} /> : null}
+        <MediaFiles id={values.id} files={files} />
+        {values.type === 'photos' ? <PhotosFields {...fields} /> : null}
+        {values.type === 'video' ? <VideoFields {...fields} /> : null}
+        {values.type === 'article' ? <ArticleFields {...fields} /> : null}
 
         <div class="actions">
           <button type="submit" class="button">
-            {isNew ? 'Publish' : 'Save'}
+            Save
           </button>
           <a href={routes.admin.index()} class="secondary-button">
             Cancel
           </a>
           {/* Opens the dialog below with command/commandfor, which needs no JavaScript. */}
-          {isNew ? null : (
-            <button
-              type="button"
-              command="show-modal"
-              commandfor={DELETE_DIALOG}
-              class="destructive-button delete-button"
-            >
-              Delete
-            </button>
-          )}
+          <button
+            type="button"
+            command="show-modal"
+            commandfor={DELETE_DIALOG}
+            class="destructive-button delete-button"
+          >
+            Delete
+          </button>
         </div>
       </form>
 
-      {isNew ? null : <DeleteDialog id={values.id} />}
+      <DeleteDialog id={values.id} />
     </section>
   )
 }
@@ -115,30 +115,6 @@ function fieldLabel(field: string): string {
 
 const FIELD_NAMES: Record<string, string> = { alt: 'alt text', id: 'id' }
 
-// A new post's type, chosen with radio buttons; an existing post's type can't change, so it's
-// just shown.
-function TypePicker(props: { isNew: boolean; type: string }): Html {
-  let { isNew, type } = props
-  if (!isNew) {
-    return (
-      <p>
-        Type: {typeName(type)} <span class="muted">(can’t be changed)</span>
-      </p>
-    )
-  }
-  return (
-    <fieldset class="post-types">
-      <legend>Type</legend>
-      {POST_TYPES.map((option) => (
-        <label>
-          <input type="radio" name="type" value={option} checked={type === option} />
-          {` ${typeName(option)}`}
-        </label>
-      ))}
-    </fieldset>
-  )
-}
-
 function typeName(type: string): string {
   return type.charAt(0).toUpperCase() + type.slice(1)
 }
@@ -146,8 +122,6 @@ function typeName(type: string): string {
 interface FieldsProps {
   values: PostFormValues
   invalid: InvalidCheck
-  // On the new post page every type's fields are there, and only the chosen type's show.
-  isNew: boolean
 }
 
 // When and where it was posted. The date is entered as a local time plus a UTC offset, which the
@@ -195,14 +169,10 @@ function DateFields(props: FieldsProps): Html {
   )
 }
 
-// How media fields work, and the post's files so far, which they and an article's body can name.
-// A published post's files link to where they're served.
-function MediaFiles(props: {
-  id: string
-  isNew: boolean
-  files: readonly { name: string; size: number }[]
-}): Html {
-  let { id, isNew, files } = props
+// How media fields work, and the post's files so far, which they and an article's body can name,
+// linking to where they're served.
+function MediaFiles(props: { id: string; files: readonly { name: string; size: number }[] }): Html {
+  let { id, files } = props
   return (
     <div class="media-files">
       <p class="muted">
@@ -218,13 +188,9 @@ function MediaFiles(props: {
           <ul class="file-list">
             {files.map((file) => (
               <li>
-                {isNew ? (
+                <a href={routes.postFile(id, file.name)}>
                   <code>{file.name}</code>
-                ) : (
-                  <a href={routes.postFile(id, file.name)}>
-                    <code>{file.name}</code>
-                  </a>
-                )}{' '}
+                </a>{' '}
                 <span class="muted">({formatSize(file.size)})</span>
               </li>
             ))}
@@ -236,13 +202,13 @@ function MediaFiles(props: {
 }
 
 function PhotosFields(props: FieldsProps): Html {
-  let { values, invalid, isNew } = props
+  let { values, invalid } = props
   let photos: PhotoValues[] = [
     ...(values.photos ?? []),
     ...Array.from({ length: EMPTY_PHOTO_ROWS }, () => ({})),
   ]
   return (
-    <TypeFields type="photos" legend="Photos" isNew={isNew}>
+    <TypeFields legend="Photos">
       <p class="muted">
         Shown in this order. Clear a file name to remove a photo; save to get more empty rows.
       </p>
@@ -279,10 +245,10 @@ function PhotosFields(props: FieldsProps): Html {
 }
 
 function VideoFields(props: FieldsProps): Html {
-  let { values, invalid, isNew } = props
+  let { values, invalid } = props
   let video = values.video ?? {}
   return (
-    <TypeFields type="video" legend="Video" isNew={isNew}>
+    <TypeFields legend="Video">
       <FieldRow>
         <MediaFileField
           label="Video file"
@@ -326,11 +292,11 @@ function VideoFields(props: FieldsProps): Html {
 }
 
 function ArticleFields(props: FieldsProps): Html {
-  let { values, invalid, isNew } = props
+  let { values, invalid } = props
   let article = values.article ?? {}
   let cover = article.cover ?? {}
   return (
-    <TypeFields type="article" legend="Article" isNew={isNew}>
+    <TypeFields legend="Article">
       <TextField
         label="Title"
         name="article_title"
@@ -385,16 +351,10 @@ function ArticleFields(props: FieldsProps): Html {
   )
 }
 
-// A box around one type's fields. On the new post page it's tagged with its type, so CSS shows it
-// only while that type is chosen.
-function TypeFields(props: {
-  type: string
-  legend: string
-  isNew: boolean
-  children: Child
-}): Html {
+// A box around the type's fields.
+function TypeFields(props: { legend: string; children: Child }): Html {
   return (
-    <fieldset data-post-type={props.isNew ? props.type : undefined} class="type-fields">
+    <fieldset class="type-fields">
       <legend>{props.legend}</legend>
       {props.children}
     </fieldset>

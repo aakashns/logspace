@@ -2,13 +2,21 @@
 // site's settings, and writing, editing, and deleting posts. Every handler here only reads and
 // sends commands; what a command does is in commands/.
 import { Clock, Effect } from 'effect'
-import { HttpRouter, HttpServerResponse } from 'effect/http'
+import { HttpRouter, HttpServerRequest, HttpServerResponse } from 'effect/http'
 
-import type { Child } from '#jsx/jsx-runtime'
+import type { Child, Html } from '#jsx/jsx-runtime'
 import { PostCommands } from '../commands/posts.ts'
 import { SiteConfigCommands } from '../commands/site-config.ts'
-import { newPostDate, readPostForm, type PostFormValues } from '../domain/post-form.ts'
-import { isPostId, newPostId, type PostIssue } from '../domain/post.ts'
+import {
+  composePost,
+  readComposeForm,
+  withArticleText,
+  type ComposeValues,
+} from '../domain/compose.ts'
+import { MAX_UPLOAD_FILE_SIZE, MAX_UPLOAD_TOTAL_SIZE } from '../domain/constants.ts'
+import { findArticleFiles } from '../domain/markdown.ts'
+import { dateAtOffset, offsetOf, readPostForm, type PostFormValues } from '../domain/post-form.ts'
+import { newPostId, type PostIssue } from '../domain/post.ts'
 import {
   isSiteConfigured,
   SITE_IMAGE_KINDS,
@@ -16,9 +24,20 @@ import {
   type SiteImageKind,
   type SiteText,
 } from '../domain/site.ts'
+import { LinkPreviews } from '../queries/link-previews.ts'
+import { PostMedia } from '../queries/post-media.ts'
 import { PostQueries } from '../queries/posts.ts'
 import { SiteConfigQueries } from '../queries/site-config.ts'
 import { routes } from '../routes.ts'
+import {
+  COMPOSER_IDS,
+  ComposePage,
+  ComposerIssues,
+  ComposerMedia,
+  ComposerPreview,
+  ComposerTools,
+  type ComposerProps,
+} from '../views/admin/compose.tsx'
 import { AdminMessage, AdminPage } from '../views/admin/page.tsx'
 import { ConfigPage } from '../views/admin/config.tsx'
 import { LoginPage } from '../views/admin/login.tsx'
@@ -27,12 +46,13 @@ import { PostsPage } from '../views/admin/posts.tsx'
 import {
   LOGIN_FORM_LIMIT,
   MalformedForm,
+  megabytes,
   readForm,
   UPLOAD_TOO_LARGE_MESSAGE,
   UploadTooLarge,
 } from './forms.ts'
 import { pageContext, pageResponse, param, requestUrl } from './pages.ts'
-import { redirect, textResponse } from './responses.ts'
+import { fileResponse, notFound, redirect, textResponse } from './responses.ts'
 import { AdminAuth, type Session } from './session.ts'
 
 // An admin page's response.
@@ -83,7 +103,11 @@ const loggedIn = <R,>(
     return yield* Effect.flatMap(auth.requireLogin, handler)
   }).pipe(
     Effect.catchTags({
-      NotLoggedIn: () => Effect.succeed(redirect(routes.admin.login())),
+      // An old session's cookies go, so pages stop showing the link to the composer.
+      NotLoggedIn: () =>
+        Effect.map(AdminAuth, (auth) =>
+          auth.saveSession(redirect(routes.admin.login()), undefined),
+        ),
       UploadTooLarge: () => message('Upload too large', UPLOAD_TOO_LARGE_MESSAGE, 413),
       MalformedForm: () => Effect.succeed(textResponse('Bad Request', 400)),
     }),
@@ -226,51 +250,20 @@ function readConfigForm(form: FormData): SiteText {
 
 // ---- Posts
 
-const postForm = (props: {
-  isNew: boolean
-  values: PostFormValues
-  issues?: readonly PostIssue[] | undefined
-}) =>
+// The edit page. New posts are written in the composer, below.
+const postForm = (props: { values: PostFormValues; issues?: readonly PostIssue[] | undefined }) =>
   Effect.gen(function* () {
-    let { id } = props.values
-    let files = isPostId(id) ? yield* (yield* PostQueries).files(id) : []
-    return yield* adminPage(
-      props.isNew ? 'New Post' : 'Edit Post',
-      <PostForm {...props} files={files} />,
-      {
-        status: props.issues ? 400 : 200,
-      },
-    )
+    let files = yield* (yield* PostQueries).files(props.values.id)
+    return yield* adminPage('Edit Post', <PostForm {...props} files={files} />, {
+      status: props.issues ? 400 : 200,
+    })
   })
-
-const newPost = loggedIn(() =>
-  Effect.gen(function* () {
-    let [newest] = yield* (yield* PostQueries).all
-    let now = yield* Clock.currentTimeMillis
-    let values = { id: newPostId(), type: 'text', date: newPostDate(newest?.date, now) }
-    return yield* postForm({ isNew: true, values })
-  }),
-)
-
-const publishPost = loggedIn(() =>
-  Effect.gen(function* () {
-    let formData = yield* readForm()
-    let id = formData.get('id')
-    let form = readPostForm(formData, typeof id === 'string' ? id : '')
-    return yield* (yield* PostCommands).publish(form).pipe(
-      Effect.map((post) => redirect(routes.post(post.id), 303)),
-      Effect.catchTag('PostRejected', (rejected) =>
-        postForm({ isNew: true, values: form.post, issues: rejected.issues }),
-      ),
-    )
-  }),
-)
 
 const editPost = loggedIn(() =>
   Effect.gen(function* () {
     let values = yield* (yield* PostQueries).findRecord(yield* param('id'))
     if (!values) return yield* postNotFound
-    return yield* postForm({ isNew: false, values })
+    return yield* postForm({ values })
   }),
 )
 
@@ -284,8 +277,7 @@ const savePost = loggedIn(() =>
       Effect.map(() => redirect(routes.post(id), 303)),
       Effect.catchTags({
         PostNotFound: () => postNotFound,
-        PostRejected: (rejected) =>
-          postForm({ isNew: false, values: form.post, issues: rejected.issues }),
+        PostRejected: (rejected) => postForm({ values: form.post, issues: rejected.issues }),
       }),
     )
   }),
@@ -300,6 +292,208 @@ const deletePost = loggedIn(() =>
   }),
 )
 
+// ---- The composer, where posts are written
+//
+// As you write, the composer posts its form with Datastar (see views/controls.tsx), and gets back
+// HTML for parts of the page: its media when files are added or removed, and the preview as you
+// type. Posting it publishes; it's also a plain form, for a browser without Datastar.
+
+// The submitted composer, with the text of a Markdown file chosen for the article.
+const readComposer = Effect.fnUntraced(function* (formData: FormData) {
+  let form = readComposeForm(formData)
+  let file = form.articleFile
+  if (!file) return form
+  let text = yield* Effect.promise(() => file.text())
+  return withArticleText(form, file.name, text)
+})
+
+// Whether Datastar sent the request, rather than the browser posting the form.
+const fromDatastar = Effect.map(
+  HttpServerRequest.HttpServerRequest,
+  (request) => request.headers['datastar-request'] === 'true',
+)
+
+// What Datastar gets: parts of the composer to replace, by id, or the inside of one to morph
+// (`inner`), as server-sent events.
+function composerPatch(...patches: [id: string, html: Html, mode?: 'inner'][]) {
+  let body = patches
+    .map(
+      ([id, html, mode = 'replace']) =>
+        `event: datastar-patch-elements\ndata: selector #${id}\ndata: mode ${mode}\n` +
+        html.value
+          .split(/\r\n?|\n/)
+          .map((line) => `data: elements ${line}\n`)
+          .join('') +
+        '\n',
+    )
+    .join('')
+  return HttpServerResponse.text(body, { contentType: 'text/event-stream' })
+}
+
+// The composer for `values`, with its post as it'd be published now.
+const composerProps = (values: ComposeValues, issues?: readonly PostIssue[]) =>
+  Effect.gen(function* () {
+    let now = yield* Clock.currentTimeMillis
+    let queries = yield* PostQueries
+    let post = yield* queries.preview(composePost(values, dateAtOffset(now, values.offset)))
+    let { siteUrl = '' } = yield* (yield* SiteConfigQueries).saved
+    let linkPreview = yield* (yield* LinkPreviews).forPost(post)
+    if (post.type !== 'article') {
+      return { values, post, linkPreview, siteUrl, issues } satisfies ComposerProps
+    }
+    let articleHtml = yield* queries.articleHtml(post, { drafts: true })
+    let uploaded = new Set((yield* queries.files(post.id)).map((file) => file.name))
+    let articleFiles = findArticleFiles(post.id, post.article.body).map((name) => ({
+      name,
+      uploaded: uploaded.has(name),
+    }))
+    return {
+      values,
+      post,
+      linkPreview,
+      articleHtml,
+      articleFiles,
+      siteUrl,
+      issues,
+    } satisfies ComposerProps
+  })
+
+// A new post starts at the newest post's UTC offset, until the browser says its own.
+const compose = loggedIn(() =>
+  Effect.gen(function* () {
+    let [newest] = yield* (yield* PostQueries).all
+    let values: ComposeValues = {
+      id: newPostId(),
+      caption: '',
+      city: '',
+      offset: offsetOf(newest?.date),
+      photos: [],
+    }
+    return yield* adminPage('New Post', <ComposePage {...yield* composerProps(values)} />)
+  }),
+)
+
+// The composer's media and toolbar, re-rendered, and what's wrong (or nothing).
+const mediaPatch = (props: ComposerProps) =>
+  composerPatch(
+    [COMPOSER_IDS.issues, <ComposerIssues issues={props.issues} />],
+    [COMPOSER_IDS.media, <ComposerMedia {...props} />],
+    [COMPOSER_IDS.tools, <ComposerTools values={props.values} />],
+  )
+
+// Files chosen are saved right away, and the media is shown with them. Files too big to send at
+// all are dropped from the form, with a note saying why.
+const updateComposerMedia = loggedIn(() =>
+  Effect.gen(function* () {
+    let { values, uploads, issues } = yield* readComposer(yield* readForm())
+    let rejected = yield* (yield* PostCommands).upload(values.id, uploads).pipe(
+      Effect.as([]),
+      Effect.catchTag('PostRejected', (rejected) => Effect.succeed(rejected.issues)),
+    )
+    if (rejected.length > 0) {
+      let unsaved = new Set(uploads.map((upload) => upload.name))
+      let saved = (file: string | undefined) => (file && unsaved.has(file) ? undefined : file)
+      values = {
+        ...values,
+        photos: values.photos.filter((file) => !unsaved.has(file)),
+        video: saved(values.video),
+        poster: saved(values.poster),
+        cover: saved(values.cover),
+      }
+    }
+    return mediaPatch(yield* composerProps(values, [...issues, ...rejected]))
+  }).pipe(
+    Effect.catchTag('UploadTooLarge', () =>
+      Effect.succeed(
+        composerPatch([
+          COMPOSER_IDS.issues,
+          <ComposerIssues issues={[{ message: COMPOSER_TOO_LARGE }]} clearFiles />,
+        ]),
+      ),
+    ),
+  ),
+)
+
+const COMPOSER_TOO_LARGE =
+  `That’s too big to upload: files can be up to ${megabytes(MAX_UPLOAD_FILE_SIZE)} each, and ` +
+  `${megabytes(MAX_UPLOAD_TOTAL_SIZE)} at once. Choose fewer or smaller files.`
+
+// The preview, for what's typed. Files chosen but not yet uploaded aren't in it.
+const previewComposer = loggedIn(() =>
+  Effect.gen(function* () {
+    let form = yield* readForm()
+    // Collected first, since deleting while iterating the form would skip entries.
+    let files: string[] = []
+    form.forEach((value, name) => typeof value !== 'string' && files.push(name))
+    for (let name of files) form.delete(name)
+    let { values } = readComposeForm(form)
+    return composerPatch([
+      COMPOSER_IDS.preview,
+      <ComposerPreview {...yield* composerProps(values)} />,
+      'inner',
+    ])
+  }),
+)
+
+// Dated now. Datastar is sent to the post once it's published, or shown what's wrong.
+const publishComposer = loggedIn(() =>
+  Effect.gen(function* () {
+    let datastar = yield* fromDatastar
+    let { values, uploads, issues } = yield* readComposer(yield* readForm())
+    let rejectedWith = (issues: readonly PostIssue[]) =>
+      Effect.flatMap(composerProps(values, issues), (props) =>
+        datastar
+          ? Effect.succeed(mediaPatch(props))
+          : adminPage('New Post', <ComposePage {...props} />, { status: 400 }),
+      )
+    let post = composePost(values, dateAtOffset(yield* Clock.currentTimeMillis, values.offset))
+    if (post.type === 'text' && post.caption === '' && issues.length === 0) {
+      return yield* rejectedWith([
+        { message: 'Write something, or add photos, a video, or an article.' },
+      ])
+    }
+    return yield* (yield* PostCommands).publish({ post, uploads, issues }).pipe(
+      Effect.map((published) =>
+        datastar
+          ? composerPatch([
+              COMPOSER_IDS.issues,
+              <ComposerIssues redirect={routes.post(published.id)} />,
+            ])
+          : redirect(routes.post(published.id), 303),
+      ),
+      Effect.catchTag('PostRejected', (rejected) => rejectedWith(rejected.issues)),
+    )
+  }),
+)
+
+// Deletes what was uploaded for a post that won't be published, and starts a new one.
+const discardComposer = loggedIn(() =>
+  Effect.gen(function* () {
+    let id = (yield* readForm(LOGIN_FORM_LIMIT)).get('id')
+    return yield* (yield* PostCommands).discard(typeof id === 'string' ? id : '').pipe(
+      Effect.catchTag('PostRejected', () => Effect.void),
+      Effect.as(redirect(routes.admin.newPost(), 303)),
+    )
+  }),
+)
+
+// A post's file for the composer, whether it's published or not.
+const postFile = loggedIn(() =>
+  Effect.gen(function* () {
+    let id = yield* param('id')
+    let name = yield* param('file')
+    let { searchParams } = yield* requestUrl
+    let version = searchParams.get('v')
+    let width = searchParams.get('w')
+    let media = yield* PostMedia
+    let file =
+      version !== null && width !== null
+        ? yield* media.resized(id, name, Number(width), version, { drafts: true })
+        : yield* media.original(id, name, { drafts: true })
+    return file ? yield* fileResponse(file, 'no-store') : notFound()
+  }),
+)
+
 export const AdminRoutes = HttpRouter.addAll([
   HttpRouter.route('GET', '/admin', index),
   HttpRouter.route('GET', '/admin/login', showLogin),
@@ -307,8 +501,12 @@ export const AdminRoutes = HttpRouter.addAll([
   HttpRouter.route('POST', '/admin/logout', logOut),
   HttpRouter.route('GET', '/admin/config', showConfig),
   HttpRouter.route('POST', '/admin/config', saveConfig),
-  HttpRouter.route('GET', '/admin/posts/new', newPost),
-  HttpRouter.route('POST', '/admin/posts/new', publishPost),
+  HttpRouter.route('GET', '/admin/posts/new', compose),
+  HttpRouter.route('POST', '/admin/posts/new', publishComposer),
+  HttpRouter.route('POST', '/admin/posts/new/media', updateComposerMedia),
+  HttpRouter.route('POST', '/admin/posts/new/preview', previewComposer),
+  HttpRouter.route('POST', '/admin/posts/new/discard', discardComposer),
+  HttpRouter.route('GET', '/admin/posts/:id/files/:file', postFile),
   HttpRouter.route('GET', '/admin/posts/:id/edit', editPost),
   HttpRouter.route('POST', '/admin/posts/:id/edit', savePost),
   HttpRouter.route('POST', '/admin/posts/:id/delete', deletePost),

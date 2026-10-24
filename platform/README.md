@@ -8,7 +8,7 @@ The server, its pages, and the `logspace` binary, built with:
   a layer, every expected failure is a typed error, and the database is
   [`effect/sql`](https://effect.website/docs).
 - **[Datastar](https://data-star.dev)** as the only JavaScript sent to browsers (13 KB gzipped),
-  for the theme toggle and share buttons.
+  for the theme toggle, share buttons, and the admin composer.
 - **A tiny JSX runtime** (`src/jsx`, 91 lines) that renders TSX straight to HTML strings: no
   virtual DOM, no hydration.
 - **CQRS**: writes go through `src/commands`, reads through `src/queries`, which keep in-memory
@@ -163,4 +163,6 @@ are `public.test.ts`, `admin.test.ts`, `config.test.ts`,
   claims, and SVG isn't accepted for posts. Site images are re-encoded as PNG or JPEG.
   Unpublished posts' files aren't served.
 
-Datastar is © Star Federation, MIT licensed (`public/datastar.LICENSE.md`).
+Datastar is © Star Federation, MIT licensed (`public/datastar.LICENSE.md`). The composer's and
+navbar's plus, image, video, Markdown file, map pin, and × icons are from Phosphor Icons, © 2023 Phosphor Icons, MIT
+licensed.

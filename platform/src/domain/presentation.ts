@@ -74,8 +74,13 @@ export interface Video {
 export type ImageLookup = (file: string) => ImageInfo | undefined
 
 // A stored post as pages show it. Without `image`, its photos have no sizes or versions.
-export function toPost(post: PostRecord, image: ImageLookup = () => undefined): Post {
-  let src = (file: string) => routes.postFile(post.id, file)
+// `fileUrl` is where its files are served: publicly, or for the composer's preview, from /admin.
+export function toPost(
+  post: PostRecord,
+  image: ImageLookup = () => undefined,
+  fileUrl: (id: string, file: string) => string = routes.postFile,
+): Post {
+  let src = (file: string) => fileUrl(post.id, file)
   let photo = ({ file, alt }: PhotoRecord): Photo => {
     let info = image(file)
     if (!info) return { src: src(file), alt }

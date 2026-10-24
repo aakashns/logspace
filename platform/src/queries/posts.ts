@@ -8,6 +8,7 @@ import { findImageNames, findPosterCandidates, renderArticle } from '../domain/m
 import { fromPostRow, POST_COLUMNS, type PostRow } from '../domain/post-rows.ts'
 import { sortNewestFirst, type PostRecord } from '../domain/post.ts'
 import { toPost, type ArticlePost, type Post } from '../domain/presentation.ts'
+import { routes } from '../routes.ts'
 import { MediaStorage, mediaKeys } from '../services/media-storage.ts'
 
 type ImageRow = ImageInfo & { readonly post_id: string; readonly name: string }
@@ -22,8 +23,14 @@ export class PostQueries extends Context.Service<
     readonly findRecord: (id: string) => Effect.Effect<PostRecord | undefined>
     // The size and version of one of a post's images, if it's one.
     readonly imageInfo: (id: string, name: string) => Effect.Effect<ImageInfo | undefined>
-    // An article's body as HTML.
-    readonly articleHtml: (post: ArticlePost) => Effect.Effect<string>
+    // An article's body as HTML, its files served from /admin with `drafts` (for the composer).
+    readonly articleHtml: (
+      post: ArticlePost,
+      options?: { drafts?: boolean },
+    ) => Effect.Effect<string>
+    // A post that may not be published yet, as the composer previews it: its files are served
+    // from /admin, with their sizes and versions.
+    readonly preview: (record: PostRecord) => Effect.Effect<Post>
     // The names and sizes of a post's files, from storage, for the /admin post form.
     readonly files: (id: string) => Effect.Effect<{ name: string; size: number }[]>
   }
@@ -86,7 +93,10 @@ export class PostQueries extends Context.Service<
 
       // The posters of an article's videos are found by name in storage (clip.mp4's is clip.jpg),
       // since they're named only by convention.
-      let articleHtml = Effect.fn('PostQueries.articleHtml')(function* (post: ArticlePost) {
+      let articleHtml = Effect.fn('PostQueries.articleHtml')(function* (
+        post: ArticlePost,
+        options?: { drafts?: boolean },
+      ) {
         let { body } = post.article
         let candidates = findPosterCandidates(post.id, body)
         let [found, imageRows] = yield* Effect.all(
@@ -104,10 +114,18 @@ export class PostQueries extends Context.Service<
             .filter(({ name }) => names.has(name))
             .map(({ name, width, height, version }) => [name, { width, height, version }]),
         )
-        return renderArticle(post.id, body, {
-          posters: candidates.filter((_, i) => found[i]),
-          images,
-        })
+        return renderArticle(
+          post.id,
+          body,
+          { posters: candidates.filter((_, i) => found[i]), images },
+          options?.drafts ? routes.admin.postFile : routes.postFile,
+        )
+      })
+
+      let preview = Effect.fn('PostQueries.preview')(function* (record: PostRecord) {
+        let imageRows = yield* Effect.orDie(selectImages(record.id))
+        let images = new Map(imageRows.map((row) => [row.name, row]))
+        return toPost(record, (file) => images.get(file), routes.admin.postFile)
       })
 
       return PostQueries.of({
@@ -116,6 +134,7 @@ export class PostQueries extends Context.Service<
         findRecord,
         imageInfo,
         articleHtml,
+        preview,
         files: (id) =>
           Effect.map(storage.list(mediaKeys.postFiles(id)), (files) =>
             files

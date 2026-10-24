@@ -3,13 +3,20 @@
 Posts appear on the home page, newest first, and each one has its own page at `/posts/<id>`.
 They're written and edited at `/admin` and stored in the database; their media (photos, videos,
 posters, covers) is stored in media storage, under keys like `posts/<id>/photo.jpg`. This is what a
-post is made of. The `/admin` post form has these fields and checks them the same way
+post is made of. The edit post form has these fields and checks them the same way
 (`parsePostRecord` in `src/domain/post.ts`), and the test posts in `test/content/posts.json` are written
 in this format.
 
+New posts are written in the composer at `/admin/posts/new` (the navbar's plus, once logged in),
+which works like X's: type the caption, add photos, a video, or an article (a Markdown file) with
+the toolbar's buttons, and the post shows below as it'll look. The type follows from the media,
+media is uploaded as it's chosen, and the × by the heading discards the post and what was uploaded
+for it. The post is dated when it's posted, at the browser's UTC offset, and each photo's alt text
+is its file name; change those on its edit page.
+
 Every post has:
 
-- `id`: 10 random lowercase letters and digits, e.g. `"fc7p7vjhx6"`, made by the new post form.
+- `id`: 10 random lowercase letters and digits, e.g. `"fc7p7vjhx6"`, made by the composer.
   It's the post's URL (`/posts/fc7p7vjhx6`), and it can't be changed.
 - `type`: `"text"`, `"photos"`, `"video"`, or `"article"` (see below). It can't be changed once
   the post is published.
@@ -20,8 +27,8 @@ Every post has:
   `_italic_`, `[links](https://…)`, lists, quotes), except that every `\n` is a line break and
   `\n\n` starts a new paragraph. URLs become links, and HTML is shown as text.
 
-Media is given by the name of one of the post's files, like `photo.jpg`. In the form, each media
-field also takes a file to upload: it's saved as one of the post's files under its own name (with
+Media is given by the name of one of the post's files, like `photo.jpg`. In the edit form, each
+media field also takes a file to upload: it's saved as one of the post's files under its own name (with
 dashes for spaces), replacing any file of that name, and the field takes that name. Only photos and
 videos can be uploaded.
 
@@ -48,8 +55,9 @@ link is seen and cached in `link-previews.json` in `CACHE_DIR`; until then the c
 ## photos
 
 One or more photos. The feed shows up to four in a grid (and "+N" for the rest); the post page
-shows them all. The form's Add photos field takes any number at once and adds them after the
-others.
+shows them all. The composer's photo button, and the edit form's Add photos field, take any number
+at once and add them after the others. A name a post already has gets a number added
+(`image-2.jpg`).
 
 ```json
 "photos": [{ "file": "hike-1.jpg", "alt": "River in a valley" }]
@@ -79,8 +87,10 @@ A Markdown article. The feed shows a card with the title, summary, and optional 
 }
 ```
 
-In the body, images and links can use the names of the post's files; upload them with the form's
-field for the body's files. An image on its own line is shown full width, and if it's a video
+In the body, images and links can use the names of the post's files; upload them with the
+composer's Upload files link (which lists the files the body uses, and which are missing) or the
+edit form's field for the body's files. In the composer, a `# Title` heading at the top of the
+Markdown file becomes the title. An image on its own line is shown full width, and if it's a video
 (`.mp4`, `.webm`, `.mov`, `.m4v`) it becomes a video player, with the image of the same name as its
 poster (`clip.mp4` uses `clip.jpg`):
 
@@ -101,8 +111,8 @@ HTML in the Markdown is shown as text, not rendered.
 - Use MP4 (H.264) for videos so they play everywhere.
 - Uploads can be up to 100 MB each and 120 MB in one save (`MAX_UPLOAD_*` in
   `src/domain/constants.ts`); upload bigger sets over more than one save.
-- A post's files are only served once it's published. Files uploaded with a form that wasn't saved
-  are kept, so the form comes back with their names filled in, but a new post that's never
-  published leaves them unserved in storage.
+- A post's files are only served once it's published (the composer shows them from `/admin`).
+  Files uploaded for a new post that's never published stay unserved in storage, unless it's
+  discarded.
 - Replacing a file under a new name leaves the old one in storage. Deleting a post deletes all its
   files.

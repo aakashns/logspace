@@ -9,19 +9,27 @@ import { hash, Images } from '../services/images.ts'
 import { MediaStorage, mediaKeys, type StoredFile } from '../services/media-storage.ts'
 import { PostQueries } from './posts.ts'
 
+type Options = { readonly drafts?: boolean | undefined }
+
 export class PostMedia extends Context.Service<
   PostMedia,
   {
     // A post's file, if the post is published and has one by that name. A new post's files are
-    // stored before it's published, and stay private until then.
-    readonly original: (id: string, name: string) => Effect.Effect<StoredFile | undefined>
-    // A post's image resized to one of IMAGE_WIDTHS, as WebP, if the post is published, has such
-    // an image, and `version` is its current one.
+    // stored before it's published, and stay private until then, except to the composer
+    // (`drafts`).
+    readonly original: (
+      id: string,
+      name: string,
+      options?: Options,
+    ) => Effect.Effect<StoredFile | undefined>
+    // A post's image resized to one of IMAGE_WIDTHS, as WebP, if the post is published (or
+    // `drafts`), has such an image, and `version` is its current one.
     readonly resized: (
       id: string,
       name: string,
       width: number,
       version: string,
+      options?: Options,
     ) => Effect.Effect<StoredFile | undefined>
   }
 >()('logspace/PostMedia') {
@@ -33,10 +41,17 @@ export class PostMedia extends Context.Service<
       let posts = yield* PostQueries
       let inProgress = new Map<string, Deferred.Deferred<StoredFile | undefined>>()
 
-      let isPublished = (id: string) => Effect.map(posts.find(id), (post) => post !== undefined)
+      let isServed = (id: string, options: Options | undefined) =>
+        options?.drafts
+          ? Effect.succeed(true)
+          : Effect.map(posts.find(id), (post) => post !== undefined)
 
-      let original = Effect.fn('PostMedia.original')(function* (id: string, name: string) {
-        if (!isPostFileName(name) || !(yield* isPublished(id))) return undefined
+      let original = Effect.fn('PostMedia.original')(function* (
+        id: string,
+        name: string,
+        options?: Options,
+      ) {
+        if (!isPostFileName(name) || !(yield* isServed(id, options))) return undefined
         return yield* storage.get(mediaKeys.postFile(id, name))
       })
 
@@ -62,9 +77,10 @@ export class PostMedia extends Context.Service<
         name: string,
         width: number,
         version: string,
+        options?: Options,
       ) {
         if (!IMAGE_WIDTHS.includes(width) || !isResizableImage(name)) return undefined
-        if (!isPostFileName(name) || !(yield* isPublished(id))) return undefined
+        if (!isPostFileName(name) || !(yield* isServed(id, options))) return undefined
         let info = yield* posts.imageInfo(id, name)
         if (info?.version !== version) return undefined
         let key = `${mediaKeys.variants(id, name)}${width}-${version}.webp`

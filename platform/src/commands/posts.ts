@@ -29,6 +29,14 @@ export class PostCommands extends Context.Service<
   PostCommands,
   {
     readonly publish: (submission: PostSubmission) => Effect.Effect<PostRecord, PostRejected>
+    // Saves files chosen in the composer as a new post's, before it's published, replacing any of
+    // the same names. A published post's files can't be replaced this way.
+    readonly upload: (
+      id: string,
+      uploads: PostSubmission['uploads'],
+    ) => Effect.Effect<void, PostRejected>
+    // Deletes the files of a post discarded in the composer, before it was published.
+    readonly discard: (id: string) => Effect.Effect<void, PostRejected>
     readonly edit: (
       id: string,
       submission: PostSubmission,
@@ -103,6 +111,33 @@ export class PostCommands extends Context.Service<
         }).pipe(Effect.ensuring(Effect.sync(() => publishing.delete(id))))
       })
 
+      // A new post's id, if it's one that isn't published or being published.
+      let unpublished = Effect.fnUntraced(function* (id: string) {
+        if (!isPostId(id)) {
+          return yield* new PostRejected({
+            issues: [{ field: 'id', message: 'Expected a post id' }],
+          })
+        }
+        if (publishing.has(id) || Option.isSome(yield* findRecord(id))) {
+          return yield* alreadyPublished
+        }
+      })
+
+      let upload = Effect.fn('PostCommands.upload')(function* (
+        id: string,
+        uploads: PostSubmission['uploads'],
+      ) {
+        yield* unpublished(id)
+        yield* Effect.forEach(uploads, ({ name, file }) => files.save(id, name, file), {
+          discard: true,
+        })
+      })
+
+      let discard = Effect.fn('PostCommands.discard')(function* (id: string) {
+        yield* unpublished(id)
+        yield* files.removeAll(id)
+      })
+
       // A post's type can't change. Uploads replace the post's files of the same names right
       // away, even if the edit is rejected or storing it fails.
       let edit = Effect.fn('PostCommands.edit')(function* (id: string, submission: PostSubmission) {
@@ -133,7 +168,7 @@ export class PostCommands extends Context.Service<
         yield* files.removeAll(id)
       })
 
-      return PostCommands.of({ publish, edit, delete: remove })
+      return PostCommands.of({ publish, upload, discard, edit, delete: remove })
     }),
   )
 }
