@@ -384,6 +384,67 @@ test('what is typed during an outage survives the reconnect and is saved', async
   await expect(page.getByLabel('Caption', { exact: true })).toHaveValue('Changed in another tab')
 })
 
+test('a draft discarded during an outage takes what was typed for it along', async ({
+  page,
+  context,
+  app,
+}) => {
+  // Counts the requests the composer's form starts; each starts in the task that sends it.
+  await page.addInitScript(() => {
+    document.addEventListener('datastar-fetch', (event) => {
+      if (
+        event instanceof CustomEvent &&
+        event.detail.type === 'started' &&
+        event.detail.el instanceof Element &&
+        event.detail.el.closest('form')
+      ) {
+        const html = document.documentElement
+        html.dataset.formRequests = String(Number(html.dataset.formRequests ?? 0) + 1)
+      }
+    })
+  })
+  await openComposer(page)
+  await upload(page, 'Add photos', photo)
+  const postId = page.locator('form.composer input[name=post_id]')
+  const discarded = await postId.inputValue()
+  // This tab's stream reconnects only once the other tab has discarded the draft.
+  const { promise: discarding, resolve: reconnect } = Promise.withResolvers<void>()
+  await page.route('**/admin/posts/new/updates?*', async (route) => {
+    await discarding
+    await route.continue()
+  })
+  await app.stop('SIGKILL')
+  const failed = page.waitForEvent('requestfailed', {
+    predicate: (request) => request.url().endsWith('/preview'),
+  })
+  await page.getByLabel('Caption', { exact: true }).fill('Typed for the discarded draft')
+  await failed
+  await app.start()
+
+  const other = await context.newPage()
+  await openComposer(other)
+  await other.getByRole('button', { name: 'Discard', exact: true }).click()
+  await other.getByRole('dialog').getByRole('button', { name: 'Discard', exact: true }).click()
+  await expect(other.locator('form.composer input[name=post_id]')).not.toHaveValue(discarded)
+
+  const requests = await page.locator('html').getAttribute('data-form-requests')
+  reconnect()
+  await expect(postId).not.toHaveValue(discarded)
+  await expect(page.getByLabel('Caption', { exact: true })).toHaveValue('')
+  await expect(page.locator('#composer-media img')).toHaveCount(0)
+  await expect(page.getByRole('alert')).toBeHidden()
+  // Nothing typed for the discarded draft is saved as a new one.
+  await expect(page.locator('html')).toHaveAttribute('data-form-requests', requests ?? '')
+  await other.reload()
+  await expect(other.getByLabel('Caption', { exact: true })).toHaveValue('')
+
+  // The new post is this tab's to write, as usual.
+  await caption(page, 'Written after the discard')
+  await expect(other.getByLabel('Caption', { exact: true })).toHaveValue(
+    'Written after the discard',
+  )
+})
+
 test.describe('without JavaScript', () => {
   test.use({ javaScriptEnabled: false })
   test('ordinary form publishes text and a selected photo', async ({ page }) => {

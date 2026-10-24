@@ -143,7 +143,8 @@ export function ShareButton(props: { url: string }): Html {
 // Two local signals, declared on the form, say what's in flight: `_uploading` (set by
 // data-indicator on whatever is uploading) and `_posting`. While either is, the preview waits,
 // since a preview posts the whole form, chosen files and all. `_published` keeps Post disabled
-// while the browser goes to the post.
+// while the browser goes to the post, and `_draft` is the id of the draft this tab last knew was
+// saved.
 const URL_OF = (kind: 'media' | 'preview') => `el.closest('form').dataset.${kind}`
 // Mutations need an explicit retry: a lost response may already have committed the write.
 // Datastar 1.0.4 also needs retryMaxCount: 0 to stop transport-error retries.
@@ -184,7 +185,7 @@ export function ComposerForm(props: { id: string; children: Child }): Html {
       class="composer"
       data-media={routes.admin.newPostMedia()}
       data-preview={routes.admin.newPostPreview()}
-      data-signals="{_uploading: false, _posting: false, _published: false, _city: false, _requestError: false}"
+      data-signals="{_uploading: false, _posting: false, _published: false, _draft: '', _city: false, _requestError: false}"
       data-on:datastar-fetch={REQUEST_FEEDBACK}
       data-on:pageshow__window="evt.persisted && ($_published = false)"
       data-on:submit__prevent={PUBLISH}
@@ -356,7 +357,7 @@ export function PreviewRefresh(): Html {
 // values become the defaults: another tab's change (or a discard) still replaces a field, but
 // what's typed here and not saved yet, as during an outage, stays.
 const SAVE_DEFAULTS =
-  "const form = el.closest('form'); " +
+  "const form = el.closest('form'); $_draft = form.elements.namedItem('post_id').value; " +
   'for (const [name, value] of Object.entries(JSON.parse(el.dataset.values))) { ' +
   'const field = form.elements.namedItem(name); ' +
   'if (field instanceof HTMLTextAreaElement) field.defaultValue = value; ' +
@@ -372,12 +373,19 @@ export function SavedDefaults(props: { values: Record<string, string> }): Html {
 // so it's opened again (`always`) for when the server's back, unless it redirects to the login.
 // After each patch, as when the stream is back after an outage: morphing keeps existing media
 // nodes, so images that failed to load get another chance (healthy images and video are left
-// alone), and if saving failed meanwhile, what's typed here is saved again, as a keystroke would.
+// alone). If the draft this tab saved is gone (another tab discarded or published it), what was
+// typed here for it goes too, and the fields show the composer as sent. Otherwise, if saving
+// failed meanwhile, what's typed here is saved again, as a keystroke would. A new tab's post isn't
+// saved yet, so its id changing on the first patch is no reason to clear anything.
 const AFTER_UPDATE =
   "if (evt.detail.el === el && evt.detail.type === 'datastar-patch-elements') { " +
   "document.querySelectorAll('#composer-page img').forEach((img) => { " +
   'if (img.complete && !img.naturalWidth) { img.srcset = img.srcset; img.src = img.src; } }); ' +
-  "if ($_requestError) document.querySelector('#composer-page [name=caption]')?.dispatchEvent(new Event('input')); }"
+  "const form = document.querySelector('#composer-page form'); " +
+  "const id = form.elements.namedItem('post_id'); " +
+  'if ($_draft && $_draft !== id.value) { form.reset(); $_requestError = false; } ' +
+  "else if ($_requestError) form.elements.namedItem('caption').dispatchEvent(new Event('input')); " +
+  "$_draft = 'saved' in id.dataset ? id.value : ''; }"
 
 export function ComposerUpdates(props: { url: string }): Html {
   return (

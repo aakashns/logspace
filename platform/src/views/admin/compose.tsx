@@ -97,7 +97,13 @@ export function Composer(props: ComposerProps & { tab: string }): Html {
       </div>
       {/* A field named id shadows form.id and makes Datastar rebuild the focused form. */}
       <ComposerForm id="composer">
-        <input type="hidden" name="post_id" value={values.id} />
+        {/* data-saved: the post is a draft that's saved, not a new one (see ComposerUpdates). */}
+        <input
+          type="hidden"
+          name="post_id"
+          value={values.id}
+          data-saved={props.draft === 'saved'}
+        />
         <input type="hidden" name="tab" value={props.tab} />
         <OffsetInput value={values.offset} />
         <CaptionInput value={values.caption} />
