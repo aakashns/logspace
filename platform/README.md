@@ -89,7 +89,8 @@ logged), as they're not something a user can fix.
 - `posts.ts`: `publish`, `edit`, `delete`, and the composer's `saveDraft`, `updateFiles`, and
   `discard`. Uploads are saved before the post is checked, so a rejected form doesn't need its
   files chosen again. The composer's one draft is a row in `drafts`, and the commands that change
-  it tell `DraftChanges`.
+  it tell `DraftChanges`. Post changes run one at a time, so run one server process per data
+  directory.
 - `post-files.ts`: saving one upload (with its image size and hash in `post_images`) and removing
   a post's files.
 - `site-config.ts`: saving `/admin/config`, turning uploads into the site's image files.
@@ -159,8 +160,8 @@ are `public.test.ts`, `admin.test.ts`, `config.test.ts`,
   `HttpOnly`, `SameSite=Lax`, `Secure` in production, sent only to `/admin`, and holding a
   fingerprint of the password, so changing it logs everyone out. SQLite records enforce a fixed
   30-day lifetime and logout revocation; changing the signing secret also invalidates cookies.
-  At most 100 sessions are retained, with expired/old-credential rows removed on login. Failed
-  password attempts do not lock out a subsequent correct password. Login is checked before an
+  At most 100 sessions are retained, with expired/old-credential rows removed on login. Login is
+  checked before an
   upload's body is read, and the login form itself, which anyone can send, is read only up to
   16 KB.
 - **Forms from other sites** are refused (`Sec-Fetch-Site`, else `Origin` against the host), as
@@ -171,41 +172,9 @@ are `public.test.ts`, `admin.test.ts`, `config.test.ts`,
   claims, and SVG isn't accepted for posts. Site images are re-encoded as PNG or JPEG.
   Unpublished posts' files aren't served. Link previews' images are fetched only over https,
   refused past 10 MB or 25 megapixels (checked from the header, before decoding), and served
-  only as WebP that the app re-encoded.
+  only as WebP that the app re-encoded. Link previews fetch only public addresses on standard
+  ports, checking each redirect.
 
 Datastar is © Star Federation, MIT licensed (`public/datastar.LICENSE.md`). The composer's and
 navbar's plus, image, video, Markdown file, map pin, and × icons are from Phosphor Icons, © 2023 Phosphor Icons, MIT
 licensed.
-
-### Content and request consistency
-
-The app has one owner and one server process. All post commands share a semaphore through
-validation, database writes, and media cleanup. A committed discard, replacement, or deletion
-retires its ID in SQLite, so stale tabs cannot revive it even after a restart. Within an active
-draft, saves still use last-writer-wins text; missing media is rejected. Direct published edits
-retain the existing behavior of replacing same-name uploads before validation. Use one running
-process per database/media directory; the command lock does not coordinate separate processes
-or manual file edits.
-
-Site-media updates stage immutable generations, commit the complete configuration in one SQLite
-transaction, then remove obsolete files. Failed staging or commit leaves the old config and
-bytes usable, including every icon size. Cleanup failure is logged and does not fail a committed
-update; failed staging, crashes, and cleanup can leave unreferenced files. Old unversioned media
-is read until its next replacement. This is application-level failure consistency, not a joint
-filesystem/SQLite transaction or a promise about power loss. Readers that already loaded old
-settings may need to retry a request during a successful replacement.
-
-Preview pages and images use the same public-destination policy: HTTP(S) on standard ports,
-no credentials, no HTTPS downgrade, and at most five redirects. Every hop resolves and validates
-all addresses, then pins the connection to a checked IP with the origin Host and TLS server name.
-Private, loopback, link-local, multicast, reserved, IPv4-mapped, and IPv6 transition ranges are
-refused; environment proxies are disabled. IPv6 is conservatively limited to ordinary global
-unicast ranges. DNS is checked again on redirects, so a changing answer cannot switch a request
-to a private destination. Four background jobs may run at once, duplicate URLs share one job,
-extra jobs are retried on a later page view, and shutdown cancels outstanding work. Existing
-five-second fetch timeouts, 512 KiB HTML, 10 MiB image, and 25 megapixel limits remain.
-
-The OS resolver/transport boundary is injectable in tests; test mode disables that boundary,
-not the preview workflow. `test/content-access.test.ts`, `test/session-lifecycle.test.ts`, and
-`test/link-previews.test.ts` exercise controlled interleavings, write failures, server time,
-redirects, DNS changes, and public image re-encoding without external services.
