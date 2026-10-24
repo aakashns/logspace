@@ -84,8 +84,9 @@ changed. They fail with typed errors (`commands/errors.ts`): `PostRejected` (wit
 show), `PostNotFound`, and `SiteConfigRejected`. Storage and database failures are defects (a 500,
 logged), as they're not something a user can fix.
 
-- `posts.ts`: `publish`, `edit`, `delete`. Uploads are saved before the post is checked, so a
-  rejected form doesn't need its files chosen again.
+- `posts.ts`: `publish`, `edit`, `delete`, and the composer's `saveDraft`, `updateFiles`, and
+  `discard`. Uploads are saved before the post is checked, so a rejected form doesn't need its
+  files chosen again. The composer's one draft is a row in `drafts`.
 - `post-files.ts`: saving one upload (with its image size and hash in `post_images`) and removing
   a post's files.
 - `site-config.ts`: saving `/admin/config`, turning uploads into the site's image files.

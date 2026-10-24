@@ -1,10 +1,11 @@
 // The pages under /admin, for managing the site: logging in and out, the list of posts, the
 // site's settings, and writing, editing, and deleting posts. Every handler here only reads and
 // sends commands; what a command does is in commands/.
-import { Clock, Effect } from 'effect'
+import { Clock, Effect, Result } from 'effect'
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from 'effect/http'
 
 import type { Child, Html } from '#jsx/jsx-runtime'
+import type { PostRejected } from '../commands/errors.ts'
 import { PostCommands } from '../commands/posts.ts'
 import { SiteConfigCommands } from '../commands/site-config.ts'
 import {
@@ -37,7 +38,9 @@ import {
   ComposerMedia,
   ComposerPreview,
   ComposerTools,
+  DraftNote,
   type ComposerProps,
+  type DraftState,
 } from '../views/admin/compose.tsx'
 import { AdminMessage, AdminPage } from '../views/admin/page.tsx'
 import { ConfigPage } from '../views/admin/config.tsx'
@@ -297,7 +300,9 @@ const deletePost = loggedIn(() =>
 //
 // As you write, the composer posts its form with Datastar (see views/controls.tsx), and gets back
 // HTML for parts of the page: its media when files are added or removed, and the preview as you
-// type. Posting it publishes; it's also a plain form, for a browser without Datastar.
+// type. Each of those requests sends the whole form, so each saves it as the draft, which the
+// composer picks up again on any browser until the post is published or discarded. Posting it
+// publishes; it's also a plain form, for a browser without Datastar.
 
 // The submitted composer, with the text of a Markdown file chosen for the article.
 const readComposer = Effect.fnUntraced(function* (formData: FormData) {
@@ -331,8 +336,12 @@ function composerPatch(...patches: [id: string, html: Html, mode?: 'inner'][]) {
   return HttpServerResponse.text(body, { contentType: 'text/event-stream' })
 }
 
+// What the composer's note says once a command has saved the draft, or not.
+const draftState = (result: Result.Result<boolean, PostRejected>): DraftState =>
+  Result.isFailure(result) ? 'refused' : result.success ? 'saved' : undefined
+
 // The composer for `values`, with its post as it'd be published now.
-const composerProps = (values: ComposeValues, issues?: readonly PostIssue[]) =>
+const composerProps = (values: ComposeValues, issues?: readonly PostIssue[], draft?: DraftState) =>
   Effect.gen(function* () {
     let now = yield* Clock.currentTimeMillis
     let queries = yield* PostQueries
@@ -340,7 +349,7 @@ const composerProps = (values: ComposeValues, issues?: readonly PostIssue[]) =>
     let { siteUrl = '' } = yield* (yield* SiteConfigQueries).saved
     let linkPreview = yield* (yield* LinkPreviews).forPost(post)
     if (post.type !== 'article') {
-      return { values, post, linkPreview, siteUrl, issues } satisfies ComposerProps
+      return { values, post, linkPreview, siteUrl, issues, draft } satisfies ComposerProps
     }
     let articleHtml = yield* queries.articleHtml(post, { drafts: true })
     let uploaded = new Set((yield* queries.files(post.id)).map((file) => file.name))
@@ -356,13 +365,21 @@ const composerProps = (values: ComposeValues, issues?: readonly PostIssue[]) =>
       articleFiles,
       siteUrl,
       issues,
+      draft,
     } satisfies ComposerProps
   })
 
-// A new post starts at the newest post's UTC offset, until the browser says its own.
+// The draft, if there's one, with its id, so its files are its own again. Otherwise a new post,
+// at the newest post's UTC offset. Either way, the browser's own offset replaces it on load.
 const compose = loggedIn(() =>
   Effect.gen(function* () {
-    let [newest] = yield* (yield* PostQueries).all
+    let queries = yield* PostQueries
+    let draft = yield* queries.draft
+    if (draft) {
+      let props = yield* composerProps(draft, undefined, 'saved')
+      return yield* adminPage('New Post', <ComposePage {...props} />)
+    }
+    let [newest] = yield* queries.all
     let values: ComposeValues = {
       id: newPostId(),
       caption: '',
@@ -380,19 +397,21 @@ const mediaPatch = (props: ComposerProps) =>
     [COMPOSER_IDS.issues, <ComposerIssues issues={props.issues} />],
     [COMPOSER_IDS.media, <ComposerMedia {...props} />],
     [COMPOSER_IDS.tools, <ComposerTools values={props.values} />],
+    [COMPOSER_IDS.draft, <DraftNote state={props.draft} />],
   )
 
 // Files chosen are saved right away, and the media is shown with them; files taken out are
-// deleted. Files too big to send at all are dropped from the form, with a note saying why.
+// deleted, and the draft is saved. Files too big to send at all are dropped from the form, with a
+// note saying why.
 const updateComposerMedia = loggedIn(() =>
   Effect.gen(function* () {
     let form = yield* readComposer(yield* readForm())
     let { values, uploads, issues } = form
     let commands = yield* PostCommands
-    let rejected = yield* commands.updateFiles(values.id, uploads, filesNoLongerUsed(form)).pipe(
-      Effect.as([]),
-      Effect.catchTag('PostRejected', (rejected) => Effect.succeed(rejected.issues)),
+    let result = yield* Effect.result(
+      commands.updateFiles(values, uploads, filesNoLongerUsed(form)),
     )
+    let rejected = Result.isFailure(result) ? result.failure.issues : []
     if (rejected.length > 0) {
       let unsaved = new Set(uploads.map((upload) => upload.name))
       let saved = (file: string | undefined) => (file && unsaved.has(file) ? undefined : file)
@@ -404,7 +423,7 @@ const updateComposerMedia = loggedIn(() =>
         cover: saved(values.cover),
       }
     }
-    return mediaPatch(yield* composerProps(values, [...issues, ...rejected]))
+    return mediaPatch(yield* composerProps(values, [...issues, ...rejected], draftState(result)))
   }).pipe(
     Effect.catchTag('UploadTooLarge', () =>
       Effect.succeed(
@@ -421,7 +440,8 @@ const COMPOSER_TOO_LARGE =
   `That’s too big to upload: files can be up to ${megabytes(MAX_UPLOAD_FILE_SIZE)} each, and ` +
   `${megabytes(MAX_UPLOAD_TOTAL_SIZE)} at once. Choose fewer or smaller files.`
 
-// The preview, for what's typed. Files chosen but not yet uploaded aren't in it.
+// The preview, for what's typed, which is saved as the draft. Files chosen but not yet uploaded
+// aren't in either.
 const previewComposer = loggedIn(() =>
   Effect.gen(function* () {
     let form = yield* readForm()
@@ -430,11 +450,11 @@ const previewComposer = loggedIn(() =>
     form.forEach((value, name) => typeof value !== 'string' && files.push(name))
     for (let name of files) form.delete(name)
     let { values } = readComposeForm(form)
-    return composerPatch([
-      COMPOSER_IDS.preview,
-      <ComposerPreview {...yield* composerProps(values)} />,
-      'inner',
-    ])
+    let result = yield* Effect.result((yield* PostCommands).saveDraft(values))
+    return composerPatch(
+      [COMPOSER_IDS.preview, <ComposerPreview {...yield* composerProps(values)} />, 'inner'],
+      [COMPOSER_IDS.draft, <DraftNote state={draftState(result)} />],
+    )
   }),
 )
 
@@ -469,7 +489,8 @@ const publishComposer = loggedIn(() =>
   }),
 )
 
-// Deletes what was uploaded for a post that won't be published, and starts a new one.
+// Deletes what was uploaded for a post that won't be published, and its draft, and starts a new
+// one.
 const discardComposer = loggedIn(() =>
   Effect.gen(function* () {
     let id = (yield* readForm(LOGIN_FORM_LIMIT)).get('id')

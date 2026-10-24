@@ -72,7 +72,7 @@ const message = (text: string) => ({ message: text })
 const valid = <T>(check: (value: T) => boolean, text: string) =>
   Schema.makeFilter(check, message(text))
 
-const FileName = Schema.String.check(
+export const FileName = Schema.String.check(
   valid(isPostFileName, 'Expected the name of one of the post’s files, like "photo.jpg"'),
 )
 // The only numbers in a post are a video's width and height.

@@ -4,7 +4,8 @@
 // when it's posted. The parts the server re-renders as you write have ids: the issues, media, and
 // toolbar, which it replaces whole (so their file inputs start empty, and data-init runs again),
 // and the inside of the preview, which Datastar morphs into place (so its photos and video don't
-// flicker as you type). Their Datastar controls are in ../controls.tsx.
+// flicker as you type). Each of those requests saves the draft, which the note by the Post
+// button says. Their Datastar controls are in ../controls.tsx.
 import type { Array as Arr } from 'effect'
 
 import type { Html } from '#jsx/jsx-runtime'
@@ -38,8 +39,13 @@ export const COMPOSER_IDS = {
   issues: 'composer-issues',
   media: 'composer-media',
   tools: 'composer-tools',
+  draft: 'composer-draft',
   preview: 'composer-preview',
 }
+
+// Whether the composer's values were saved as the draft by the last request that sent them, or
+// refused (as once its post is published); unset when there's nothing to save.
+export type DraftState = 'saved' | 'refused' | undefined
 
 export interface ComposerProps {
   readonly values: ComposeValues
@@ -51,6 +57,7 @@ export interface ComposerProps {
   readonly articleFiles?: readonly { name: string; uploaded: boolean }[] | undefined
   readonly siteUrl: string
   readonly issues?: readonly PostIssue[] | undefined
+  readonly draft?: DraftState
 }
 
 export function ComposePage(props: ComposerProps): Html {
@@ -81,6 +88,7 @@ export function ComposePage(props: ComposerProps): Html {
         <div class="composer-bar">
           <ComposerTools values={values} />
           <CityInput value={values.city} />
+          <DraftNote state={props.draft} />
           <PostButton />
         </div>
       </ComposerForm>
@@ -149,6 +157,15 @@ export function ComposerIssues(props: {
       {redirect ? <Redirect href={redirect} /> : null}
       {clearFiles ? <ClearFiles /> : null}
     </div>
+  )
+}
+
+export function DraftNote(props: { state: DraftState }): Html {
+  let text = { saved: 'Saved', refused: 'Not saved' }
+  return (
+    <span id={COMPOSER_IDS.draft} role="status" class="muted draft-note">
+      {props.state ? text[props.state] : ''}
+    </span>
   )
 }
 

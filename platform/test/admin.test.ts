@@ -579,6 +579,10 @@ describe('the composer', () => {
 
   it('uploads photos as they’re chosen, renaming ones whose names are taken', async () => {
     let id = 'composer02'
+    await composerPost('/admin/posts/new/media', [
+      ['id', id],
+      ['photo_uploads', photo('image.jpg')],
+    ])
     let response = await composerPost('/admin/posts/new/media', [
       ['id', id],
       ['photo', 'image.jpg'],
@@ -684,7 +688,7 @@ describe('the composer', () => {
     expect(await hasPostFile('composer04', 'clip.mp4')).toBe(false)
   })
 
-  it('previews the post as it’s written, without saving anything', async () => {
+  it('previews the post as it’s written, without publishing it', async () => {
     let events = await (
       await composerPost('/admin/posts/new/preview', [
         ['id', 'composer05'],
@@ -847,6 +851,253 @@ describe('the composer', () => {
     let published = await samplePost('photos')
     await discard(published.id)
     expect(await hasPostFile(published.id, 'hike-1.jpg')).toBe(true)
+  })
+
+  describe('drafts', () => {
+    let draftIds = () =>
+      app.run(
+        Effect.flatMap(
+          SqlClient.SqlClient,
+          (sql) => sql<{ id: string }>`select id from drafts`,
+        ).pipe(
+          Effect.orDie,
+          Effect.map((rows) => rows.map((row) => row.id)),
+        ),
+      )
+    let insertDraft = (id: string, data: string) =>
+      app.run(
+        Effect.flatMap(
+          SqlClient.SqlClient,
+          (sql) =>
+            sql`insert into drafts ${sql.insert({ id, data, updated_at: '2026-10-24T00:00:00Z' })}`,
+        ).pipe(Effect.orDie),
+      )
+    // The composer as GET /admin/posts/new shows it: its post's id, and the page.
+    let openComposer = async () => {
+      let html = await (await app.adminFetch('/admin/posts/new')).text()
+      return { id: capture(html, /<input type="hidden" name="id" value="([0-9a-z]{10})"/), html }
+    }
+    let captionOf = (html: string) =>
+      unescapeHtml(capture(html, /<textarea name="caption"[^>]*>\n([^<]*)<\/textarea>/))
+    let discard = (id: string) =>
+      app.adminFetch('/admin/posts/new/discard', {
+        method: 'POST',
+        body: new URLSearchParams({ id }),
+      })
+
+    it('saves what’s written, and the composer picks it up again', async () => {
+      let id = 'drafted001'
+      let media = await (
+        await composerPost('/admin/posts/new/media', [
+          ['id', id],
+          ['offset', '+05:30'],
+          ['caption', 'Morning'],
+          ['photo_uploads', photo('a.jpg')],
+        ])
+      ).text()
+      expect(media).toContain('data: selector #composer-draft\n')
+      expect(media).toContain('>Saved</span>')
+      let preview = await (
+        await composerPost('/admin/posts/new/preview', [
+          ['id', id],
+          ['offset', '+05:30'],
+          ['caption', 'Morning <walk> & tea\r\n\r\nWith friends'],
+          ['city', 'Pune'],
+          ['photo', 'a.jpg'],
+        ])
+      ).text()
+      expect(preview).toContain('>Saved</span>')
+      expect(await draftIds()).toEqual([id])
+
+      let { id: resumed, html } = await openComposer()
+      expect(resumed).toBe(id)
+      expect(captionOf(html)).toBe('Morning <walk> & tea\n\nWith friends')
+      expect(html).toMatch(/<input name="city" value="Pune"/)
+      expect(html).toContain('<input type="hidden" name="photo" value="a.jpg">')
+      expect(html).toContain(`src="/admin/posts/${id}/files/a.jpg?v=`)
+      expect(html).toContain('>Saved</span>')
+
+      // An article, too, with what's typed into its title and summary.
+      let article = 'article001'
+      await composerPost('/admin/posts/new/media', [
+        ['id', article],
+        ['offset', '+05:30'],
+        [
+          'article_upload',
+          new File(['# Notes\n\nIt went **well**.\n'], 'notes.md', { type: 'text/markdown' }),
+        ],
+      ])
+      await composerPost('/admin/posts/new/preview', [
+        ['id', article],
+        ['offset', '+05:30'],
+        ['caption', 'New article'],
+        ['article_title', 'Notes, revised'],
+        ['article_summary', 'What went well'],
+        ['article_body', '\nIt went **well**.\n'],
+        ['article_source', 'notes.md'],
+      ])
+      let page = await openComposer()
+      expect(page.id).toBe(article)
+      expect(captionOf(page.html)).toBe('New article')
+      expect(page.html).toMatch(/<input name="article_title" value="Notes, revised"/)
+      expect(page.html).toMatch(/<input name="article_summary" value="What went well"/)
+      expect(page.html).toContain('<textarea hidden name="article_body">\n\nIt went **well**.\n')
+      expect(page.html).toContain('<input type="hidden" name="article_source" value="notes.md">')
+      expect(page.html).toContain('<h1 class="page-title">Notes, revised</h1>')
+    })
+
+    it('doesn’t save an empty composer over nothing', async () => {
+      let empty: [string, string][] = [
+        ['id', 'emptydraft'],
+        ['offset', '+05:30'],
+        ['caption', ' \n'],
+        ['city', ''],
+      ]
+      let events = await (await composerPost('/admin/posts/new/preview', empty)).text()
+      expect(events).toContain(
+        '<span id="composer-draft" role="status" class="muted draft-note"></span>',
+      )
+      expect(await draftIds()).toEqual([])
+      // Nor over another post's draft, as a composer opened before it was saved would.
+      await composerPost('/admin/posts/new/preview', [
+        ['id', 'drafted002'],
+        ['caption', 'Hi'],
+      ])
+      await composerPost('/admin/posts/new/preview', empty)
+      expect(await draftIds()).toEqual(['drafted002'])
+      // But its own draft can be emptied.
+      await composerPost('/admin/posts/new/preview', [['id', 'drafted002']])
+      let { id, html } = await openComposer()
+      expect(id).toBe('drafted002')
+      expect(captionOf(html)).toBe('')
+    })
+
+    it('is cleared by publishing, and the next visit starts afresh', async () => {
+      let id = 'drafted003'
+      await composerPost('/admin/posts/new/media', [
+        ['id', id],
+        ['offset', '+05:30'],
+        ['photo_uploads', photo('a.jpg')],
+      ])
+      let fields: [string, string][] = [
+        ['id', id],
+        ['offset', '+05:30'],
+        ['caption', 'Posted'],
+        ['photo', 'a.jpg'],
+      ]
+      await composerPost('/admin/posts/new/preview', fields)
+      expect(await draftIds()).toEqual([id])
+      expect((await composerPost('/admin/posts/new', fields, {})).status).toBe(303)
+      expect(await draftIds()).toEqual([])
+      let { id: next, html } = await openComposer()
+      expect(next).not.toBe(id)
+      expect(captionOf(html)).toBe('')
+      expect(html).not.toMatch(/name="photo"/)
+      // A preview sent as it was published, that arrives after, doesn't bring it back.
+      let late = await (await composerPost('/admin/posts/new/preview', fields)).text()
+      expect(late).toContain('>Not saved</span>')
+      expect(await draftIds()).toEqual([])
+      expect(await hasPostFile(id, 'a.jpg')).toBe(true)
+    })
+
+    it('is cleared by discarding, with its files', async () => {
+      let id = 'drafted004'
+      let fields: [string, string][] = [
+        ['id', id],
+        ['caption', 'Never mind'],
+        ['photo', 'a.jpg'],
+      ]
+      await composerPost('/admin/posts/new/media', [
+        ['id', id],
+        ['photo_uploads', photo('a.jpg')],
+      ])
+      await composerPost('/admin/posts/new/preview', fields)
+      expect((await discard(id)).status).toBe(303)
+      expect(await draftIds()).toEqual([])
+      expect(await hasPostFile(id, 'a.jpg')).toBe(false)
+      expect((await openComposer()).id).not.toBe(id)
+      // A tab left open on it can't bring it back, now that its photo is gone, nor upload more.
+      let stale = await (await composerPost('/admin/posts/new/preview', fields)).text()
+      expect(stale).toContain('>Not saved</span>')
+      let upload = await (
+        await composerPost('/admin/posts/new/media', [...fields, ['photo_uploads', photo('b.jpg')]])
+      ).text()
+      expect(upload).toMatch(/discarded or replaced in another tab/)
+      expect(await hasPostFile(id, 'b.jpg')).toBe(false)
+      expect(await draftIds()).toEqual([])
+    })
+
+    it('replaces the last draft, deleting its files', async () => {
+      let old = 'drafted005'
+      await composerPost('/admin/posts/new/media', [
+        ['id', old],
+        ['photo_uploads', photo('a.jpg')],
+      ])
+      let next = 'drafted006'
+      await composerPost('/admin/posts/new/media', [
+        ['id', next],
+        ['photo_uploads', photo('b.jpg')],
+      ])
+      expect(await draftIds()).toEqual([next])
+      expect(await hasPostFile(old, 'a.jpg')).toBe(false)
+      expect(await hasPostFile(next, 'b.jpg')).toBe(true)
+      expect((await openComposer()).id).toBe(next)
+      // The old one's tab can't take over again, as its photo is gone.
+      let stale = await (
+        await composerPost('/admin/posts/new/preview', [
+          ['id', old],
+          ['photo', 'a.jpg'],
+        ])
+      ).text()
+      expect(stale).toContain('>Not saved</span>')
+      expect(await draftIds()).toEqual([next])
+
+      // A published post's files stay, should its id still have a draft.
+      let published = await samplePost('photos')
+      await insertDraft(published.id, '{}')
+      await composerPost('/admin/posts/new/preview', [
+        ['id', 'drafted007'],
+        ['caption', 'Hi'],
+      ])
+      expect(await draftIds()).toEqual(['drafted007'])
+      expect(await hasPostFile(published.id, 'hike-1.jpg')).toBe(true)
+    })
+
+    it('can’t be a published post’s', async () => {
+      let published = await samplePost('photos')
+      let events = await (
+        await composerPost('/admin/posts/new/preview', [
+          ['id', published.id],
+          ['caption', 'Back to a draft'],
+        ])
+      ).text()
+      expect(events).toContain('>Not saved</span>')
+      let media = await (
+        await composerPost('/admin/posts/new/media', [
+          ['id', published.id],
+          ['caption', 'Back to a draft'],
+          ['photo', 'hike-1.jpg'],
+        ])
+      ).text()
+      expect(media).toMatch(/already published/)
+      expect(await draftIds()).toEqual([])
+      expect((await openComposer()).id).not.toBe(published.id)
+    })
+
+    it('ignores a draft that doesn’t decode, and replaces it', async () => {
+      for (let data of ['{"id":', '{"id":"drafted008","caption":5}']) {
+        await app.seedDatabase()
+        await insertDraft('drafted008', data)
+        let { id, html } = await openComposer()
+        expect(id).not.toBe('drafted008')
+        expect(captionOf(html)).toBe('')
+      }
+      await composerPost('/admin/posts/new/preview', [
+        ['id', 'drafted009'],
+        ['caption', 'Fresh'],
+      ])
+      expect(await draftIds()).toEqual(['drafted009'])
+    })
   })
 
   it('is linked from the navbar of every page while logged in', async () => {

@@ -11,7 +11,10 @@ New posts are written in the composer at `/admin/posts/new` (the navbar's plus, 
 which works like X's: type the caption, add photos, a video, or an article (a Markdown file) with
 the toolbar's buttons, and the post shows below as it'll look. The type follows from the media,
 media is uploaded as it's chosen, and the × by the heading discards the post and what was uploaded
-for it. The post is dated when it's posted, at the browser's UTC offset, and each photo's alt text
+for it. What's written is saved on the server as you write, so leaving the composer and coming back,
+on any browser, picks it up where you left off; there's one draft at a time, and starting another
+(after posting or discarding, or in a composer opened before the draft was saved) replaces it and
+deletes its files. The post is dated when it's posted, at the browser's UTC offset, and each photo's alt text
 is its file name; change those on its edit page.
 
 Every post has:
@@ -112,8 +115,7 @@ HTML in the Markdown is shown as text, not rendered.
 - Uploads can be up to 100 MB each and 120 MB in one save (`MAX_UPLOAD_*` in
   `src/domain/constants.ts`); upload bigger sets over more than one save.
 - A post's files are only served once it's published (the composer shows them from `/admin`).
-  In the composer, taking media out (or replacing it) deletes its file, and discarding the post
-  deletes them all; a new post that's left without being published or discarded leaves its files
-  unserved in storage.
+  In the composer, taking media out (or replacing it) deletes its file, and discarding the post,
+  or a new draft replacing it, deletes them all.
 - Replacing a file under a new name leaves the old one in storage. Deleting a post deletes all its
   files.

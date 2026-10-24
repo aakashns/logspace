@@ -517,8 +517,13 @@
   }
 
   /* Pushed to the far end of the toolbar. */
-  .post-button {
+  /* Always there, even empty, so it pushes itself and the Post button to the right. */
+  .draft-note {
     margin-left: auto;
+    padding-inline: 0.5rem;
+  }
+
+  .post-button {
     padding-inline: 1.25rem;
 
     &:disabled {
