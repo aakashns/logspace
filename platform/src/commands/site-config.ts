@@ -14,7 +14,6 @@ import {
   type SiteText,
 } from '../domain/site.ts'
 import { SiteConfigQueries } from '../queries/site-config.ts'
-import { DataVersion } from '../services/data-version.ts'
 import { ICON_FILES, Images, type ProcessedSiteImage } from '../services/images.ts'
 import { MediaStorage, mediaKeys } from '../services/media-storage.ts'
 import { SiteConfigRejected } from './errors.ts'
@@ -39,7 +38,6 @@ export class SiteConfigCommands extends Context.Service<
       let storage = yield* MediaStorage
       let images = yield* Images
       let queries = yield* SiteConfigQueries
-      let versions = yield* DataVersion
 
       let save = Effect.fn('SiteConfigCommands.save')(function* (config: SiteConfig) {
         let rows = [...TEXT_SETTINGS, ...SITE_IMAGE_KINDS].flatMap((key) => {
@@ -55,7 +53,6 @@ export class SiteConfigCommands extends Context.Service<
             }),
           )
           .pipe(Effect.orDie)
-        yield* versions.changed
       })
 
       let removeImageFiles = (image: SiteImage) =>

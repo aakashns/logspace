@@ -5,7 +5,6 @@ import { Context, Effect, Layer } from 'effect'
 import { SqlClient } from 'effect/sql'
 
 import { isPostFileName, mimeType } from '../domain/post.ts'
-import { DataVersion } from '../services/data-version.ts'
 import { Images } from '../services/images.ts'
 import { MediaStorage, mediaKeys } from '../services/media-storage.ts'
 
@@ -26,7 +25,6 @@ export class PostFiles extends Context.Service<
       let sql = yield* SqlClient.SqlClient
       let storage = yield* MediaStorage
       let images = yield* Images
-      let versions = yield* DataVersion
 
       let removePrefix = (prefix: string) =>
         Effect.flatMap(storage.list(prefix), (files) =>
@@ -51,14 +49,12 @@ export class PostFiles extends Context.Service<
             }),
           )
           .pipe(Effect.orDie)
-        yield* versions.changed
       })
 
       let removeAll = Effect.fn('PostFiles.removeAll')(function* (id: string) {
         yield* removePrefix(mediaKeys.postFiles(id))
         yield* removePrefix(mediaKeys.postVariants(id))
         yield* sql`delete from post_images where post_id = ${id}`.pipe(Effect.orDie)
-        yield* versions.changed
       })
 
       return PostFiles.of({ save, removeAll })

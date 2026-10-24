@@ -4,7 +4,12 @@ import { describe, expect, it } from 'bun:test'
 import { getForwardedOrigin } from '../src/http/forwarded.ts'
 import { parseLinkMetadata } from '../src/domain/link-metadata.ts'
 import { formatLinkText, getFirstLink, splitLinks } from '../src/domain/links.ts'
-import { captionText, renderArticle, renderCaption } from '../src/domain/markdown.ts'
+import {
+  captionText,
+  findImageNames,
+  renderArticle,
+  renderCaption,
+} from '../src/domain/markdown.ts'
 import { fromPostRow, toPostRow } from '../src/domain/post-rows.ts'
 import { isUploadableFileName, parsePostRecord, type PostRecord } from '../src/domain/post.ts'
 import { getPostMeta, toPost } from '../src/domain/presentation.ts'
@@ -104,6 +109,22 @@ describe('captions', () => {
     expect(renderCaption('<script>x</script>')).toBe('<p>&lt;script&gt;x&lt;/script&gt;</p>')
   })
 
+  it('links URLs in bold, in angle brackets, or as a link’s text once, and not in code', () => {
+    let link = (url: string, text: string) =>
+      `<a target="_blank" rel="noopener" href="${url}">${text}</a>`
+    expect(renderCaption('**https://a.com/x** then more')).toBe(
+      `<p><strong>${link('https://a.com/x', 'a.com/x')}</strong> then more</p>`,
+    )
+    expect(renderCaption('<https://a.com> [https://b.com](https://b.com)')).toBe(
+      `<p>${link('https://a.com', 'a.com')} ${link('https://b.com', 'b.com')}</p>`,
+    )
+    expect(renderCaption('`https://a.com`')).toBe('<p><code>https://a.com</code></p>')
+  })
+
+  it('drops links to other schemes, like javascript:', () => {
+    expect(renderCaption('[hi](javascript:alert(1))')).toBe('<p>hi</p>')
+  })
+
   it('strips Markdown for plain text', () => {
     expect(
       captionText('**Title**\n\nSome _text_ and [a link](https://remix.run)\n\n- a\n- b'),
@@ -176,6 +197,24 @@ describe('renderArticle', () => {
     expect(
       renderArticle('p', 'Hi <script>alert(1)</script>\n\n<iframe src="x"></iframe>'),
     ).not.toMatch(/<script|<iframe/)
+    expect(renderArticle('p', '```\n<b>x</b>\n```')).toBe(
+      '<pre><code>&lt;b&gt;x&lt;/b&gt;\n</code></pre>',
+    )
+  })
+
+  it('drops links to other schemes, like javascript:', () => {
+    expect(renderArticle('p', '[hi](javascript:alert(1)) ![x](javascript:alert(1))')).toBe(
+      '<p>hi <img src="" alt="x"></p>',
+    )
+  })
+
+  it('finds files whose names are percent-encoded, encoding them once', () => {
+    expect(renderArticle('p', '[a](my%20notes.pdf)')).toBe(
+      '<p><a href="/posts/p/my%20notes.pdf">a</a></p>',
+    )
+    expect(findImageNames('p', '![a](my%20desk.jpg)\n\nNot alone: ![b](b.jpg)')).toEqual([
+      'my desk.jpg',
+    ])
   })
 })
 

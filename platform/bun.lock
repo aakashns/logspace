@@ -7,7 +7,6 @@
       "dependencies": {
         "@effect/platform-bun": "4.0.6",
         "@effect/sql-sqlite-bun": "4.0.6",
-        "@tanstack/markdown": "^1.0.0",
         "effect": "4.0.6",
       },
       "devDependencies": {
@@ -60,8 +59,6 @@
     "@oxlint/binding-win32-ia32-msvc": ["@oxlint/binding-win32-ia32-msvc@1.89.0", "", { "os": "win32", "cpu": "ia32" }, "sha512-saFy07cO94E664glwgLmKLI40HgTL1PY86y4T6+ud4niX4H0Kdqjcmqmjps7mQNdBytV5guGbXDdyQtRfeLbLA=="],
 
     "@oxlint/binding-win32-x64-msvc": ["@oxlint/binding-win32-x64-msvc@1.89.0", "", { "os": "win32", "cpu": "x64" }, "sha512-hLFJ/o0f/dTJh/EW0vmcbREYSQO9tYgfiAAlsOkiLFiJuRRWvYtFELUXN5o2ijpSo/tlO1n+YlWN58tZwPG18A=="],
-
-    "@tanstack/markdown": ["@tanstack/markdown@1.0.0", "", { "peerDependencies": { "octane": ">=0.1.12", "react": ">=18" }, "optionalPeers": ["octane", "react"] }, "sha512-zE07RepFMbSQlHdnE82twgiVOKy50rP6a/X9UPOOBt8Z8x9lzaPvGpn2zioCnjXMvNt/IQkW5sSalXQ25C/FKw=="],
 
     "@types/bun": ["@types/bun@1.4.4", "", { "dependencies": { "bun-types": "1.4.4" } }, "sha512-9wkRDXUXK124pEnAutE6n/l18j+i9GC5IAHK8TmX/2nlySETmky0OU6yL5U8pW1AoKh++AN9auDCr647BfurjQ=="],
 

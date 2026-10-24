@@ -38,7 +38,7 @@ The composition root, and the best map of the app. It wires every service into o
 shows what depends on what:
 
 ```
-AppConfig ─┬─ Database ── DataVersion, Migrations
+AppConfig ─┬─ Database ── Migrations
            └─ MediaStorage, Images, AdminAuth, Assets
 
 queries/  (the read side):  SiteConfigQueries, PostQueries, SiteFiles, PostMedia, LinkPreviews
@@ -76,7 +76,6 @@ Each is an Effect service (`Context.Service`) with a `layer` that builds it.
 | `database.ts`      | The SQLite connection (`@effect/sql-sqlite-bun`, in WAL mode) and the migrations, which write the same journal LogSpace 0.1 (the Remix version) did, so its databases upgrade in place       |
 | `media-storage.ts` | Uploaded files as plain files under `MEDIA_DIR` (`posts/<id>/<file>`, `variants/…`, `site/…`), written atomically with `Bun.write` and served straight from disk; or in memory for the tests |
 | `images.ts`        | Everything Bun.Image does: reading and resizing photos, and making the logo, icons, and social image                                                                                         |
-| `data-version.ts`  | How the read side knows its views are stale (see below)                                                                                                                                      |
 
 ### 4. Writes: `src/commands/`
 
@@ -93,16 +92,10 @@ logged), as they're not something a user can fix.
 
 ### 5. Reads: `src/queries/`
 
-Pages don't query the database. `PostQueries` holds a **read model**: every post, already
-presented (URLs, sizes, rendered captions) and sorted, built with two queries the first time
-it's needed and kept until the data changes. `SiteConfigQueries` does the same for the site's
-settings. Article bodies are rendered on first read and kept with the read model.
-
-How do they know when the data changed? `services/data-version.ts`: commands bump an in-process
-counter after they write, and SQLite's `PRAGMA data_version` (about a microsecond to read) changes
-when _another_ process writes (like `logspace migrate`, or someone with `sqlite3`). A view is
-current while that pair hasn't changed. So a page needs no database query, and an edit made in
-the database directly still shows up on the next request.
+Every read queries the database: `PostQueries` reads posts and their images' sizes and presents
+them (URLs, sizes, rendered captions), and `SiteConfigQueries` reads the site's settings. Nothing
+is kept between requests, so an edit made in the database directly (like with `sqlite3`) shows up
+on the next request.
 
 `post-media.ts` serves a post's files and its resized photos, which are made on first request
 and stored. Concurrent requests for one share a single resize. `link-previews.ts` fetches link

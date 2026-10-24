@@ -1,11 +1,9 @@
-// The site's settings, as every page reads them: a view of the `config` table, kept in memory and
-// rebuilt only when the data changes (see services/data-version.ts). Saving them goes through
-// commands/site-config.ts.
+// The site's settings, as every page reads them, from the `config` table. Saving them goes
+// through commands/site-config.ts.
 import { Context, Effect, Layer } from 'effect'
 import { SqlClient } from 'effect/sql'
 
 import { fromConfigRows, type SavedSiteConfig } from '../domain/site.ts'
-import { makeView } from '../services/data-version.ts'
 
 export class SiteConfigQueries extends Context.Service<
   SiteConfigQueries,
@@ -16,16 +14,14 @@ export class SiteConfigQueries extends Context.Service<
 >()('logspace/SiteConfigQueries') {
   static readonly layer = Layer.effect(
     SiteConfigQueries,
-    Effect.gen(function* () {
-      let sql = yield* SqlClient.SqlClient
-      let saved = yield* makeView(
-        sql<{ key: string; value: string }>`select key, value from config`.pipe(
+    Effect.map(SqlClient.SqlClient, (sql) =>
+      SiteConfigQueries.of({
+        saved: sql<{ key: string; value: string }>`select key, value from config`.pipe(
           Effect.map((rows) => fromConfigRows(new Map(rows.map((row) => [row.key, row.value])))),
           Effect.orDie,
-          Effect.withSpan('SiteConfigQueries.build'),
+          Effect.withSpan('SiteConfigQueries.saved'),
         ),
-      )
-      return SiteConfigQueries.of({ saved })
-    }),
+      }),
+    ),
   )
 }

@@ -152,8 +152,8 @@ describe('/admin/config', () => {
 
   it('picks up a change made in the database by another process, without a restart', async () => {
     expect(await (await app.fetch('/')).text()).toMatch(/<title>Test Site<\/title>/)
-    // As if another connection wrote it: data_version changes only for other connections, so this
-    // one goes around the app's own bookkeeping by opening a second connection to the same file.
+    // As if another process wrote it: a second connection to the same file, going around the
+    // app's commands.
     let other = makeTestApp({ databasePath: `/tmp/logspace2-config-${process.pid}.sqlite` })
     let writer = makeTestApp({ databasePath: `/tmp/logspace2-config-${process.pid}.sqlite` })
     await other.seedDatabase()

@@ -11,7 +11,6 @@ import { SiteConfigCommands } from '../src/commands/site-config.ts'
 import { toPostRow } from '../src/domain/post-rows.ts'
 import { isPostFileName, isPostId, parsePostRecord, type PostRecord } from '../src/domain/post.ts'
 import type { SiteText } from '../src/domain/site.ts'
-import { DataVersion } from '../src/services/data-version.ts'
 
 export const TEST_CONTENT_DIR = path.join(import.meta.dir, 'content')
 
@@ -37,7 +36,6 @@ export const seedDatabase = Effect.gen(function* () {
       yield* sql`insert into posts ${sql.insert(rows.map((row) => ({ ...row })))}`
     }),
   )
-  yield* (yield* DataVersion).changed
 }).pipe(Effect.orDie)
 
 // Copies the sample posts' media files into media storage.

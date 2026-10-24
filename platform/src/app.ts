@@ -1,7 +1,7 @@
 // The composition root: every service, and the routes, wired together. Read this file to see
 // what depends on what. Each layer is built once and shared.
 //
-//   AppConfig ─┬─ Database ── DataVersion, Migrations
+//   AppConfig ─┬─ Database ── Migrations
 //              ├─ MediaStorage, Images, AdminAuth, Assets
 //              │
 //   queries/ (the read side):  SiteConfigQueries, PostQueries, SiteFiles, PostMedia, LinkPreviews
@@ -24,12 +24,11 @@ import { PostMedia } from './queries/post-media.ts'
 import { PostQueries } from './queries/posts.ts'
 import { SiteConfigQueries } from './queries/site-config.ts'
 import { SiteFiles } from './queries/site-files.ts'
-import { DataVersion } from './services/data-version.ts'
 import { DatabaseLive, Migrations } from './services/database.ts'
 import { Images } from './services/images.ts'
 import { MediaStorage } from './services/media-storage.ts'
 
-const Infrastructure = Layer.mergeAll(DataVersion.layer, Migrations.layer).pipe(
+const Infrastructure = Migrations.layer.pipe(
   Layer.provideMerge(Layer.mergeAll(DatabaseLive, MediaStorage.layer, Images.layer)),
   Layer.provideMerge(BunFileSystem.layer),
 )
