@@ -18,8 +18,8 @@ bun run count-lines
 - `src/app.ts` wires every service and the routes; read it first
 - `src/domain/` is pure (no database, files, or HTTP): what posts and settings are, their checks,
   and how pages show them
-- `src/commands/` is every write (one method per change), and `src/queries/` every read, from
-  read models kept in memory until the data changes (`src/services/data-version.ts`)
+- `src/commands/` is every write (one method per change), and `src/queries/` every read, straight
+  from the database
 - `src/services/` talks to the world: SQLite, media files, images (Bun.Image)
 - `src/http/` has the routes (`public.tsx`, `admin.tsx`, each with its route table at the bottom)
   and the middleware around them; `src/views/` the pages, rendered by `src/jsx/` to strings
@@ -37,7 +37,7 @@ bun run count-lines
   (servers have no Bun). The exception is `../website/public/install.sh`, which runs before
   there's a binary
 - Handlers read the request, call queries or one command, and pick a response; a change of more
-  than one step is one command. Every command calls `DataVersion.changed` after it writes
+  than one step is one command
 - Write services with `Context.Service` and a `layer`, and functions with `Effect.fn` (or
   `Effect.fnUntraced` on hot paths). Expected failures are `Schema.TaggedError`s that callers
   handle; unexpected ones (storage, the database) are defects, a logged 500

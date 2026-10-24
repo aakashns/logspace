@@ -11,7 +11,6 @@ import {
   type PostIssue,
   type PostRecord,
 } from '../domain/post.ts'
-import { DataVersion } from '../services/data-version.ts'
 import { MediaStorage, mediaKeys } from '../services/media-storage.ts'
 import { PostNotFound, PostRejected } from './errors.ts'
 import { PostFiles } from './post-files.ts'
@@ -43,7 +42,6 @@ export class PostCommands extends Context.Service<
       let sql = yield* SqlClient.SqlClient
       let files = yield* PostFiles
       let storage = yield* MediaStorage
-      let versions = yield* DataVersion
 
       let findRecord = (id: string) =>
         sql<PostRow>`select ${sql.literal(POST_COLUMNS)} from posts where id = ${id}`.pipe(
@@ -101,7 +99,6 @@ export class PostCommands extends Context.Service<
                 : Effect.die(error),
             ),
           )
-          yield* versions.changed
           return record
         }).pipe(Effect.ensuring(Effect.sync(() => publishing.delete(id))))
       })
@@ -123,7 +120,6 @@ export class PostCommands extends Context.Service<
         yield* sql`update posts set ${sql.update({ ...row, updated_at })} where id = ${id}`.pipe(
           Effect.orDie,
         )
-        yield* versions.changed
         return record
       })
 
@@ -134,7 +130,6 @@ export class PostCommands extends Context.Service<
           id: string
         }>`delete from posts where id = ${id} returning id`.pipe(Effect.orDie)
         if (deleted.length === 0) return yield* new PostNotFound({ id })
-        yield* versions.changed
         yield* files.removeAll(id)
       })
 

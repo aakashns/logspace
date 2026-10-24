@@ -1,10 +1,5 @@
-// Posts as pages read them: the read side for posts.
-//
-// The read model is every post, presented (media URLs, image sizes and versions, captions rendered
-// to HTML) and sorted newest first, built with two queries and kept in memory until the data
-// changes (see services/data-version.ts). The home page, a post's page, the feeds, and the media
-// route all read it, so serving a page doesn't touch the database. An article's body is rendered
-// the first time it's read, and kept with the read model.
+// Posts as pages read them: the read side for posts. Every read queries the database, and
+// presents what it finds (media URLs, image sizes and versions, captions rendered to HTML).
 import { Context, Effect, Layer } from 'effect'
 import { SqlClient } from 'effect/sql'
 
@@ -13,18 +8,9 @@ import { findImageNames, findPosterCandidates, renderArticle } from '../domain/m
 import { fromPostRow, POST_COLUMNS, type PostRow } from '../domain/post-rows.ts'
 import { sortNewestFirst, type PostRecord } from '../domain/post.ts'
 import { toPost, type ArticlePost, type Post } from '../domain/presentation.ts'
-import { makeView } from '../services/data-version.ts'
 import { MediaStorage, mediaKeys } from '../services/media-storage.ts'
 
-interface ReadModel {
-  // Newest first.
-  readonly posts: readonly Post[]
-  readonly byId: ReadonlyMap<string, { readonly post: Post; readonly record: PostRecord }>
-  // The size and version of every saved image of every post, by storage key (see mediaKeys).
-  readonly images: ReadonlyMap<string, ImageInfo>
-  // Articles' bodies as HTML, by post id, filled in as they're read.
-  readonly articles: Map<string, string>
-}
+type ImageRow = ImageInfo & { readonly post_id: string; readonly name: string }
 
 export class PostQueries extends Context.Service<
   PostQueries,
@@ -48,67 +34,87 @@ export class PostQueries extends Context.Service<
       let sql = yield* SqlClient.SqlClient
       let storage = yield* MediaStorage
 
-      let readModel = yield* makeView(
-        Effect.gen(function* () {
-          let [rows, imageRows] = yield* Effect.all(
-            [
-              sql<PostRow>`select ${sql.literal(POST_COLUMNS)} from posts`,
-              sql<
-                ImageInfo & { post_id: string; name: string }
-              >`select post_id, name, width, height, version from post_images`,
-            ],
-            { concurrency: 'unbounded' },
-          )
-          let images = new Map(
-            imageRows.map(({ post_id, name, width, height, version }) => [
-              mediaKeys.postFile(post_id, name),
-              { width, height, version },
-            ]),
-          )
-          let byId = new Map<string, { post: Post; record: PostRecord }>()
-          for (let row of rows) {
-            let record = fromPostRow(row)
-            let post = toPost(record, (file) => images.get(mediaKeys.postFile(record.id, file)))
-            byId.set(record.id, { post, record })
-          }
-          let posts = sortNewestFirst([...byId.values()].map((entry) => entry.post))
-          return { posts, byId, images, articles: new Map() } satisfies ReadModel
-        }).pipe(Effect.orDie, Effect.withSpan('PostQueries.build')),
+      let selectImages = (id?: string) =>
+        sql<ImageRow>`select post_id, name, width, height, version from post_images ${
+          id === undefined ? sql`` : sql`where post_id = ${id}`
+        }`
+
+      // Posts presented with their images' sizes and versions.
+      let present = (rows: readonly PostRow[], imageRows: readonly ImageRow[]) => {
+        let images = new Map(
+          imageRows.map(({ post_id, name, width, height, version }) => [
+            mediaKeys.postFile(post_id, name),
+            { width, height, version },
+          ]),
+        )
+        return rows.map((row) => {
+          let record = fromPostRow(row)
+          return toPost(record, (file) => images.get(mediaKeys.postFile(record.id, file)))
+        })
+      }
+
+      let all = Effect.all(
+        [sql<PostRow>`select ${sql.literal(POST_COLUMNS)} from posts`, selectImages()],
+        { concurrency: 'unbounded' },
+      ).pipe(
+        Effect.map(([rows, imageRows]) => sortNewestFirst(present(rows, imageRows))),
+        Effect.orDie,
+        Effect.withSpan('PostQueries.all'),
       )
 
+      let selectPost = (id: string) =>
+        sql<PostRow>`select ${sql.literal(POST_COLUMNS)} from posts where id = ${id}`
+
+      let find = Effect.fn('PostQueries.find')(function* (id: string) {
+        let [rows, imageRows] = yield* Effect.all([selectPost(id), selectImages(id)], {
+          concurrency: 'unbounded',
+        }).pipe(Effect.orDie)
+        return present(rows, imageRows)[0]
+      })
+
+      let findRecord = Effect.fn('PostQueries.findRecord')(function* (id: string) {
+        let [row] = yield* Effect.orDie(selectPost(id))
+        return row && fromPostRow(row)
+      })
+
+      let imageInfo = Effect.fn('PostQueries.imageInfo')(function* (id: string, name: string) {
+        let [info] = yield* sql<ImageInfo>`
+          select width, height, version from post_images where post_id = ${id} and name = ${name}
+        `.pipe(Effect.orDie)
+        return info
+      })
+
       // The posters of an article's videos are found by name in storage (clip.mp4's is clip.jpg),
-      // since they're named only by convention. Storage only changes through commands, which
-      // change the data version, so the body is rendered once per read model.
+      // since they're named only by convention.
       let articleHtml = Effect.fn('PostQueries.articleHtml')(function* (post: ArticlePost) {
-        let model = yield* readModel
-        let cached = model.articles.get(post.id)
-        if (cached !== undefined) return cached
         let { body } = post.article
         let candidates = findPosterCandidates(post.id, body)
-        let found = yield* Effect.forEach(
-          candidates,
-          (name) => storage.has(mediaKeys.postFile(post.id, name)),
+        let [found, imageRows] = yield* Effect.all(
+          [
+            Effect.forEach(candidates, (name) => storage.has(mediaKeys.postFile(post.id, name)), {
+              concurrency: 'unbounded',
+            }),
+            Effect.orDie(selectImages(post.id)),
+          ],
           { concurrency: 'unbounded' },
         )
-        let images = new Map<string, ImageInfo>()
-        for (let name of findImageNames(post.id, body)) {
-          let info = model.images.get(mediaKeys.postFile(post.id, name))
-          if (info) images.set(name, info)
-        }
-        let html = renderArticle(post.id, body, {
+        let names = new Set(findImageNames(post.id, body))
+        let images = new Map(
+          imageRows
+            .filter(({ name }) => names.has(name))
+            .map(({ name, width, height, version }) => [name, { width, height, version }]),
+        )
+        return renderArticle(post.id, body, {
           posters: candidates.filter((_, i) => found[i]),
           images,
         })
-        model.articles.set(post.id, html)
-        return html
       })
 
       return PostQueries.of({
-        all: Effect.map(readModel, (model) => model.posts),
-        find: (id) => Effect.map(readModel, (model) => model.byId.get(id)?.post),
-        findRecord: (id) => Effect.map(readModel, (model) => model.byId.get(id)?.record),
-        imageInfo: (id, name) =>
-          Effect.map(readModel, (model) => model.images.get(mediaKeys.postFile(id, name))),
+        all,
+        find,
+        findRecord,
+        imageInfo,
         articleHtml,
         files: (id) =>
           Effect.map(storage.list(mediaKeys.postFiles(id)), (files) =>
