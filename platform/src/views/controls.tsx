@@ -359,8 +359,22 @@ export function PreviewRefresh(): Html {
 // composerUpdates in http/admin.tsx). Datastar closes the stream while the tab is hidden and opens
 // it again when it's shown, which sends the draft as it is then. The server ends it when it stops,
 // so it's opened again (`always`) for when the server's back, unless it redirects to the login.
+// Morphing keeps existing media nodes, including failed images. A reconnect must give photos
+// interrupted by the outage another chance, without reloading healthy images or playing video.
+const RETRY_IMAGES =
+  "if (evt.detail.el === el && evt.detail.type === 'datastar-patch-elements') { " +
+  "document.querySelectorAll('#composer-page img').forEach((img) => { " +
+  'if (img.complete && !img.naturalWidth) { img.srcset = img.srcset; img.src = img.src; } }); }'
+
 export function ComposerUpdates(props: { url: string }): Html {
-  return <span hidden data-url={props.url} data-init="@get(el.dataset.url, {retry: 'always'})" />
+  return (
+    <span
+      hidden
+      data-url={props.url}
+      data-init="@get(el.dataset.url, {retry: 'always'})"
+      data-on:datastar-fetch={RETRY_IMAGES}
+    />
+  )
 }
 
 // Shown while media is uploading.

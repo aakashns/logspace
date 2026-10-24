@@ -288,7 +288,21 @@ test('update stream reconnects after abrupt application restart', async ({
 }) => {
   await openComposer(page)
   await caption(page, 'Persistent draft across restart')
+  // Force the image to fail before restarting, rather than racing the process kill against
+  // its download. A successful SSE reconnect must also recover this retained image element.
+  await page.route('**/admin/posts/*/files/hike-1.jpg?*', (route) => route.abort('connectionreset'))
   await upload(page, 'Add photos', photo)
+  await expect
+    .poll(() =>
+      page
+        .locator('#composer-media img')
+        .evaluate(
+          (element) =>
+            element instanceof HTMLImageElement && element.complete && element.naturalWidth === 0,
+        ),
+    )
+    .toBe(true)
+  await page.unroute('**/admin/posts/*/files/hike-1.jpg?*')
   const previous = Number(await page.locator('html').getAttribute('data-browser-updates'))
   await app.restart()
   await expect
