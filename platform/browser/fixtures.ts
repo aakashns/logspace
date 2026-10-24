@@ -28,7 +28,6 @@ class Application {
         this.directory,
         this.password,
         this.secret,
-        this.origin ? new URL(this.origin).port : '0',
       ],
       {
         cwd: this.directory,
@@ -76,7 +75,7 @@ class Application {
     }
   }
 
-  async stop(signal: NodeJS.Signals = 'SIGTERM') {
+  async stop() {
     const child = this.child
     if (!child || child.exitCode !== null || child.signalCode !== null) return
     await new Promise<void>((resolve, reject) => {
@@ -84,19 +83,14 @@ class Application {
       child.once('exit', (code, exitSignal) => {
         clearTimeout(timeout)
         // Effect exits with 130 after a clean interruption, including SIGTERM.
-        if (signal !== 'SIGKILL' && ((code !== 0 && code !== 130) || exitSignal !== null)) {
+        if ((code !== 0 && code !== 130) || exitSignal !== null) {
           reject(
             new Error(`Server failed to stop gracefully (${code}, ${exitSignal})\n${this.logs}`),
           )
         } else resolve()
       })
-      child.kill(signal)
+      child.kill('SIGTERM')
     })
-  }
-
-  async restart() {
-    await this.stop('SIGKILL')
-    await this.start()
   }
 }
 
@@ -131,23 +125,6 @@ export const test = base.extend<{ app: Application }>({
       external.push(route.request().url())
       return route.abort('blockedbyclient')
     })
-    await context.addInitScript(() => {
-      document.addEventListener(
-        'datastar-fetch',
-        (event) => {
-          if (
-            event instanceof CustomEvent &&
-            event.detail.type === 'datastar-patch-elements' &&
-            event.detail.argsRaw.selector === '#composer-page'
-          ) {
-            document.documentElement.dataset.browserUpdates = String(
-              Number(document.documentElement.dataset.browserUpdates ?? 0) + 1,
-            )
-          }
-        },
-        { capture: true },
-      )
-    })
     await use(context)
     expect(external, 'No browser request may leave the fixture origin').toEqual([])
     expect(errors, 'No uncaught browser errors').toEqual([])
@@ -167,22 +144,14 @@ export const test = base.extend<{ app: Application }>({
 })
 export { expect }
 
-export async function openComposer(page: Page, updates = true) {
+export async function openComposer(page: Page) {
   await page.goto(composePath)
-  // Receiving the initial SSE patch proves Datastar initialized, even if a newer save means
-  // the composer correctly ignores that snapshot before morphing it.
+  // Datastar takes the nonce off the page once it's running.
   await expect(page.locator('html')).not.toHaveAttribute('data-nonce')
-  if (updates) await expect(page.locator('html')).toHaveAttribute('data-browser-updates', /[1-9]/)
   await expect(page.getByLabel('Caption', { exact: true })).toBeVisible()
 }
 
 export async function caption(page: Page, text: string) {
-  const response = page.waitForResponse(
-    (response) =>
-      response.url().endsWith('/preview') && response.request().postData()?.includes(text) === true,
-  )
   await page.getByLabel('Caption', { exact: true }).fill(text)
-  await response
   await expect(page.locator('#composer-preview')).toContainText(text)
-  await expect(page.locator('#composer-draft')).toHaveText('Saved')
 }

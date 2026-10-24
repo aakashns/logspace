@@ -84,14 +84,9 @@ try {
   check(favicon.headers.get('Content-Type') === 'image/x-icon', 'the favicon is served')
 
   let post = new FormData()
-  for (let [name, value] of Object.entries({
-    id: 'smoketest1',
-    offset: '+05:30',
-    caption: 'Hello',
-  })) {
-    post.set(name, value)
-  }
-  post.set('photo_uploads', Bun.file(photo), 'cover.jpg')
+  post.set('post_id', 'smoketest1')
+  post.set('caption', 'Hello')
+  post.set('image_uploads', Bun.file(photo), 'cover.jpg')
   let published = await fetch(`${base}/admin/posts/new`, {
     method: 'POST',
     headers: { Cookie: cookie },
@@ -104,15 +99,6 @@ try {
   check(html.includes('Hello'), 'the home page shows it')
   let datastar = html.match(/src="(\/assets\/datastar\.[0-9a-f]+\.js)"/)?.[1]
   check(datastar && (await fetch(base + datastar)).ok, 'Datastar is served')
-  let composer = await (
-    await fetch(`${base}/admin/posts/new`, { headers: { Cookie: cookie } })
-  ).text()
-  let module = composer.match(/src="(\/assets\/composer\.[0-9a-f]+\.js)"/)?.[1]
-  let code = module ? await (await fetch(base + module)).text() : ''
-  check(
-    code.includes('from "datastar"') && code.includes('"logspace-composer"'),
-    'the composer’s module is built in, and imports Datastar',
-  )
   let resized = html.match(/srcset="([^" ]+)/)?.[1]?.replaceAll('&amp;', '&')
   let webp = resized ? await fetch(base + resized) : undefined
   check(webp?.headers.get('Content-Type') === 'image/webp', 'a resized copy is made by Bun.Image')

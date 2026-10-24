@@ -198,13 +198,11 @@ await expectHttps(
   `303 https://${DOMAIN}/posts/setup00001`,
   ...auth,
   '-F',
-  'id=setup00001',
-  '-F',
-  'offset=+00:00',
+  'post_id=setup00001',
   '-F',
   'caption=Sandbox writes',
   '-F',
-  `photo_uploads=@${photo}`,
+  `image_uploads=@${photo}`,
 )
 await expectHttps(`https://${DOMAIN}/posts/setup00001/cover.jpg`, '200')
 let version = new Bun.CryptoHasher('sha256')

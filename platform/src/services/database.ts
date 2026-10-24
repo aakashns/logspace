@@ -16,6 +16,7 @@ import createConfig from '../../db/migrations/0004_create_config.sql' with { typ
 import renameSocialImage from '../../db/migrations/0005_rename_social_image_to_banner.sql' with { type: 'text' }
 import createDrafts from '../../db/migrations/0006_create_drafts.sql' with { type: 'text' }
 import protectContentAccess from '../../db/migrations/0007_protect_content_access.sql' with { type: 'text' }
+import dropDrafts from '../../db/migrations/0008_drop_drafts.sql' with { type: 'text' }
 import { AppConfig } from '../config.ts'
 
 const MIGRATIONS = [
@@ -26,6 +27,7 @@ const MIGRATIONS = [
   { id: '0005', name: 'rename_social_image_to_banner', sql: renameSocialImage },
   { id: '0006', name: 'create_drafts', sql: createDrafts },
   { id: '0007', name: 'protect_content_access', sql: protectContentAccess },
+  { id: '0008', name: 'drop_drafts', sql: dropDrafts },
 ]
 
 const JOURNAL = 'data_table_migrations'

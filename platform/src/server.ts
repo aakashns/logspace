@@ -5,23 +5,12 @@ import { HttpRouter } from 'effect/http'
 
 import { AppLive, AppRoutes, ROUTER_CONFIG } from './app.ts'
 import { AppConfig } from './config.ts'
-import { DraftChanges } from './services/draft-changes.ts'
-
-// The composers' streams of updates never finish on their own, so they're ended as the server
-// starts to stop, rather than kept to its graceful shutdown's timeout (20 seconds). A layer's
-// finalizers run before those of the layers it's built on, so this runs before the server's.
-const EndDraftStreams = Layer.effectDiscard(
-  Effect.flatMap(DraftChanges, (changes) => Effect.addFinalizer(() => changes.close)),
-)
 
 // Retain the app services and listener for startup logging and the browser fixture's address.
 export const ServerLive = Layer.unwrap(
   Effect.gen(function* () {
     let { port, hostname } = yield* AppConfig
-    return EndDraftStreams.pipe(
-      Layer.provide(
-        HttpRouter.serve(AppRoutes, { disableLogger: true, routerConfig: ROUTER_CONFIG }),
-      ),
+    return HttpRouter.serve(AppRoutes, { disableLogger: true, routerConfig: ROUTER_CONFIG }).pipe(
       Layer.provideMerge(AppLive),
       Layer.provideMerge(
         BunHttpServer.layer({

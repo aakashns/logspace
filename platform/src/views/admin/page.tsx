@@ -10,17 +10,15 @@ export function AdminPage(props: {
   path: string
   title: string
   loggedIn?: boolean | undefined
-  composer?: boolean | undefined
   children: Child
 }): Html {
-  let { page, path, title, loggedIn = true, composer, children } = props
+  let { page, path, title, loggedIn = true, children } = props
   return (
     <Document
       page={page}
       meta={{ path, title, noindex: true }}
       navActions={loggedIn ? <LogoutButton /> : null}
       admin
-      composer={composer}
     >
       {children}
     </Document>

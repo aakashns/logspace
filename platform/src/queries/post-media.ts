@@ -9,21 +9,21 @@ import { hash, Images } from '../services/images.ts'
 import { MediaStorage, mediaKeys, type StoredFile } from '../services/media-storage.ts'
 import { PostQueries } from './posts.ts'
 
-type Options = { readonly drafts?: boolean | undefined }
+type Options = { readonly unpublished?: boolean | undefined }
 
 export class PostMedia extends Context.Service<
   PostMedia,
   {
     // A post's file, if the post is published and has one by that name. A new post's files are
     // stored before it's published, and stay private until then, except to the composer
-    // (`drafts`).
+    // (`unpublished`).
     readonly original: (
       id: string,
       name: string,
       options?: Options,
     ) => Effect.Effect<StoredFile | undefined>
     // A post's image resized to one of IMAGE_WIDTHS, as WebP, if the post is published (or
-    // `drafts`), has such an image, and `version` is its current one.
+    // `unpublished`), has such an image, and `version` is its current one.
     readonly resized: (
       id: string,
       name: string,
@@ -42,7 +42,7 @@ export class PostMedia extends Context.Service<
       let inProgress = new Map<string, Deferred.Deferred<StoredFile | undefined>>()
 
       let isServed = (id: string, options: Options | undefined) =>
-        options?.drafts
+        options?.unpublished
           ? Effect.succeed(true)
           : Effect.map(posts.find(id), (post) => post !== undefined)
 

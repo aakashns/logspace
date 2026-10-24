@@ -139,16 +139,14 @@ interface ArticleImage {
 // image on its own line becomes a lazy-loaded <img>, or a <video> if it's a video file. An image
 // that's in `files.images` gets its size and resized copies. A video's poster is the one of
 // `files.posters` with the same name as the video but an image extension (clip.mp4 → clip.jpg).
-// `fileUrl` is where the post's files are served: publicly, or for the composer, from /admin.
 export function renderArticle(
   id: string,
   markdown: string,
   files: ArticleFiles = { posters: [], images: new Map() },
-  fileUrl: FileUrl = routes.postFile,
 ): string {
   let blockImage = ({ src, alt }: ArticleImage) => {
     if (!VIDEO_EXTENSION.test(src)) {
-      let name = postFileName(id, src, fileUrl)
+      let name = postFileName(id, src)
       let info = name === undefined ? undefined : files.images.get(name)
       return renderImage(src, alt, name, info)
     }
@@ -156,26 +154,13 @@ export function renderArticle(
     let poster = files.posters.find(
       (file) => IMAGE_EXTENSION.test(file) && file.replace(IMAGE_EXTENSION, '') === name,
     )
-    let posterAttribute = poster ? ` poster="${escapeHtml(fileUrl(id, poster))}"` : ''
+    let posterAttribute = poster ? ` poster="${escapeHtml(routes.postFile(id, poster))}"` : ''
     return (
       `<video src="${escapeHtml(src)}"${posterAttribute} aria-label="${alt}"` +
       ' controls playsinline preload="metadata"></video>'
     )
   }
-  return renderArticleWith(id, markdown, blockImage, fileUrl)
-}
-
-type FileUrl = (id: string, file: string) => string
-
-// The names of the post's files an article uses, in its images, videos, and links, in order:
-// what's rendered as one of the post's files' URLs.
-export function findArticleFiles(id: string, markdown: string): string[] {
-  let names = new Set<string>()
-  renderArticle(id, markdown, undefined, (postId, file) => {
-    if (file !== '') names.add(file)
-    return routes.postFile(postId, file)
-  })
-  return [...names]
+  return renderArticleWith(id, markdown, blockImage)
 }
 
 // The names of the post's files shown as images (not videos) on their own line in an article.
@@ -208,10 +193,9 @@ function renderArticleWith(
   id: string,
   markdown: string,
   blockImage: (image: ArticleImage) => string,
-  fileUrl: FileUrl = routes.postFile,
 ): string {
   let images = makePlaceholders<ArticleImage>()
-  let url = (href: string) => (isRelative(href) ? fileUrl(id, safeDecode(href)) : href)
+  let url = (href: string) => (isRelative(href) ? routes.postFile(id, safeDecode(href)) : href)
   let html = Bun.markdown.render(
     markdown,
     {
@@ -255,12 +239,8 @@ function renderImage(url: string, alt: string, name?: string, info?: ImageInfo):
 }
 
 // The name of the post's file a URL points to, if it does.
-function postFileName(
-  id: string,
-  src: string,
-  fileUrl: FileUrl = routes.postFile,
-): string | undefined {
-  let prefix = fileUrl(id, '')
+function postFileName(id: string, src: string): string | undefined {
+  let prefix = routes.postFile(id, '')
   return src.startsWith(prefix) ? safeDecode(src.slice(prefix.length)) : undefined
 }
 

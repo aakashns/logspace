@@ -13,7 +13,7 @@ import {
 import { fromPostRow, toPostRow } from '../src/domain/post-rows.ts'
 import { isUploadableFileName, parsePostRecord, type PostRecord } from '../src/domain/post.ts'
 import { getPostMeta, toPost } from '../src/domain/presentation.ts'
-import { composePost, readComposeForm, withArticleText } from '../src/domain/compose.ts'
+import { composePost, readComposeForm } from '../src/domain/compose.ts'
 import { dateAtOffset, offsetOf, readPostForm } from '../src/domain/post-form.ts'
 import { formatPostDate } from '../src/domain/format.ts'
 
@@ -307,10 +307,10 @@ describe('the composer', () => {
   it('makes a photos post with file names as alt text, renaming names already taken', () => {
     let { values, uploads } = readComposeForm(
       form([
-        ['id', ID],
+        ['post_id', ID],
         ['caption', 'Hi\r\nthere'],
         ['photo', 'image.jpg'],
-        ['photo_uploads', new File(['a'], 'image.jpg')],
+        ['image_uploads', new File(['a'], 'image.jpg')],
       ]),
     )
     expect(uploads.map((upload) => upload.name)).toEqual(['image-2.jpg'])
@@ -326,57 +326,32 @@ describe('the composer', () => {
     })
   })
 
-  it('takes one kind of media at a time', () => {
-    let { values, uploads, issues, articleFile } = readComposeForm(
+  it('takes photos or a video, not both, and with a video, an image as its poster', () => {
+    let { values, uploads } = readComposeForm(
       form([
-        ['id', ID],
+        ['post_id', ID],
         ['video', 'clip.mp4'],
-        ['photo_uploads', new File(['a'], 'a.jpg')],
-        ['article_upload', new File(['# A'], 'a.md')],
+        ['image_uploads', new File(['p'], 'clip.jpg')],
       ]),
     )
-    expect(values.photos).toEqual([])
-    expect(uploads).toEqual([])
-    expect(articleFile).toBeUndefined()
-    expect(issues).toHaveLength(2)
-    expect(issues[0]?.message).toMatch(/photos, a video, or an article, but only one/)
-  })
-
-  it('takes an article’s title from the heading at the top of its Markdown', () => {
-    let read = readComposeForm(
+    expect(values).toMatchObject({ photos: [], video: 'clip.mp4', poster: 'clip.jpg' })
+    expect(uploads.map((upload) => upload.name)).toEqual(['clip.jpg'])
+    let both = readComposeForm(
       form([
-        ['id', ID],
-        ['article_upload', new File(['x'], 'notes.md')],
-        ['cover_upload', new File(['c'], 'cover.jpg')],
-        ['article_files', new File(['d'], 'desk.jpg')],
+        ['photo', 'a.jpg'],
+        ['video_upload', new File(['v'], 'clip.mp4')],
       ]),
     )
-    let { values } = withArticleText(
-      read,
-      'notes.md',
-      '\uFEFF# A year of notes\r\n\r\nBody ![Desk](desk.jpg)\n',
+    expect(both.values.video).toBeUndefined()
+    expect(both.issues[0]?.message).toMatch(/photos or a video, not both/)
+    let removed = readComposeForm(
+      form([
+        ['video', 'clip.mp4'],
+        ['poster', 'clip.jpg'],
+        ['remove', 'clip.mp4'],
+      ]),
     )
-    expect(read.uploads.map((upload) => upload.name)).toEqual(['cover.jpg', 'desk.jpg'])
-    expect(composePost(values, DATE)).toEqual({
-      id: ID,
-      date: DATE,
-      type: 'article',
-      article: {
-        title: 'A year of notes',
-        summary: '',
-        body: 'Body ![Desk](desk.jpg)\n',
-        cover: { file: 'cover.jpg', alt: 'cover.jpg' },
-      },
-    })
-    // A file without a heading keeps the title typed so far, and an empty one is refused.
-    let again = withArticleText({ ...read, values }, 'more.txt', 'Just text')
-    expect(again.values.article).toMatchObject({ title: 'A year of notes', body: 'Just text' })
-    expect(withArticleText(read, 'empty.md', ' \n').issues).toEqual([
-      { message: '“empty.md” is empty.' },
-    ])
-    let wrong = readComposeForm(form([['article_upload', new File(['x'], 'notes.docx')]]))
-    expect(wrong.articleFile).toBeUndefined()
-    expect(wrong.issues[0]?.message).toMatch(/only Markdown \(\.md\) or text \(\.txt\) files/)
+    expect(removed.values).toMatchObject({ video: undefined, poster: undefined })
   })
 })
 

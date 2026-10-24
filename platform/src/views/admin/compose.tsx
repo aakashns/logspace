@@ -1,181 +1,105 @@
-// The composer at /admin/posts/new, where posts are written: a caption, media added with the
-// toolbar's buttons (photos, a video, or an article from a Markdown file, uploaded as they're
-// chosen), and below, the post as it'll look, which follows along as you write. The post is dated
-// when it's posted. The parts the server re-renders as you write have ids: the issues, media, and
-// toolbar, which it replaces whole (so their file inputs start empty), and the inside of the
-// preview, which Datastar morphs into place (so its photos and video don't flicker as you type).
-// Each of those requests saves the draft, which the note by the Post button says. Every tab with
-// the composer open follows the draft: when another tab changes it, the server sends the whole
-// composer again, which Datastar morphs into place. It all runs in <logspace-composer>
-// (src/client/composer.ts), and its controls are in composer-controls.tsx.
+// The composer at /admin/posts/new, where posts are written: a caption, photos or a video added
+// with the toolbar's buttons (uploaded as they're chosen), and below, the post as it'll look,
+// which follows along as you write. Nothing is saved until it's posted: closing the page loses
+// it.
+//
+// Datastar runs it with one-line attributes, like the buttons in ../controls.tsx. The parts the
+// server re-renders have ids: the issues, media, and toolbar, which it replaces whole (so the
+// file inputs start empty again), and the inside of the preview, which Datastar morphs into place
+// (so its photos and video don't flicker as you type). `_uploading` is set by data-indicator on
+// whatever is uploading; while it is, Post is off and the preview waits, since a preview posts the
+// whole form, chosen files and all. Posting is the form's own submission, so without Datastar
+// it's a plain form, whose files are uploaded when it's posted.
 import type { Array as Arr } from 'effect'
 
-import type { Html } from '#jsx/jsx-runtime'
+import type { Child, Html } from '#jsx/jsx-runtime'
 
-import { composeTextValues, type ArticleValues, type ComposeValues } from '../../domain/compose.ts'
+import type { ComposeValues } from '../../domain/compose.ts'
 import { FULL_WIDTH_IMAGE_SIZES, HALF_WIDTH_IMAGE_SIZES } from '../../domain/constants.ts'
 import type { PostIssue } from '../../domain/post.ts'
 import type { LinkPreview, Photo, Post, Video } from '../../domain/presentation.ts'
 import { routes } from '../../routes.ts'
 import { Tooltip } from '../controls.tsx'
-import { CloseIcon, ImageIcon, MarkdownIcon, VideoIcon } from '../icons.tsx'
-import { PostPage } from '../post-page.tsx'
+import { CloseIcon, ImageIcon, VideoIcon } from '../icons.tsx'
 import { Caption, PostMedia, PostMeta } from '../post.tsx'
-import {
-  ArticleTextInput,
-  CaptionInput,
-  CityInput,
-  ClearFiles,
-  ComposerElement,
-  ComposerForm,
-  MediaPicker,
-  OffsetInput,
-  PostButton,
-  PreviewRefresh,
-  Redirect,
-  RemoveMediaButton,
-  SavedDefaults,
-  UploadingNote,
-} from './composer-controls.tsx'
 
 export const COMPOSER_IDS = {
-  composer: 'composer-page',
   issues: 'composer-issues',
   media: 'composer-media',
   tools: 'composer-tools',
-  draft: 'composer-draft',
   preview: 'composer-preview',
 }
-
-// Whether the composer's values were saved as the draft by the last request that sent them, or
-// refused (as once its post is published); unset when there's nothing to save.
-export type DraftState = 'saved' | 'refused' | undefined
 
 export interface ComposerProps {
   readonly values: ComposeValues
   // The post as it'd be published now, its files served from /admin.
   readonly post: Post
   readonly linkPreview?: LinkPreview | undefined
-  // An article's body, and the files it uses with whether each is uploaded yet.
-  readonly articleHtml?: string | undefined
-  readonly articleFiles?: readonly { name: string; uploaded: boolean }[] | undefined
   readonly siteUrl: string
   readonly issues?: readonly PostIssue[] | undefined
-  readonly draft?: DraftState
 }
 
-// The page: the composer, in the component that follows the draft as it changes in other tabs.
-// `tab` names this tab, so it isn't sent its own changes.
-export function ComposePage(props: ComposerProps & { tab: string }): Html {
-  return (
-    <ComposerElement updates={routes.admin.newPostUpdates(props.tab)}>
-      <Composer {...props} />
-    </ComposerElement>
-  )
-}
+const UPDATE_MEDIA = `@post('${routes.admin.newPostMedia()}', {contentType: 'form'})`
+const PREVIEW = `@post('${routes.admin.newPostPreview()}', {contentType: 'form'})`
 
-export function Composer(props: ComposerProps & { tab: string }): Html {
+export function ComposePage(props: ComposerProps): Html {
   let { values } = props
   return (
-    <section id={COMPOSER_IDS.composer} class="admin-page">
-      <div class="admin-heading">
-        <h1 class="page-title">New Post</h1>
-        {/* Opens the dialog below with command/commandfor, which needs no JavaScript. */}
-        <Tooltip label="Discard">
-          <button
-            type="button"
-            command="show-modal"
-            commandfor={DISCARD_DIALOG}
-            aria-label="Discard"
-            class="nav-button"
-          >
-            <CloseIcon />
-          </button>
-        </Tooltip>
-      </div>
-      {/* A field named id shadows form.id and makes Datastar rebuild the focused form. */}
-      <ComposerForm id="composer">
-        {/* data-saved: the post is a draft that's saved, not a new one. */}
-        <input
-          type="hidden"
-          name="post_id"
-          value={values.id}
-          data-saved={props.draft === 'saved'}
-        />
-        <input type="hidden" name="tab" value={props.tab} />
-        <OffsetInput value={values.offset} />
+    <section class="admin-page">
+      <h1 class="page-title">New Post</h1>
+      <form
+        method="post"
+        action={routes.admin.newPost()}
+        enctype="multipart/form-data"
+        class="composer"
+      >
+        <input type="hidden" name="post_id" value={values.id} />
         <CaptionInput value={values.caption} />
         <ComposerIssues issues={props.issues} />
         <ComposerMedia {...props} />
         <div class="composer-bar">
-          <ComposerTools values={values} />
-          <CityInput value={values.city} />
-          <DraftNote state={props.draft} />
-          <PostButton />
+          <ComposerTools />
+          <button type="submit" class="button post-button" data-attr:disabled="$_uploading">
+            Post
+          </button>
         </div>
-      </ComposerForm>
+      </form>
       <section aria-labelledby="preview-heading" class="composer-preview">
         <h2 id="preview-heading">Preview</h2>
         <div id={COMPOSER_IDS.preview} class="feed">
           <ComposerPreview {...props} />
         </div>
       </section>
-      <DiscardDialog id={values.id} />
     </section>
   )
 }
 
-const DISCARD_DIALOG = 'discard-post'
-
-// Discarding the post: a dialog to confirm, outside the composer, since forms can't nest. It stays
-// open when another tab's change is morphed in.
-function DiscardDialog(props: { id: string }): Html {
+// Grows with what's typed (see .composer-text), like X's. While typing, the preview follows at
+// most every 100 ms, and once more after the last keystroke; a newer preview cancels one still on
+// its way. A modifier's dot can't be in a JSX attribute's name, so the handler is spread in.
+function CaptionInput(props: { value: string }): Html {
   return (
-    <dialog
-      id={DISCARD_DIALOG}
-      aria-labelledby={`${DISCARD_DIALOG}-title`}
-      class="dialog"
-      data-preserve-attr="open"
+    // A textarea drops a newline right after its start tag, so one goes there, and a value that
+    // starts with a newline keeps it.
+    <textarea
+      name="caption"
+      rows={3}
+      aria-label="Caption"
+      placeholder="What’s happening?"
+      autofocus
+      class="composer-text"
+      {...{ 'data-on:input__throttle.100ms.trailing': `$_uploading || ${PREVIEW}` }}
     >
-      <form method="post" action={routes.admin.discardNewPost()}>
-        <input type="hidden" name="post_id" value={props.id} />
-        <h2 id={`${DISCARD_DIALOG}-title`} class="dialog-title">
-          Discard this post?
-        </h2>
-        <p>What you’ve written is cleared, and the media you’ve added is deleted.</p>
-        <div class="actions">
-          <button type="submit" class="destructive-button">
-            Discard
-          </button>
-          <button
-            type="button"
-            command="close"
-            commandfor={DISCARD_DIALOG}
-            autofocus
-            class="secondary-button"
-          >
-            Keep writing
-          </button>
-        </div>
-      </form>
-    </dialog>
+      {`\n${props.value}`}
+    </textarea>
   )
 }
 
-// Why the post wasn't published, or why files weren't added. Once the post is published,
-// `redirect` sends the browser to it; `clearFiles` empties the file inputs, when what was chosen
-// was too big to send; and `refresh` updates the preview, once the media is re-rendered. That's
-// here rather than in the media, so a composer sent from another tab's change doesn't post its
-// preview, which would save the draft back.
-export function ComposerIssues(props: {
-  issues?: readonly PostIssue[] | undefined
-  redirect?: string | undefined
-  clearFiles?: boolean | undefined
-  refresh?: boolean | undefined
-}): Html {
-  let { issues = [], redirect, clearFiles, refresh } = props
+// Why the post wasn't published, or why files weren't added.
+export function ComposerIssues(props: { issues?: readonly PostIssue[] | undefined }): Html {
+  let { issues = [] } = props
   return (
-    <div id={COMPOSER_IDS.issues} class="composer-issues">
+    <div id={COMPOSER_IDS.issues}>
       {issues.length > 0 ? (
         <div role="alert" class="alert">
           <ul>
@@ -185,49 +109,24 @@ export function ComposerIssues(props: {
           </ul>
         </div>
       ) : null}
-      {redirect ? <Redirect href={redirect} /> : null}
-      {clearFiles ? <ClearFiles /> : null}
-      {refresh ? <PreviewRefresh /> : null}
     </div>
-  )
-}
-
-// Only an acknowledged save makes the submitted values the fields' defaults (see SavedDefaults).
-export function DraftNote(props: { state: DraftState; values?: ComposeValues | undefined }): Html {
-  let text = { saved: 'Saved', refused: 'Not saved' }
-  let saved = props.state === 'saved' ? props.values : undefined
-  return (
-    <span id={COMPOSER_IDS.draft} role="status" class="muted draft-note">
-      {saved ? <SavedDefaults id={saved.id} values={composeTextValues(saved)} /> : null}
-      {props.state ? text[props.state] : ''}
-    </span>
   )
 }
 
 // The post's media with buttons to remove each, and the hidden fields that hold it.
 export function ComposerMedia(props: ComposerProps): Html {
-  let { values, post, articleFiles = [] } = props
-  let { article } = values
+  let { values, post } = props
   return (
     <div id={COMPOSER_IDS.media} class="composer-media">
       {post.type === 'photos' ? <PhotoTiles photos={post.photos} files={values.photos} /> : null}
       {post.type === 'video' && values.video ? (
         <VideoTile video={post.video} file={values.video} poster={values.poster} />
       ) : null}
-      {post.type === 'article' && article ? (
-        <ArticleTile
-          article={article}
-          cover={post.article.cover}
-          coverFile={values.cover}
-          files={articleFiles}
-        />
-      ) : null}
       {values.photos.map((file) => (
         <input type="hidden" name="photo" value={file} />
       ))}
       {values.video ? <input type="hidden" name="video" value={values.video} /> : null}
       {values.poster ? <input type="hidden" name="poster" value={values.poster} /> : null}
-      {values.cover ? <input type="hidden" name="cover" value={values.cover} /> : null}
     </div>
   )
 }
@@ -253,7 +152,7 @@ function PhotoTiles(props: {
               width={photo.width}
               height={photo.height}
             />
-            <RemoveMediaButton file={file} label={`Remove ${file}`} />
+            <RemoveButton file={file} label={`Remove ${file}`} />
           </div>
         )
       })}
@@ -275,163 +174,101 @@ function VideoTile(props: { video: Video; file: string; poster?: string | undefi
           playsinline
           preload="metadata"
         />
-        <RemoveMediaButton file={file} label={`Remove ${file}`} />
+        <RemoveButton file={file} label={`Remove ${file}`} />
       </div>
       {poster ? (
         <p class="muted attachment-note">
-          Poster image: {poster} <RemoveMediaButton file={poster} label="Remove it" text />
+          Poster image: {poster} <RemoveButton file={poster} label="Remove it" text />
         </p>
       ) : (
         <p class="muted attachment-note">
           Without a poster image, phones show a black box until the video plays. Add one with the
-          image button.
+          photo button.
         </p>
       )}
     </div>
   )
 }
 
-// The article's title and summary to edit, where its body came from, and the files the body uses,
-// which are uploaded under their own names, as the body names them.
-function ArticleTile(props: {
-  article: ArticleValues
-  cover?: Photo | undefined
-  coverFile?: string | undefined
-  files: readonly { name: string; uploaded: boolean }[]
-}): Html {
-  let { article, cover, coverFile, files } = props
-  let words = article.body.split(/\s+/).filter(Boolean).length
-  let missing = files.filter((file) => !file.uploaded).length
+// Takes one file out of the post: a round × over its tile, or with `text`, the label as a link.
+// It needs Datastar; without it, media can only be added.
+function RemoveButton(props: { file: string; label: string; text?: boolean | undefined }): Html {
+  let { file, label, text } = props
   return (
-    <div class="attachments" data-count="1">
-      <div class="attachment article-attachment">
-        {cover ? (
-          <img
-            src={cover.src}
-            srcset={cover.srcset}
-            sizes={cover.srcset ? FULL_WIDTH_IMAGE_SIZES : undefined}
-            alt={cover.alt}
-            width={cover.width}
-            height={cover.height}
-            class="article-attachment-cover"
-          />
-        ) : null}
-        <div class="article-attachment-fields">
-          <ArticleTextInput
-            name="article_title"
-            value={article.title}
-            label="Title"
-            class="article-title-input"
-          />
-          <ArticleTextInput
-            name="article_summary"
-            value={article.summary}
-            label="Summary (optional)"
-            class="article-summary-input"
-          />
-          <p class="muted">
-            {article.source ? `From ${article.source} · ` : ''}
-            {words === 1 ? '1 word' : `${words} words`}
-          </p>
-          {files.length > 0 ? (
-            <p class="muted">
-              Uses{' '}
-              {files.map((file, index) => (
-                <>
-                  {index > 0 ? ', ' : ''}
-                  <span class={file.uploaded ? undefined : 'missing-file'}>{file.name}</span>
-                </>
-              ))}
-              {missing === 0
-                ? '. '
-                : ` (${missing === 1 ? 'one isn’t' : `${missing} aren’t`} uploaded yet). `}
-              <MediaPicker
-                label="Upload files"
-                name="article_files"
-                accept="image/*,video/*"
-                multiple
-                text
-              />
-            </p>
-          ) : null}
-        </div>
-        <RemoveMediaButton label="Remove the article" />
-      </div>
-      {coverFile ? (
-        <p class="muted attachment-note">
-          Cover image: {coverFile} <RemoveMediaButton file={coverFile} label="Remove it" text />
-        </p>
-      ) : (
-        <p class="muted attachment-note">Add a cover image with the image button.</p>
-      )}
-      {/* The body and where it came from, sent back with every change. A textarea drops a newline
-          right after its start tag, so one goes there. */}
-      <textarea hidden name="article_body">
-        {`\n${article.body}`}
-      </textarea>
-      <input type="hidden" name="article_source" value={article.source} />
-    </div>
+    <button
+      type="button"
+      name="remove"
+      value={file}
+      aria-label={text ? undefined : label}
+      title={text ? undefined : label}
+      class={text ? 'link-button' : 'remove-button'}
+      data-on:click={UPDATE_MEDIA}
+      data-indicator:_uploading
+    >
+      {text ? label : <CloseIcon />}
+    </button>
   )
 }
 
-// The buttons that add media. A post has one kind: with a video, the image button adds its
-// poster, and with an article, its cover.
-export function ComposerTools(props: { values: ComposeValues }): Html {
-  let { photos, video, poster, article, cover } = props.values
-  let image = video
-    ? { name: 'poster_upload', label: poster ? 'Change the poster image' : 'Add a poster image' }
-    : article
-      ? { name: 'cover_upload', label: cover ? 'Change the cover image' : 'Add a cover image' }
-      : { name: 'photo_uploads', label: 'Add photos' }
+// The buttons that add media. They're the same for every post, so they can always be sent again
+// to empty their file inputs: with a video, the photo button adds its poster, and the video
+// button replaces it.
+export function ComposerTools(): Html {
   return (
     <div id={COMPOSER_IDS.tools} class="composer-tools">
-      <MediaPicker
-        label={image.label}
-        name={image.name}
-        accept="image/*"
-        multiple={image.name === 'photo_uploads'}
-      >
+      <MediaPicker label="Add photos" name="image_uploads" accept="image/*" multiple>
         <ImageIcon />
       </MediaPicker>
-      <MediaPicker
-        label={video ? 'Replace the video' : 'Add a video'}
-        name="video_upload"
-        accept="video/*"
-        disabled={photos.length > 0 || article !== undefined}
-      >
+      <MediaPicker label="Add a video" name="video_upload" accept="video/*">
         <VideoIcon />
       </MediaPicker>
-      <MediaPicker
-        label={article ? 'Replace the article' : 'Add an article from a Markdown file'}
-        name="article_upload"
-        accept=".md,.txt,text/markdown,text/plain"
-        disabled={photos.length > 0 || video !== undefined}
-      >
-        <MarkdownIcon />
-      </MediaPicker>
-      <UploadingNote />
+      <span role="status" hidden class="uploading muted" data-attr:hidden="!$_uploading">
+        <span class="spinner" aria-hidden="true" />
+        Uploading…
+      </span>
     </div>
   )
 }
 
-// The post as the feed will show it, and an article as its own page will.
+// An icon button that chooses files, which are uploaded right away.
+function MediaPicker(props: {
+  label: string
+  name: string
+  accept: string
+  multiple?: boolean | undefined
+  children: Child
+}): Html {
+  let { label, name, accept, multiple, children } = props
+  return (
+    <Tooltip label={label}>
+      <label class="tool-button">
+        {children}
+        <input
+          type="file"
+          name={name}
+          accept={accept}
+          multiple={multiple}
+          aria-label={label}
+          class="visually-hidden"
+          data-on:change={UPDATE_MEDIA}
+          data-indicator:_uploading
+        />
+      </label>
+    </Tooltip>
+  )
+}
+
+// The post as the feed will show it.
 export function ComposerPreview(props: ComposerProps): Html {
-  let { post, linkPreview, articleHtml, siteUrl } = props
+  let { post, linkPreview, siteUrl } = props
   if (post.type === 'text' && !post.captionHtml) {
     return <p class="muted composer-empty">Your post shows here as you write it.</p>
   }
   return (
-    <>
-      <article class="feed-post">
-        <PostMeta post={post} siteUrl={siteUrl} />
-        {post.captionHtml ? <Caption html={post.captionHtml} /> : null}
-        <PostMedia post={post} preview={linkPreview} />
-      </article>
-      {post.type === 'article' ? (
-        <div class="composer-article">
-          <PostPage post={post} siteUrl={siteUrl} articleHtml={articleHtml} />
-        </div>
-      ) : null}
-    </>
+    <article class="feed-post">
+      <PostMeta post={post} siteUrl={siteUrl} />
+      {post.captionHtml ? <Caption html={post.captionHtml} /> : null}
+      <PostMedia post={post} preview={linkPreview} />
+    </article>
   )
 }
