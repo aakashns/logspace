@@ -1,26 +1,37 @@
 import type { Html } from '#jsx/jsx-runtime'
 
-import type { SiteConfig } from '../domain/site.ts'
+import type { SiteConfig, SiteImage } from '../domain/site.ts'
 import { getSiteImageHref } from '../queries/site-files.ts'
 
-// The site's logo, uploaded at /admin/config, or its title without one. The logo is a mask
-// filled with the text color, so it follows the theme like text does; it's sized by its height.
+// The site's logo for each theme, uploaded at /admin/config, or its title without one; sized by its
+// height. Each theme shows its own logo, or the other theme's if it has none. They're images in the
+// page, not CSS, so the browser fetches them as soon as it reads the HTML, alongside the banner.
 export function SiteLogo(props: { site: SiteConfig; height: string }): Html {
-  let { logo, siteTitle } = props.site
-  if (!logo) {
+  let { siteTitle } = props.site
+  let light = props.site.logo ?? props.site.darkLogo
+  let dark = props.site.darkLogo ?? props.site.logo
+  if (!light || !dark) {
     return (
       <span class="site-title" style={`font-size: ${props.height}`}>
         {siteTitle}
       </span>
     )
   }
-  let url = JSON.stringify(getSiteImageHref(logo))
-  return (
-    <span
-      role="img"
-      aria-label={siteTitle}
-      class="site-logo"
-      style={`height: ${props.height}; aspect-ratio: ${logo.width} / ${logo.height}; mask-image: url(${url})`}
+  let logo = (image: SiteImage, theme?: string) => (
+    <img
+      src={getSiteImageHref(image)}
+      alt={siteTitle}
+      width={image.width}
+      height={image.height}
+      class={theme ? `site-logo ${theme}` : 'site-logo'}
+      style={`height: ${props.height}`}
     />
+  )
+  if (light === dark) return logo(light)
+  return (
+    <>
+      {logo(light, 'in-light-theme')}
+      {logo(dark, 'in-dark-theme')}
+    </>
   )
 }

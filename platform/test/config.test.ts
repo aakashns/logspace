@@ -223,18 +223,19 @@ describe('the site’s images', () => {
     let savedLogo = defined(saved.logo, 'the logo')
     let icon = defined(saved.icon, 'the icon')
     let bannerImage = defined(saved.bannerImage, 'the banner image')
+    // Shrunk to a few times its height in the navbar.
     expect({ ...savedLogo, version: undefined }).toEqual({
-      file: 'logo.png',
-      width: 640,
-      height: 160,
+      file: 'logo.webp',
+      width: 256,
+      height: 64,
       version: undefined,
     })
     expect(icon.file).toBe('icon-512.png')
     expect([bannerImage.file, bannerImage.width]).toEqual(['banner.jpg', 1200])
 
-    let logoFile = await app.fetch('/site/logo.png')
-    expect(logoFile.headers.get('Content-Type')).toBe('image/png')
-    expect(await imageSize(logoFile)).toEqual({ width: 640, height: 160, format: 'png' })
+    let logoFile = await app.fetch('/site/logo.webp')
+    expect(logoFile.headers.get('Content-Type')).toBe('image/webp')
+    expect(await imageSize(logoFile)).toEqual({ width: 256, height: 64, format: 'webp' })
     expect(await (await app.fetch('/favicon.ico')).bytes()).not.toEqual(defaultFavicon)
     expect(await imageSize(await app.fetch('/site/banner.jpg'))).toEqual({
       width: 1200,
@@ -243,10 +244,9 @@ describe('the site’s images', () => {
     })
 
     let html = await (await app.fetch('/')).text()
-    expect(html).toMatch(
-      new RegExp(
-        `<span role="img" aria-label="Test Site"[^>]*mask-image: url\\(&quot;/site/logo\\.png\\?v=${savedLogo.version}&quot;\\)`,
-      ),
+    // Without a dark theme logo, the logo is in both themes.
+    expect(html).toContain(
+      `<a href="/" class="navbar-title"><img src="/site/logo.webp?v=${savedLogo.version}" alt="Test Site" width="256" height="64" class="site-logo" style="height: 1.2rem"></a>`,
     )
     expect(html).toContain(
       `<meta property="og:image" content="https://example.com/site/banner.jpg?v=${bannerImage.version}">`,
@@ -280,7 +280,7 @@ describe('the site’s images', () => {
     for (let url of [
       `/site/banner.jpg?w=801&v=${v}`,
       `/site/banner.jpg?w=800&v=000000000000`,
-      `/site/logo.png?w=800&v=${savedLogo.version}`,
+      `/site/logo.webp?w=800&v=${savedLogo.version}`,
     ]) {
       expect((await app.fetch(url)).status).toBe(404)
     }
@@ -298,7 +298,7 @@ describe('the site’s images', () => {
     expect(copies).toEqual([])
 
     let removed = imageForm({})
-    for (let kind of ['logo', 'icon', 'bannerImage']) removed.set(`${kind}Remove`, 'on')
+    for (let kind of ['logo', 'darkLogo', 'icon', 'bannerImage']) removed.set(`${kind}Remove`, 'on')
     expect((await save(removed)).status).toBe(303)
     let config = await savedConfig()
     expect([config.logo, config.icon, config.bannerImage]).toEqual([
@@ -306,8 +306,45 @@ describe('the site’s images', () => {
       undefined,
       undefined,
     ])
-    expect((await app.fetch('/site/logo.png')).status).toBe(404)
+    expect((await app.fetch('/site/logo.webp')).status).toBe(404)
     expect(await (await app.fetch('/favicon.ico')).bytes()).toEqual(defaultFavicon)
+  })
+
+  it('shows each theme its own logo, or the other theme’s', async () => {
+    let navbar = async () =>
+      capture(await (await app.fetch('/')).text(), /class="navbar-title">(.*?)<\/a>/)
+
+    // A dark theme logo by itself is in both themes too.
+    expect((await save(imageForm({ darkLogo: await png(400, 100) }))).status).toBe(303)
+    let darkLogo = defined((await savedConfig()).darkLogo, 'the dark theme logo')
+    expect([darkLogo.file, darkLogo.width, darkLogo.height]).toEqual(['dark-logo.webp', 256, 64])
+    expect(await navbar()).toBe(
+      `<img src="/site/dark-logo.webp?v=${darkLogo.version}" alt="Test Site" width="256" height="64" class="site-logo" style="height: 1.2rem">`,
+    )
+
+    // A logo smaller than the navbar needs is kept as it is.
+    expect((await save(imageForm({ logo: await png(120, 40) }))).status).toBe(303)
+    let logo = defined((await savedConfig()).logo, 'the logo')
+    expect([logo.width, logo.height]).toEqual([120, 40])
+    expect(await navbar()).toBe(
+      `<img src="/site/logo.webp?v=${logo.version}" alt="Test Site" width="120" height="40" class="site-logo in-light-theme" style="height: 1.2rem">` +
+        `<img src="/site/dark-logo.webp?v=${darkLogo.version}" alt="Test Site" width="256" height="64" class="site-logo in-dark-theme" style="height: 1.2rem">`,
+    )
+    let config = await (await app.adminFetch('/admin/config')).text()
+    expect(config).toContain(
+      `<div class="image-preview checkered light-preview"><img src="/site/logo.webp?v=${logo.version}"`,
+    )
+    expect(config).toContain(
+      `<div class="image-preview checkered dark-preview"><img src="/site/dark-logo.webp?v=${darkLogo.version}"`,
+    )
+
+    let removed = imageForm({})
+    removed.set('darkLogoRemove', 'on')
+    expect((await save(removed)).status).toBe(303)
+    expect((await app.fetch('/site/dark-logo.webp')).status).toBe(404)
+    expect(await navbar()).toBe(
+      `<img src="/site/logo.webp?v=${logo.version}" alt="Test Site" width="120" height="40" class="site-logo" style="height: 1.2rem">`,
+    )
   })
 
   it('makes the icon’s files from a square upload, and names the web app’s color', async () => {

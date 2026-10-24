@@ -1,4 +1,4 @@
-// Everything done with Bun.Image: reading and resizing posts' photos, and turning the site's logo,
+// Everything done with Bun.Image: reading and resizing posts' photos, and turning the site's logos,
 // icon, and banner image into the files the site serves. Bun.Image does its work on a
 // worker thread, so a big photo's resize doesn't hold up other requests.
 import { readFileSync } from 'node:fs'
@@ -94,8 +94,10 @@ export class Images extends Context.Service<
   )
 }
 
-// The logo is drawn this many pixels high, several times its height in the navbar.
-const LOGO_HEIGHT = 160
+// The logos are made this many pixels high: over three times their height in the navbar (1.2rem),
+// for the sharpest screens, and twice that of their previews at /admin/config (2rem). Any bigger
+// and the navbar's logo is a download that holds up the page's first full paint.
+const LOGO_HEIGHT = 64
 // The icon is at least this many pixels square.
 const ICON_SIZE = 512
 // The banner image is at most this wide, the width link previews are made for. The home page
@@ -106,6 +108,7 @@ const BANNER_WIDTH = 1200
 // be served from the site's own origin anyway: they can run scripts.
 const FORMATS: Record<SiteImageKind, readonly string[]> = {
   logo: ['png', 'jpeg', 'webp'],
+  darkLogo: ['png', 'jpeg', 'webp'],
   icon: ['png', 'jpeg', 'webp'],
   bannerImage: ['png', 'jpeg'],
 }
@@ -117,13 +120,15 @@ const DEFAULT_ICON_COLOR = '#161616'
 const processSiteImage = Effect.fnUntraced(function* (kind: SiteImageKind, bytes: Uint8Array) {
   let { format, width, height } = yield* inspect(kind, bytes)
   switch (kind) {
-    case 'logo': {
-      // Shown in the navbar as a mask filled with the text color, so it follows the theme.
+    case 'logo':
+    case 'darkLogo': {
+      // Lossless WebP, a little over half the size of Bun's PNG, keeps a logo's edges sharp.
       let image = new Bun.Image(bytes)
       if (height > LOGO_HEIGHT) {
         image.resize(Math.round((width * LOGO_HEIGHT) / height), LOGO_HEIGHT)
       }
-      return yield* single('logo.png', yield* decode(() => image.png().bytes()))
+      let name = kind === 'logo' ? 'logo.webp' : 'dark-logo.webp'
+      return yield* single(name, yield* decode(() => image.webp({ lossless: true }).bytes()))
     }
     case 'icon':
       if (width !== height || width < ICON_SIZE) {
@@ -216,7 +221,11 @@ const single = (name: string, bytes: Uint8Array) =>
         {
           name,
           bytes: new Uint8Array(bytes),
-          type: name.endsWith('.png') ? 'image/png' : 'image/jpeg',
+          type: name.endsWith('.png')
+            ? 'image/png'
+            : name.endsWith('.webp')
+              ? 'image/webp'
+              : 'image/jpeg',
         },
       ],
     })),

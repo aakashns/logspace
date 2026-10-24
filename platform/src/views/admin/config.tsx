@@ -3,13 +3,13 @@ import type { Child, Html } from '#jsx/jsx-runtime'
 import type {
   SiteConfig,
   SiteConfigIssue,
+  SiteImage,
   SiteImageKind,
   SiteImages,
   SiteText,
 } from '../../domain/site.ts'
 import { getIconHref, getSiteImageHref } from '../../queries/site-files.ts'
 import { routes } from '../../routes.ts'
-import { SiteLogo } from '../site-logo.tsx'
 import { Field, TextareaField, TextField } from './fields.tsx'
 
 export interface ConfigPageProps {
@@ -30,6 +30,7 @@ const LABELS: Record<keyof SiteConfig, string> = {
   heroHeading: 'Home page heading',
   heroSubheading: 'Home page subheading',
   logo: 'Logo',
+  darkLogo: 'Dark theme logo',
   icon: 'Icon',
   bannerImage: 'Banner image',
   bannerImageAlt: 'Banner image alt text',
@@ -107,9 +108,19 @@ export function ConfigPage(props: ConfigPageProps): Html {
           kind="logo"
           label={LABELS.logo}
           invalid={invalid('logo')}
-          hint="Shown in the navbar instead of the site title, in the text color, so use one color on a transparent background. A PNG is best."
-          preview={images.logo ? <SiteLogo site={site} height="2rem" /> : null}
+          hint="Shown in the navbar instead of the site title, and in the dark theme too if there’s no dark theme logo. Use a transparent background; a PNG is best."
+          preview={images.logo ? <LogoPreview image={images.logo} /> : null}
           checkered
+          theme="light"
+        />
+        <ImageField
+          kind="darkLogo"
+          label={LABELS.darkLogo}
+          invalid={invalid('darkLogo')}
+          hint="The logo for the dark theme, like a lighter version of it. Without one, the dark theme shows the logo."
+          preview={images.darkLogo ? <LogoPreview image={images.darkLogo} /> : null}
+          checkered
+          theme="dark"
         />
         <ImageField
           kind="icon"
@@ -157,6 +168,19 @@ export function ConfigPage(props: ConfigPageProps): Html {
   )
 }
 
+function LogoPreview(props: { image: SiteImage }): Html {
+  let { image } = props
+  return (
+    <img
+      src={getSiteImageHref(image)}
+      alt=""
+      width={image.width}
+      height={image.height}
+      class="logo-preview"
+    />
+  )
+}
+
 // One of the site's images: what it is now, a file input named after it to upload a new one, and
 // a checkbox, `<kind>Remove`, to go back to having none (or, for the icon, the default one).
 function ImageField(props: {
@@ -167,15 +191,30 @@ function ImageField(props: {
   preview: Child
   // Shows the preview on a checkerboard, so its transparent parts can be seen.
   checkered?: boolean | undefined
+  // The theme a logo's preview is shown in, whichever one the page is in.
+  theme?: 'light' | 'dark' | undefined
   // Defaults to whether there's a preview.
   removable?: boolean | undefined
 }): Html {
-  let { kind, label, hint, invalid, preview, checkered, removable = preview !== null } = props
+  let {
+    kind,
+    label,
+    hint,
+    invalid,
+    preview,
+    checkered,
+    theme,
+    removable = preview !== null,
+  } = props
   let id = `config-${kind}`
   return (
     <Field label={label} for={id} hint={hint}>
       {preview !== null ? (
-        <div class={checkered ? 'image-preview checkered' : 'image-preview'}>{preview}</div>
+        <div
+          class={`image-preview${checkered ? ' checkered' : ''}${theme ? ` ${theme}-preview` : ''}`}
+        >
+          {preview}
+        </div>
       ) : null}
       <input
         id={id}

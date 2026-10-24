@@ -75,7 +75,7 @@ Each is an Effect service (`Context.Service`) with a `layer` that builds it.
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `database.ts`      | The SQLite connection (`@effect/sql-sqlite-bun`, in WAL mode) and the migrations, which write the same journal LogSpace 0.1 (the Remix version) did, so its databases upgrade in place                        |
 | `media-storage.ts` | Uploaded files as plain files under `MEDIA_DIR` (`posts/<id>/<file>`, `variants/…`, `site/…`, `link-images/…`), written atomically with `Bun.write` and served straight from disk; or in memory for the tests |
-| `images.ts`        | Everything Bun.Image does: reading and resizing photos, and making the logo, icons, and banner image                                                                                                          |
+| `images.ts`        | Everything Bun.Image does: reading and resizing photos, and making the logos, icons, and banner image                                                                                                         |
 | `draft-changes.ts` | Word that the composer's draft changed, and which tab changed it, for every open composer to follow (kept in memory; the draft is in the database)                                                            |
 
 ### 4. Writes: `src/commands/`

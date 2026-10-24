@@ -28,8 +28,9 @@
     justify-content: space-between;
   }
 
+  /* A flex box, so its logos are blocks that the theme classes below can still hide. */
   .navbar-title {
-    display: block;
+    display: flex;
     min-width: 0;
   }
 
@@ -45,13 +46,12 @@
     padding-inline: 1rem;
   }
 
-  /* The site's logo (a mask filled with the text color, so it follows the theme), or its title. */
+  /* The site's logo for the theme (sized by its height), or its title. */
   .site-logo {
-    display: block;
-    background-color: currentColor;
-    mask-size: contain;
-    mask-repeat: no-repeat;
-    mask-position: left center;
+    width: auto;
+    max-width: 100%;
+    object-fit: contain;
+    object-position: left center;
   }
 
   .site-title {

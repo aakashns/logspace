@@ -1,5 +1,5 @@
 // Where uploaded media is kept: posts' photos, videos, and posters under posts/<id>/<file>, their
-// resized copies under variants/<id>/<file>/<width>-<version>.webp, the site's logo, icon, and
+// resized copies under variants/<id>/<file>/<width>-<version>.webp, the site's logos, icon, and
 // banner image under site/<file>, the banner's resized copies under site-variants/<file>/, and
 // link previews' images under link-images/<version>-<width>.webp. Keys are always built from a
 // checked post id and file name (see isPostFileName in domain/post.ts), a site image's file
