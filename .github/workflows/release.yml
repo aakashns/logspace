@@ -1,13 +1,18 @@
 # Checks the app and builds the logspace binary for each platform, testing each on its own runner.
-# Every PR bumps platform/package.json's version (see platform/scripts/check-version.ts), and
-# merging it to main publishes the binaries as that version's GitHub release, which
-# `logspace upgrade` installs.
+# A PR that changes what goes into the binary bumps platform/package.json's version, and others
+# leave it be (see platform/scripts/check-version.ts). Merging a bump to main publishes the binaries
+# as that version's GitHub release, which `logspace upgrade` installs; pushes to main that don't
+# bump it skip everything.
 name: Release
 
 on:
   push:
     branches: [main]
+    # A bump changes package.json; the version job checks it was the version that changed.
+    paths: [platform/package.json]
   pull_request:
+    paths: [platform/**, '!platform/**/*.md', .github/workflows/release.yml]
+  # Builds and releases the version, if it isn't released already.
   workflow_dispatch:
 
 permissions:
@@ -25,10 +30,13 @@ defaults:
     working-directory: platform
 
 jobs:
-  check:
+  # Decides what to run: a PR is checked against its base, and a push against main before it.
+  version:
     runs-on: ubuntu-24.04
     outputs:
       version: ${{ steps.version.outputs.version }}
+      release: ${{ steps.version.outputs.release }}
+      build: ${{ steps.version.outputs.build }}
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
@@ -37,15 +45,26 @@ jobs:
       - name: Check the version
         id: version
         env:
-          BASE_REF: ${{ github.base_ref }}
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+        # With the version job's shell, a pipe fails if any part does.
+        shell: bash
         run: |
-          if [[ -n "$BASE_REF" ]]; then
-            git fetch --depth=1 origin "$BASE_REF"
-            version="$(bun scripts/check-version.ts "origin/$BASE_REF")"
+          if [[ -n "$BASE" ]]; then
+            git fetch --depth=1 origin "$BASE"
+            bun scripts/check-version.ts "$BASE" | tee -a "$GITHUB_OUTPUT"
           else
-            version="$(bun scripts/check-version.ts)"
+            bun scripts/check-version.ts | tee -a "$GITHUB_OUTPUT"
           fi
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  check:
+    needs: version
+    if: github.event_name == 'pull_request' || needs.version.outputs.release == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: platform/package.json
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
       - run: bun run lint
@@ -53,6 +72,8 @@ jobs:
       - run: bun run test
 
   build:
+    needs: version
+    if: needs.version.outputs.build == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -91,8 +112,8 @@ jobs:
           if-no-files-found: error
 
   release:
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-    needs: [check, build]
+    needs: [version, check, build]
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && needs.version.outputs.release == 'true'
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -105,7 +126,7 @@ jobs:
         working-directory: dist
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: v${{ needs.check.outputs.version }}
+          TAG: v${{ needs.version.outputs.version }}
         run: |
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
             echo "$TAG is released already"

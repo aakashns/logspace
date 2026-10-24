@@ -30,4 +30,4 @@ Tests use temporary data. The app is [Bun](https://bun.com), [Effect](https://ef
 
 ## Pull requests
 
-Explain the change, include relevant checks, and attach screenshots or recordings for UI changes. Keep evidence out of Git. Bump `platform/package.json` one version step: patch for compatible changes, minor for breaking changes before 1.0. CI checks this and publishes binaries when the PR merges to `main`.
+Explain the change, include relevant checks, and attach screenshots or recordings for UI changes. Keep evidence out of Git. If the change goes into the binary (`platform/src`, `db`, `public`, dependencies, or the build), bump `platform/package.json` one version step: patch for compatible changes, minor for breaking changes before 1.0. Otherwise leave the version alone. CI checks this and publishes binaries when a bump merges to `main`.

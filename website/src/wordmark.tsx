@@ -3,7 +3,7 @@
 // Filled with the text color. The box runs from y=-3 to 100; the baseline sits at y=78.3, with
 // the descenders below it.
 export function Wordmark() {
-  return () => (
+  return (
     <svg viewBox="0 -3 597.9 103" role="img" aria-label="LogSpace">
       <path
         fill="currentColor"

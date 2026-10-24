@@ -2,21 +2,19 @@
   "name": "logspace-website",
   "private": true,
   "type": "module",
+  "imports": {
+    "#jsx/*": "./src/jsx/*.ts"
+  },
   "scripts": {
-    "dev": "wrangler dev --port 8787",
-    "build": "wrangler deploy --dry-run --outdir dist",
-    "deploy": "wrangler deploy",
+    "dev": "bun --watch server.ts",
+    "build": "bun scripts/build.ts",
     "check": "bun check && bun fmt --check",
     "test": "playwright test",
     "demo": "bun scripts/record-demo.ts"
   },
-  "dependencies": {
-    "remix": "^3.0.0"
-  },
   "devDependencies": {
     "@playwright/test": "^1.64.0",
-    "@types/bun": "^1.4.3",
-    "wrangler": "^4.0.0"
+    "@types/bun": "^1.4.3"
   },
   "engines": {
     "bun": ">=1.4.4"

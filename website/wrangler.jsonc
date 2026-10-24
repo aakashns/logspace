@@ -1,0 +1,11 @@
+// Cloudflare Workers Builds runs `bun run build`, then `wrangler deploy`, which serves dist/ as
+// static assets: no Worker code, and 404.html for paths without a file.
+{
+  "$schema": "https://unpkg.com/wrangler/config-schema.json",
+  "name": "logspace",
+  "compatibility_date": "2026-10-24",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "404-page",
+  },
+}

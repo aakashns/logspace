@@ -8,13 +8,14 @@
     "types": ["bun"],
     "allowImportingTsExtensions": true,
     "skipLibCheck": true,
+    "noEmit": true,
     "jsx": "react-jsx",
-    "jsxImportSource": "remix/component",
-    "noEmit": true
+    "jsxImportSource": "#jsx"
   },
   "include": [
-    "app/**/*",
-    "worker.ts",
+    "src/**/*",
+    "scripts/build.ts",
+    "server.ts",
     "tests/**/*",
     "playwright.config.ts",
     "scripts/record-demo.ts"

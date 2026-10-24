@@ -30,8 +30,10 @@ bun run count-lines
 
 ## Rules
 
-- Every PR bumps `version` in `package.json` one step (CI checks), and merging it to main releases
-  that version. Below 1.0, bump the minor version for breaking changes (like to the binary's
+- A PR that changes what goes into the binary (`src/`, `db/`, `public/`, dependencies, the build)
+  bumps `version` in `package.json` one step, and merging it to main releases that version; other
+  PRs (tests, docs, scripts, the website) leave it be. CI checks both (`scripts/check-version.ts`
+  lists what counts). Below 1.0, bump the minor version for breaking changes (like to the binary's
   commands or environment variables, or what `setup` installs) and the patch version for others
 - Scripts are TypeScript, run with Bun, and any that run on a server go in the binary as commands
   (servers have no Bun). The exception is `../website/public/install.sh`, which runs before
