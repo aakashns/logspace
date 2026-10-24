@@ -603,7 +603,11 @@ describe('the composer', () => {
     expect((await app.fetch(`/posts/${id}/image-2.jpg`)).status).toBe(404)
   })
 
-  it('removes media, and a video’s poster with it', async () => {
+  it('removes media, and a video’s poster with it, and deletes their files', async () => {
+    let id = 'composer03'
+    for (let name of ['a.jpg', 'b.jpg', 'clip.mp4', 'clip.jpg']) {
+      await savePostFile(id, name, Bun.file('test/content/posts/drdp3ei6fd/hike-1.jpg'))
+    }
     let photos = await (
       await composerPost('/admin/posts/new/media', [
         ['post_id', 'composer03'],
@@ -624,6 +628,10 @@ describe('the composer', () => {
       ])
     ).text()
     expect(video).not.toMatch(/name="(video|poster)"/)
+    expect(await hasPostFile(id, 'a.jpg')).toBe(false)
+    expect(await hasPostFile(id, 'b.jpg')).toBe(true)
+    expect(await hasPostFile(id, 'clip.mp4')).toBe(false)
+    expect(await hasPostFile(id, 'clip.jpg')).toBe(false)
   })
 
   it('takes photos or a video, not both', async () => {

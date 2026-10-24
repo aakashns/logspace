@@ -69,12 +69,12 @@ const composePage = (values: ComposeValues, issues?: readonly PostIssue[]) =>
 export const compose = loggedIn(() => composePage({ id: newPostId(), caption: '', photos: [] }))
 
 // Files chosen are saved right away, and the media and preview are shown with them. The toolbar
-// is sent again too, so its file inputs start empty. A file taken out is left in storage,
-// unserved, as is everything uploaded for a post that's never posted.
+// is sent again too, so its file inputs start empty. A file taken out is deleted (a video with its
+// poster); everything uploaded for a post that's never posted is left in storage, unserved.
 export const updateComposerMedia = loggedIn(() =>
   Effect.gen(function* () {
-    let { values, uploads, issues } = readComposeForm(yield* readForm())
-    let rejected = yield* (yield* PostCommands).upload(values.id, uploads).pipe(
+    let { values, uploads, issues, removed } = readComposeForm(yield* readForm())
+    let rejected = yield* (yield* PostCommands).upload(values.id, uploads, removed).pipe(
       Effect.as([]),
       Effect.catchTag('PostRejected', (error) => Effect.succeed(error.issues)),
     )
