@@ -79,8 +79,8 @@ export function RssLink(): Html {
 // The navbar's link to the composer, on every page of a browser that's logged in as admin.
 export function ComposeLink(): Html {
   return (
-    <Tooltip label="Compose">
-      <a href={routes.admin.newPost()} aria-label="Compose" class="nav-button">
+    <Tooltip label="New Post">
+      <a href={routes.admin.newPost()} aria-label="New Post" class="nav-button">
         <ComposeIcon />
       </a>
     </Tooltip>

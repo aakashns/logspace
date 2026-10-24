@@ -1206,8 +1206,10 @@ describe('the composer', () => {
     expect(hint).toMatch(/Path=\/(;|$)/)
     let cookie = defined(hint?.split(';')[0], 'the admin cookie')
     let home = await (await app.fetch('/', { headers: { Cookie: cookie } })).text()
-    expect(home).toMatch(/<header[^]*href="\/admin\/posts\/new" aria-label="Compose"[^]*<\/header>/)
-    expect(await (await app.fetch('/')).text()).not.toContain('aria-label="Compose"')
+    expect(home).toMatch(
+      /<header[^]*href="\/admin\/posts\/new" aria-label="New Post"[^]*<\/header>/,
+    )
+    expect(await (await app.fetch('/')).text()).not.toContain('aria-label="New Post"')
     // Logging out clears it.
     let session = defined(app.sessionCookie(login), 'a session cookie')
     let logout = await app.fetch('/admin/logout', {
