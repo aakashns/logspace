@@ -8,6 +8,7 @@ import { THEME_COOKIE_NAME } from '../domain/constants.ts'
 import { SiteConfigQueries } from '../queries/site-config.ts'
 import type { PageContext } from '../views/document.tsx'
 import { Assets } from './assets.ts'
+import { ADMIN_HINT_COOKIE } from './session.ts'
 
 // The request's URL, as the browser sent it (with TRUST_PROXY, its protocol and host are the
 // ones the proxy forwarded, see middleware.ts).
@@ -27,6 +28,7 @@ export const pageContext = Effect.gen(function* () {
   return {
     site: yield* (yield* SiteConfigQueries).saved,
     theme: theme === 'light' || theme === 'dark' ? theme : undefined,
+    admin: request.cookies[ADMIN_HINT_COOKIE] === '1',
     nonce: crypto.getRandomValues(new Uint8Array(16)).toHex(),
     stylesheets: yield* assets.stylesheets,
     datastarHref: assets.datastarHref,

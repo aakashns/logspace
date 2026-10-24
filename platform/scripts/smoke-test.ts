@@ -81,16 +81,12 @@ try {
   let post = new FormData()
   for (let [name, value] of Object.entries({
     id: 'smoketest1',
-    type: 'photos',
-    date: '2026-10-23T10:00',
     offset: '+05:30',
     caption: 'Hello',
-    photo_file: '',
-    photo_alt: 'A photo',
   })) {
     post.set(name, value)
   }
-  post.set('photo_upload', Bun.file(photo), 'cover.jpg')
+  post.set('photo_uploads', Bun.file(photo), 'cover.jpg')
   let published = await fetch(`${base}/admin/posts/new`, {
     method: 'POST',
     headers: { Cookie: cookie },

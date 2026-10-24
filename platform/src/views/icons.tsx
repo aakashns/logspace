@@ -83,3 +83,55 @@ export function LogoutIcon(): Html {
     </svg>
   )
 }
+
+// From Phosphor Icons (https://phosphoricons.com, regular weight), © 2023 Phosphor Icons, MIT
+// licensed. They're drawn on a 256 × 256 grid, filled, with strokes as wide as the icons above.
+function PhosphorIcon(props: IconProps & { d: string }): Html {
+  return (
+    <svg viewBox="0 0 256 256" aria-hidden="true" class={props.class}>
+      <path d={props.d} fill="currentColor" />
+    </svg>
+  )
+}
+
+// Phosphor's plus-square, for writing a new post.
+export function ComposeIcon(): Html {
+  return (
+    <PhosphorIcon d="M208,32H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32Zm0,176H48V48H208V208Zm-32-80a8,8,0,0,1-8,8H136v32a8,8,0,0,1-16,0V136H88a8,8,0,0,1,0-16h32V88a8,8,0,0,1,16,0v32h32A8,8,0,0,1,176,128Z" />
+  )
+}
+
+// Phosphor's file-md, for adding an article from a Markdown file.
+export function MarkdownIcon(): Html {
+  return (
+    <PhosphorIcon d="M213.66,82.34l-56-56A8,8,0,0,0,152,24H56A16,16,0,0,0,40,40v72a8,8,0,0,0,16,0V40h88V88a8,8,0,0,0,8,8h48V224a8,8,0,0,0,16,0V88A8,8,0,0,0,213.66,82.34ZM160,51.31,188.69,80H160ZM144,144H128a8,8,0,0,0-8,8v56a8,8,0,0,0,8,8h16a36,36,0,0,0,0-72Zm0,56h-8V160h8a20,20,0,0,1,0,40Zm-40-48v56a8,8,0,0,1-16,0V177.38L74.55,196.59a8,8,0,0,1-13.1,0L48,177.38V208a8,8,0,0,1-16,0V152a8,8,0,0,1,14.55-4.59L68,178.05l21.45-30.64A8,8,0,0,1,104,152Z" />
+  )
+}
+
+// Phosphor's map-pin, for where a post was written.
+export function MapPinIcon(): Html {
+  return (
+    <PhosphorIcon d="M128,64a40,40,0,1,0,40,40A40,40,0,0,0,128,64Zm0,64a24,24,0,1,1,24-24A24,24,0,0,1,128,128Zm0-112a88.1,88.1,0,0,0-88,88c0,31.4,14.51,64.68,42,96.25a254.19,254.19,0,0,0,41.45,38.3,8,8,0,0,0,9.18,0A254.19,254.19,0,0,0,174,200.25c27.45-31.57,42-64.85,42-96.25A88.1,88.1,0,0,0,128,16Zm0,206c-16.53-13-72-60.75-72-118a72,72,0,0,1,144,0C200,161.23,144.53,209,128,222Z" />
+  )
+}
+
+// Phosphor's image.
+export function ImageIcon(): Html {
+  return (
+    <PhosphorIcon d="M216,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40Zm0,16V158.75l-26.07-26.06a16,16,0,0,0-22.63,0l-20,20-44-44a16,16,0,0,0-22.62,0L40,149.37V56ZM40,172l52-52,80,80H40Zm176,28H194.63l-36-36,20-20L216,181.38V200ZM144,100a12,12,0,1,1,12,12A12,12,0,0,1,144,100Z" />
+  )
+}
+
+// Phosphor's video-camera.
+export function VideoIcon(): Html {
+  return (
+    <PhosphorIcon d="M251.77,73a8,8,0,0,0-8.21.39L208,97.05V72a16,16,0,0,0-16-16H32A16,16,0,0,0,16,72V184a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V159l35.56,23.71A8,8,0,0,0,248,184a8,8,0,0,0,8-8V80A8,8,0,0,0,251.77,73ZM192,184H32V72H192V184Zm48-22.95-32-21.33V116.28L240,95Z" />
+  )
+}
+
+// Phosphor's x, for removing something.
+export function CloseIcon(): Html {
+  return (
+    <PhosphorIcon d="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z" />
+  )
+}

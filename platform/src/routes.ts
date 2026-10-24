@@ -22,7 +22,15 @@ export const routes = {
     login: () => '/admin/login',
     logout: () => '/admin/logout',
     config: () => '/admin/config',
+    // The composer, and what it posts to as you write: to add or remove media, and for the
+    // preview.
     newPost: () => '/admin/posts/new',
+    newPostMedia: () => '/admin/posts/new/media',
+    newPostPreview: () => '/admin/posts/new/preview',
+    discardNewPost: () => '/admin/posts/new/discard',
+    // One of a post's files, published or not, for the composer.
+    postFile: (id: string, file: string) =>
+      `/admin/posts/${encodeURIComponent(id)}/files/${encodeURIComponent(file)}`,
     editPost: (id: string) => `/admin/posts/${encodeURIComponent(id)}/edit`,
     deletePost: (id: string) => `/admin/posts/${encodeURIComponent(id)}/delete`,
   },

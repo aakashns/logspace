@@ -13,7 +13,8 @@ import {
 import { fromPostRow, toPostRow } from '../src/domain/post-rows.ts'
 import { isUploadableFileName, parsePostRecord, type PostRecord } from '../src/domain/post.ts'
 import { getPostMeta, toPost } from '../src/domain/presentation.ts'
-import { newPostDate, readPostForm } from '../src/domain/post-form.ts'
+import { composePost, readComposeForm, withArticleText } from '../src/domain/compose.ts'
+import { dateAtOffset, offsetOf, readPostForm } from '../src/domain/post-form.ts'
 import { formatPostDate } from '../src/domain/format.ts'
 
 const ID = 'fc7p7vjhx6'
@@ -287,14 +288,100 @@ describe('presentation', () => {
   })
 })
 
-describe('the post form', () => {
-  it('starts a new post now, at the newest post’s UTC offset', () => {
-    let now = Date.parse('2026-10-16T12:00:00Z')
-    expect(newPostDate('2026-10-01T09:00:00+05:30', now)).toBe('2026-10-16T17:30:00+05:30')
-    expect(newPostDate(undefined, now)).toBe('2026-10-16T12:00:00+00:00')
+describe('the composer', () => {
+  let form = (fields: [string, string | File][]) => {
+    let data = new FormData()
+    for (let [name, value] of fields) data.append(name, value)
+    return data
+  }
+
+  it('dates a post now, at a UTC offset', () => {
+    let now = Date.parse('2026-10-16T12:00:05Z')
+    expect(dateAtOffset(now, offsetOf('2026-10-01T09:00:00+05:30'))).toBe(
+      '2026-10-16T17:30:05+05:30',
+    )
+    expect(dateAtOffset(now, '-07:00')).toBe('2026-10-16T05:00:05-07:00')
+    expect(dateAtOffset(now, offsetOf(undefined))).toBe('2026-10-16T12:00:05+00:00')
   })
 
-  it('reads only the chosen type’s fields, and names uploads by their file names', () => {
+  it('makes a photos post with file names as alt text, renaming names already taken', () => {
+    let { values, uploads } = readComposeForm(
+      form([
+        ['id', ID],
+        ['caption', 'Hi\r\nthere'],
+        ['photo', 'image.jpg'],
+        ['photo_uploads', new File(['a'], 'image.jpg')],
+      ]),
+    )
+    expect(uploads.map((upload) => upload.name)).toEqual(['image-2.jpg'])
+    expect(composePost(values, DATE)).toEqual({
+      id: ID,
+      date: DATE,
+      type: 'photos',
+      caption: 'Hi\nthere',
+      photos: [
+        { file: 'image.jpg', alt: 'image.jpg' },
+        { file: 'image-2.jpg', alt: 'image-2.jpg' },
+      ],
+    })
+  })
+
+  it('takes one kind of media at a time', () => {
+    let { values, uploads, issues, articleFile } = readComposeForm(
+      form([
+        ['id', ID],
+        ['video', 'clip.mp4'],
+        ['photo_uploads', new File(['a'], 'a.jpg')],
+        ['article_upload', new File(['# A'], 'a.md')],
+      ]),
+    )
+    expect(values.photos).toEqual([])
+    expect(uploads).toEqual([])
+    expect(articleFile).toBeUndefined()
+    expect(issues).toHaveLength(2)
+    expect(issues[0]?.message).toMatch(/photos, a video, or an article, but only one/)
+  })
+
+  it('takes an article’s title from the heading at the top of its Markdown', () => {
+    let read = readComposeForm(
+      form([
+        ['id', ID],
+        ['article_upload', new File(['x'], 'notes.md')],
+        ['cover_upload', new File(['c'], 'cover.jpg')],
+        ['article_files', new File(['d'], 'desk.jpg')],
+      ]),
+    )
+    let { values } = withArticleText(
+      read,
+      'notes.md',
+      '\uFEFF# A year of notes\r\n\r\nBody ![Desk](desk.jpg)\n',
+    )
+    expect(read.uploads.map((upload) => upload.name)).toEqual(['cover.jpg', 'desk.jpg'])
+    expect(composePost(values, DATE)).toEqual({
+      id: ID,
+      date: DATE,
+      type: 'article',
+      article: {
+        title: 'A year of notes',
+        summary: '',
+        body: 'Body ![Desk](desk.jpg)\n',
+        cover: { file: 'cover.jpg', alt: 'cover.jpg' },
+      },
+    })
+    // A file without a heading keeps the title typed so far, and an empty one is refused.
+    let again = withArticleText({ ...read, values }, 'more.txt', 'Just text')
+    expect(again.values.article).toMatchObject({ title: 'A year of notes', body: 'Just text' })
+    expect(withArticleText(read, 'empty.md', ' \n').issues).toEqual([
+      { message: '“empty.md” is empty.' },
+    ])
+    let wrong = readComposeForm(form([['article_upload', new File(['x'], 'notes.docx')]]))
+    expect(wrong.articleFile).toBeUndefined()
+    expect(wrong.issues[0]?.message).toMatch(/only Markdown \(\.md\) or text \(\.txt\) files/)
+  })
+})
+
+describe('the post form', () => {
+  it('reads only the post type’s fields, and names uploads by their file names', () => {
     let form = new FormData()
     for (let [name, value] of Object.entries({
       type: 'video',
@@ -308,7 +395,7 @@ describe('the post form', () => {
       form.append(name, value)
     }
     form.append('video_poster_upload', new File(['p'], 'C:\\Users\\me\\My Poster.jpg'))
-    let { post, uploads, issues } = readPostForm(form, ID)
+    let { post, uploads, issues } = readPostForm(form, ID, 'video')
     expect(post).toEqual({
       id: ID,
       type: 'video',

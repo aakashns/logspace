@@ -37,11 +37,11 @@ export interface PostForm {
   issues: PostIssue[]
 }
 
-// Reads a submitted post form. Only the fields of the post's type are kept: `type` for a post
-// that already exists, since a post's type can't change, else the one chosen in the form. A media
+// Reads a submitted edit post form. Only the fields of the post's `type` are kept, since a post's
+// type can't change. A media
 // field is a file name, or a file chosen next to it, which `uploads` has and whose name the field
 // takes; `issues` has the chosen files that can't be uploaded.
-export function readPostForm(formData: FormData, id: string, type?: string): PostForm {
+export function readPostForm(formData: FormData, id: string, type: string): PostForm {
   let raw = (name: string) => {
     let value = formData.get(name)
     // Browsers send textarea line breaks as \r\n.
@@ -90,7 +90,7 @@ export function readPostForm(formData: FormData, id: string, type?: string): Pos
   let caption = markdown('caption')
   let base = {
     id,
-    type: type ?? text('type'),
+    type,
     date: local + text('offset'),
     ...(city !== undefined && { city }),
   }
@@ -155,17 +155,21 @@ export function readPostForm(formData: FormData, id: string, type?: string): Pos
 
 // The name an uploaded file is saved under: its own, without any folders (some browsers send
 // them), and with dashes for spaces, since Markdown can't name a file with spaces in it.
-function uploadName(name: string): string {
+export function uploadName(name: string): string {
   return (name.split(/[\\/]/).pop() ?? '').trim().replace(/\s+/g, '-')
 }
 
-// The form's starting date for a new post: now, at the UTC offset of the newest post, which is
-// most likely where the next one is written.
-export function newPostDate(newestDate: string | undefined, now: number): string {
-  let [offset = '+00:00', sign, hours, minutes] = newestDate?.match(/([+-])(\d{2}):(\d{2})$/) ?? []
-  let offsetMinutes = (sign === '-' ? -1 : 1) * (Number(hours ?? 0) * 60 + Number(minutes ?? 0))
+// A date's UTC offset, like "+05:30"; "+00:00" for none.
+export function offsetOf(date: string | undefined): string {
+  return date?.match(/[+-]\d{2}:\d{2}$/)?.[0] ?? '+00:00'
+}
+
+// The time `now` (in milliseconds) as a post's date at a UTC offset like "+05:30", to the second.
+export function dateAtOffset(now: number, offset: string): string {
+  let [, sign, hours = '00', minutes = '00'] = offset.match(/^([+-])(\d{2}):(\d{2})$/) ?? []
+  let offsetMinutes = (sign === '-' ? -1 : 1) * (Number(hours) * 60 + Number(minutes))
   let local = new Date(now + offsetMinutes * 60_000)
-  return local.toISOString().slice(0, 16) + ':00' + offset
+  return local.toISOString().slice(0, 19) + (sign ? offset : '+00:00')
 }
 
 // aria-invalid for a field: "true" when one of the issues is about it.

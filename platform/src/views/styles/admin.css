@@ -7,13 +7,20 @@
     flex-direction: column;
     gap: 1.25rem;
     padding-block: 2rem;
+
+    /* Smaller than an article's title: these pages are tools, not reading. */
+    & > .page-title,
+    & > .admin-heading .page-title {
+      font-size: 1.5rem;
+      line-height: 1.3;
+    }
   }
 
   .input {
     width: 100%;
     padding: 0.5rem 0.75rem;
     border: 1px solid var(--input);
-    border-radius: 0.5rem;
+    border-radius: var(--radius-md);
     background-color: var(--background);
     color: var(--foreground);
     font: inherit;
@@ -43,7 +50,7 @@
   .destructive-button {
     display: inline-block;
     padding: 0.5rem 1rem;
-    border-radius: 0.5rem;
+    border-radius: var(--radius-md);
     font: inherit;
     font-weight: 500;
     cursor: pointer;
@@ -107,7 +114,7 @@
   .alert {
     padding: 0.75rem 1rem;
     border: 1px solid var(--destructive);
-    border-radius: 0.75rem;
+    border-radius: var(--radius-lg);
     color: var(--destructive);
     overflow-wrap: anywhere;
 
@@ -121,7 +128,7 @@
   .notice {
     padding: 0.75rem 1rem;
     border: 1px solid var(--border);
-    border-radius: 0.75rem;
+    border-radius: var(--radius-lg);
     background-color: var(--muted);
   }
 
@@ -214,7 +221,7 @@
     max-width: 100%;
     padding: 0.75rem;
     border: 1px solid var(--border);
-    border-radius: 0.5rem;
+    border-radius: var(--radius-lg);
 
     & img {
       display: block;
@@ -242,24 +249,6 @@
     object-fit: cover;
   }
 
-  /* A new post's type, chosen with radio buttons. */
-  .post-types {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem 1.25rem;
-    border: none;
-
-    & legend {
-      margin-bottom: 0.375rem;
-    }
-    & label {
-      display: flex;
-      align-items: center;
-      gap: 0.375rem;
-      cursor: pointer;
-    }
-  }
-
   /* How media fields work, and the post's files so far. File names can be longer than a phone. */
   .media-files {
     display: flex;
@@ -273,32 +262,19 @@
     padding-left: 1.25rem;
   }
 
-  /*
-   * A box around one type's fields. On the new post page it's tagged with its type, and shown only
-   * while that type is chosen.
-   */
+  /* A box around the post type's fields, on the edit page. */
   .type-fields {
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
     padding: 1rem;
     border: 1px solid var(--border);
-    border-radius: 0.75rem;
+    border-radius: var(--radius-lg);
 
     & legend {
       padding-inline: 0.375rem;
       font-weight: 600;
     }
-    &[data-post-type] {
-      display: none;
-    }
-  }
-
-  form:has(input[name='type'][value='text']:checked) .type-fields[data-post-type='text'],
-  form:has(input[name='type'][value='photos']:checked) .type-fields[data-post-type='photos'],
-  form:has(input[name='type'][value='video']:checked) .type-fields[data-post-type='video'],
-  form:has(input[name='type'][value='article']:checked) .type-fields[data-post-type='article'] {
-    display: flex;
   }
 
   /* Pushed to the far end of the form's buttons, away from Save. */
@@ -311,7 +287,7 @@
     margin: auto;
     padding: 1.5rem;
     border: 1px solid var(--border);
-    border-radius: 0.75rem;
+    border-radius: var(--radius-lg);
     background-color: var(--background);
     color: var(--foreground);
     overflow-wrap: anywhere;
@@ -329,5 +305,293 @@
   .dialog-title {
     font-size: 1.25rem;
     line-height: 1.3;
+  }
+
+  /*
+   * The composer (see ../admin/compose.tsx), modeled on X's: the text grows as it's written,
+   * media shows under it, and the toolbar and Post button are along the bottom. The parts the
+   * server re-renders are boxes of their own in the markup but not on the page.
+   */
+  .composer {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 1rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+  }
+
+  #composer-issues,
+  #composer-media {
+    display: contents;
+  }
+
+  .composer-text {
+    width: 100%;
+    min-height: calc(3lh);
+    padding: 0;
+    border: none;
+    background: none;
+    color: inherit;
+    font: inherit;
+    line-height: 1.6;
+    resize: none;
+    field-sizing: content;
+    outline: none;
+
+    &::placeholder {
+      color: var(--muted-foreground);
+    }
+  }
+
+  /* One photo or a video at its own shape (up to a point), more in a grid of squares. */
+  .attachments {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+
+    &[data-count='1'] {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .attachment {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+
+    & img,
+    & video {
+      display: block;
+      width: 100%;
+      height: auto;
+      max-height: 32rem;
+      object-fit: cover;
+    }
+    [data-count]:not([data-count='1']) > & img {
+      aspect-ratio: 1;
+      height: 100%;
+    }
+  }
+
+  .remove-button {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 9999px;
+    background-color: rgb(15 20 25 / 0.75);
+    color: white;
+    cursor: pointer;
+    backdrop-filter: blur(4px);
+    transition: background-color 150ms;
+
+    &:hover {
+      background-color: rgb(39 44 48 / 0.85);
+    }
+    &:focus-visible {
+      outline: 2px solid white;
+      outline-offset: 2px;
+    }
+    & svg {
+      width: 1.125rem;
+      height: 1.125rem;
+    }
+  }
+
+  .link-button {
+    color: var(--link);
+    font: inherit;
+    cursor: pointer;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  .composer-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+
+    /* Tooltips open to the right here, where there's room, rather than the navbar's left. */
+    & [data-tooltip] {
+      right: auto;
+      left: 0;
+    }
+  }
+
+  .composer-tools {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    min-width: 0;
+  }
+
+  .tool-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 9999px;
+    color: var(--link);
+    cursor: pointer;
+    transition: background-color 150ms;
+
+    &:hover {
+      background-color: color-mix(in oklch, var(--link) 12%, transparent);
+    }
+    &:has(:focus-visible) {
+      outline: 2px solid var(--ring);
+      outline-offset: 2px;
+    }
+    &[data-disabled] {
+      opacity: 0.4;
+      cursor: default;
+
+      &:hover {
+        background: none;
+      }
+    }
+    & svg {
+      width: 1.25rem;
+      height: 1.25rem;
+    }
+  }
+
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .uploading {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: 0.5rem;
+
+    &[hidden] {
+      display: none;
+    }
+  }
+
+  /* A ring that turns, like X's while it uploads. */
+  .spinner {
+    width: 1rem;
+    height: 1rem;
+    border: 2px solid var(--border);
+    border-top-color: var(--link);
+    border-radius: 9999px;
+    animation: spin 800ms linear infinite;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(1turn);
+    }
+  }
+
+  /* A blank to fill in: just a line under it, and like the caption, no focus ring. */
+  .city-input {
+    width: 9rem;
+    min-width: 0;
+    padding: 0.25rem 0.125rem;
+    border: none;
+    border-bottom: 1px solid var(--input);
+    border-radius: 0;
+    font-size: 0.875rem;
+
+    &:focus-visible {
+      outline: none;
+    }
+  }
+
+  /* Pushed to the far end of the toolbar. */
+  .post-button {
+    margin-left: auto;
+    padding-inline: 1.25rem;
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+  }
+
+  /* What goes with the media: a video's poster, an article's cover. */
+  .attachment-note {
+    margin-top: 0.5rem;
+  }
+
+  /* An article: its cover, then its title and summary to edit, like the feed's card. */
+  .article-attachment-cover {
+    aspect-ratio: 16 / 9;
+  }
+
+  .article-attachment-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 0.75rem 1rem;
+
+    /* Without a cover, the remove button sits over the title. */
+    &:first-child {
+      padding-right: 3.5rem;
+    }
+
+    & input {
+      width: 100%;
+      padding: 0;
+      border: none;
+      background: none;
+      color: inherit;
+      font: inherit;
+      outline: none;
+
+      &::placeholder {
+        color: var(--muted-foreground);
+      }
+    }
+    & .article-title-input {
+      font-weight: 600;
+    }
+    & .article-summary-input {
+      color: var(--muted-foreground);
+    }
+  }
+
+  .missing-file {
+    color: var(--destructive);
+  }
+
+  .composer-preview {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+
+    & h2 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      line-height: 1.3;
+    }
+  }
+
+  .composer-empty {
+    padding: 1.5rem 1rem;
+  }
+
+  /* An article's own page, under its card. */
+  .composer-article {
+    padding-inline: 1rem;
+    border-top: 1px solid var(--border);
   }
 }

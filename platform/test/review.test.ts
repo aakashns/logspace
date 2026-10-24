@@ -33,17 +33,9 @@ describe('found in review', () => {
   it('publishes a new post submitted twice at once only once, refusing the other', async () => {
     let form = () => {
       let body = new FormData()
-      for (let [name, value] of Object.entries({
-        id: 'twice00001',
-        type: 'photos',
-        date: '2026-10-21T09:30',
-        offset: '+05:30',
-        photo_file: '',
-        photo_alt: 'A',
-      })) {
-        body.append(name, value)
-      }
-      body.append('photo_upload', new File(['one'], 'one.jpg'))
+      body.append('id', 'twice00001')
+      body.append('offset', '+05:30')
+      body.append('photo_uploads', new File(['one'], 'one.jpg'))
       return body
     }
     let cookie = defined(app.sessionCookie(await app.logIn()), 'a session cookie')
@@ -89,19 +81,11 @@ describe('found in review', () => {
     let png = await new Bun.Image(await photo.bytes()).resize(2000, 1500).png().bytes()
     let cookie = defined(app.sessionCookie(await app.logIn()), 'a session cookie')
     let body = new FormData()
-    for (let [name, value] of Object.entries({
-      id,
-      type: 'photos',
-      date: '2026-10-21T09:30',
-      offset: '+05:30',
-      photo_file: '',
-      photo_alt: 'A',
-    })) {
-      body.append(name, value)
-    }
+    body.append('id', id)
+    body.append('offset', '+05:30')
     // Enough of the file to read its size, but not its pixels.
     body.append(
-      'photo_upload',
+      'photo_uploads',
       new File([new Uint8Array(png.subarray(0, Math.floor(png.length * 0.6)))], 'cut.png'),
     )
     expect(

@@ -5,7 +5,9 @@
 //
 // The session is the cookie: base64url JSON, a dot, and its HMAC-SHA256 signature. It's
 // HttpOnly, SameSite=Lax, Secure in production, and sent only to /admin, so public pages never
-// receive it.
+// receive it. Beside it, a logged-in browser gets a cookie that only says so (ADMIN_HINT_COOKIE),
+// sent to every page, so they can show the navbar's link to the composer. It proves nothing: a
+// made-up one just shows a link that leads to the login page.
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto'
 import { Context, Effect, Layer, Option, Redacted, Schema } from 'effect'
 import { HttpServerRequest, HttpServerResponse } from 'effect/http'
@@ -13,6 +15,7 @@ import { HttpServerRequest, HttpServerResponse } from 'effect/http'
 import { AppConfig } from '../config.ts'
 
 const COOKIE_NAME = 'admin_session'
+export const ADMIN_HINT_COOKIE = 'admin'
 const MAX_AGE = 60 * 60 * 24 * 30
 const MIN_SECRET_LENGTH = 16
 
@@ -43,7 +46,8 @@ export class AdminAuth extends Context.Service<
     readonly requireLogin: Effect.Effect<Session, NotLoggedIn, HttpServerRequest.HttpServerRequest>
     // A new logged-in session.
     readonly logIn: () => Session
-    // Sets the session's cookie on a response, or with undefined, clears it.
+    // Sets the session's cookie on a response, or with undefined, clears it. The hint cookie is
+    // set while it's logged in, and cleared with it.
     readonly saveSession: (
       response: HttpServerResponse.HttpServerResponse,
       session: Session | undefined,
@@ -101,13 +105,24 @@ export class AdminAuth extends Context.Service<
             // Plain HTTP in development; production is only served over HTTPS.
             secure: config.mode === 'production',
           }
-          if (!session) return HttpServerResponse.expireCookieUnsafe(response, COOKIE_NAME, options)
+          let hint = { ...options, path: '/' }
+          if (!session) {
+            return HttpServerResponse.expireCookieUnsafe(
+              HttpServerResponse.expireCookieUnsafe(response, COOKIE_NAME, options),
+              ADMIN_HINT_COOKIE,
+              hint,
+            )
+          }
           let payload = Buffer.from(JSON.stringify(session)).toString('base64url')
           let value = `${payload}.${sign(payload).toString('base64url')}`
-          return HttpServerResponse.setCookieUnsafe(response, COOKIE_NAME, value, {
+          let maxAge = `${MAX_AGE} seconds` as const
+          let saved = HttpServerResponse.setCookieUnsafe(response, COOKIE_NAME, value, {
             ...options,
-            maxAge: `${MAX_AGE} seconds`,
+            maxAge,
           })
+          return session.auth
+            ? HttpServerResponse.setCookieUnsafe(saved, ADMIN_HINT_COOKIE, '1', { ...hint, maxAge })
+            : saved
         },
       })
     }),

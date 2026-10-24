@@ -7,7 +7,7 @@ import type { PageMeta, PreloadImage } from '../domain/presentation.ts'
 import { isSiteConfigured, type SavedSiteConfig, type SiteConfig } from '../domain/site.ts'
 import { getIconHref, getSiteImageHref } from '../queries/site-files.ts'
 import { routes } from '../routes.ts'
-import { RssLink, ThemeToggle } from './controls.tsx'
+import { ComposeLink, RssLink, ThemeToggle } from './controls.tsx'
 import { SiteLogo } from './site-logo.tsx'
 import type { Stylesheets } from './stylesheet.ts'
 
@@ -16,6 +16,9 @@ export interface PageContext {
   readonly site: SavedSiteConfig
   // The user's saved theme; undefined follows the system preference.
   readonly theme?: 'light' | 'dark' | undefined
+  // Whether the browser says it's logged in as admin (not checked: it only shows the navbar's
+  // link to the composer).
+  readonly admin?: boolean | undefined
   // The Content-Security-Policy nonce for this response, which Datastar runs its expressions
   // with (see http/security.ts).
   readonly nonce: string
@@ -131,6 +134,7 @@ export function Document(props: DocumentProps): Html {
                   <SiteLogo site={site} height="1.2rem" />
                 </a>
                 <div class="nav-actions">
+                  {page.admin ? <ComposeLink /> : null}
                   {configured ? <RssLink /> : null}
                   <ThemeToggle />
                   {navActions}
@@ -138,7 +142,7 @@ export function Document(props: DocumentProps): Html {
               </div>
             </header>
             <main>{children}</main>
-            {/* Datastar only makes the theme toggle and share buttons work, so it's fetched at a
+            {/* Datastar only runs the buttons (and the admin composer), so it's fetched at a
                 low priority, after the page's photos: a module script never blocks the page. */}
             <script
               type="module"
