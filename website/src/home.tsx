@@ -8,24 +8,53 @@ const description =
   "Publish blog posts, photos, and videos on your own domain.";
 const install = `curl -fsSL ${url}install.sh | sh`;
 
-// Made by `bun run screenshots` from Mira's fictional site, in dark mode.
+// Made by `bun run screenshots` from Mira's fictional site, as <name>-dark.webp and
+// <name>-light.webp.
 const screenshots = [
   {
-    file: "home.webp",
+    name: "home",
     alt: "The home page of Mira’s site: a banner, an introduction, and a feed of posts.",
     caption: "Your home page, with every post in one feed.",
   },
   {
-    file: "article.webp",
+    name: "article",
     alt: "An article on Mira’s site, with its title, summary, cover image, and text.",
     caption: "Articles get a page of their own.",
   },
   {
-    file: "composer.webp",
+    name: "composer",
     alt: "The composer, with a caption, a photo, and a city filled in, ready to post.",
     caption: "Write a post, add photos, and preview it before posting.",
   },
 ];
+
+// LogSpace's own theme icons, as its navbar draws them.
+const stroke = { fill: "none", stroke: "currentColor", "stroke-width": "1.5" };
+
+function SunIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="4" {...stroke} />
+      <path
+        d="M12 2.5V4.5M12 19.5V21.5M2.5 12H4.5M19.5 12H21.5M5.3 5.3L6.7 6.7M17.3 17.3L18.7 18.7M5.3 18.7L6.7 17.3M17.3 6.7L18.7 5.3"
+        {...stroke}
+        stroke-linecap="round"
+      />
+    </svg>
+  );
+}
+
+function MoonIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5Z"
+        {...stroke}
+        stroke-linejoin="round"
+      />
+    </svg>
+  );
+}
 
 export function Home() {
   return (
@@ -161,19 +190,52 @@ export function Home() {
           </ul>
         </section>
 
-        <section aria-labelledby="screenshots">
-          <h2 id="screenshots">Screenshots</h2>
+        {/* Dark until the switch (shown by site.js) picks light. */}
+        <section
+          aria-labelledby="screenshots"
+          class="screenshots"
+          data-theme="dark"
+        >
+          <div class="section-heading">
+            <h2 id="screenshots">Screenshots</h2>
+            <div
+              class="theme-switch"
+              role="group"
+              aria-label="Screenshot theme"
+              hidden
+            >
+              <button
+                type="button"
+                value="light"
+                aria-pressed="false"
+                aria-label="Light"
+              >
+                <SunIcon />
+              </button>
+              <button
+                type="button"
+                value="dark"
+                aria-pressed="true"
+                aria-label="Dark"
+              >
+                <MoonIcon />
+              </button>
+            </div>
+          </div>
           {screenshots.map((shot) => (
             <figure class="screenshot">
-              <img
-                src={`/screenshots/${shot.file}`}
-                alt={shot.alt}
-                width="720"
-                height="720"
-                loading="lazy"
-                decoding="async"
-              />
               <figcaption>{shot.caption}</figcaption>
+              {(["dark", "light"] as const).map((theme) => (
+                <img
+                  class={theme}
+                  src={`/screenshots/${shot.name}-${theme}.webp`}
+                  alt={shot.alt}
+                  width="720"
+                  height="720"
+                  loading="lazy"
+                  decoding="async"
+                />
+              ))}
             </figure>
           ))}
         </section>

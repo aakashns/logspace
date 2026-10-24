@@ -99,19 +99,30 @@ test("demo loads, plays, and seeks with captions available", async ({
   expect(poster.headers()["content-type"]).toContain("image/webp");
 });
 
-test("screenshots load at twice their shown size", async ({ page }) => {
+test("screenshots switch theme and load at twice their shown size", async ({
+  page,
+}) => {
   await page.goto("/");
-  const screenshots = page.locator(".screenshot img");
-  await expect(screenshots).toHaveCount(3);
-  for (const screenshot of await screenshots.all()) {
-    await screenshot.scrollIntoViewIfNeeded();
-    await expect
-      .poll(() =>
-        screenshot.evaluate((image: HTMLImageElement) => image.naturalWidth),
-      )
-      .toBe(1440);
-    await expect(screenshot).toHaveAttribute("alt", /.+/);
+  const light = page.getByRole("button", { name: "Light", exact: true });
+  const dark = page.getByRole("button", { name: "Dark", exact: true });
+  await expect(dark).toHaveAttribute("aria-pressed", "true");
+  for (const theme of ["dark", "light"]) {
+    if (theme === "light") await light.click();
+    const screenshots = page.locator(".screenshot img:visible");
+    await expect(screenshots).toHaveCount(3);
+    for (const screenshot of await screenshots.all()) {
+      await expect(screenshot).toHaveClass(theme);
+      await screenshot.scrollIntoViewIfNeeded();
+      await expect
+        .poll(() =>
+          screenshot.evaluate((image: HTMLImageElement) => image.naturalWidth),
+        )
+        .toBe(1440);
+      await expect(screenshot).toHaveAttribute("alt", /.+/);
+    }
   }
+  await expect(light).toHaveAttribute("aria-pressed", "true");
+  await expect(dark).toHaveAttribute("aria-pressed", "false");
 });
 
 test("serves the installer and icons, and rejects missing paths", async ({
