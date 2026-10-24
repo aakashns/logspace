@@ -89,7 +89,7 @@ await Effect.runPromise(
     yield* (yield* SiteConfigCommands).update(
       {
         siteTitle: "Mira Ellis",
-        siteUrl: "https://mira.example",
+        siteUrl: "https://miraellis.com",
         siteDescription:
           "Field notes, small adventures, and things worth keeping.",
         heroHeading: "Hi, I’m Mira.",

@@ -111,7 +111,7 @@ export function Home() {
             preload="none"
             poster="/demo-poster.webp"
             width="720"
-            height="816"
+            height="680"
             aria-label="LogSpace demo: explore Mira’s site and publish a new post"
             aria-describedby="demo-caption"
           >

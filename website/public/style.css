@@ -201,7 +201,7 @@ figcaption {
   display: block;
   width: 100%;
   height: auto;
-  aspect-ratio: 720 / 816;
+  aspect-ratio: 720 / 680;
   background: var(--surface);
   border: 1px solid var(--faint);
   border-radius: 8px;
