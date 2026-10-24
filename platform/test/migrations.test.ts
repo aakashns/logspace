@@ -1,13 +1,14 @@
 // The database: its migrations write the same journal as LogSpace 0.1 (the Remix version) did, so
 // a database it made is upgraded in place.
-import { describe, expect, it } from 'bun:test'
+import { describe, expect, it, spyOn } from 'bun:test'
 import { Database } from 'bun:sqlite'
 import { BunFileSystem } from '@effect/platform-bun'
 import { Effect, Layer, Redacted, Schema } from 'effect'
+import { SqlClient } from 'effect/sql'
 
 import { AppConfig } from '../src/config.ts'
 import { DatabaseLive, runMigrations } from '../src/services/database.ts'
-import { TEST_CONFIG } from './app.ts'
+import { makeTestApp, TEST_CONFIG } from './app.ts'
 
 const migrate = (databasePath: string, dryRun = false) =>
   Effect.runPromise(
@@ -27,6 +28,25 @@ const migrate = (databasePath: string, dryRun = false) =>
   )
 
 describe('migrations', () => {
+  it('does not rerun schema initialization when the web handler joins the service runtime', async () => {
+    let app = makeTestApp()
+    try {
+      await app.seedDatabase()
+      let sql = await app.run(SqlClient.SqlClient)
+      let statements = spyOn(sql, 'unsafe')
+      try {
+        expect((await app.fetch('/')).status).toBe(200)
+        expect(
+          statements.mock.calls.filter(([query]) => query.startsWith('create table')),
+        ).toHaveLength(0)
+      } finally {
+        statements.mockRestore()
+      }
+    } finally {
+      await app.dispose()
+    }
+  })
+
   it('journals each migration as LogSpace 0.1 did, with the same checksums', async () => {
     let file = `/tmp/logspace2-migrations-${process.pid}.sqlite`
     for (let suffix of ['', '-wal', '-shm'])

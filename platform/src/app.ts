@@ -2,6 +2,7 @@
 // Reusing these layer values shares the database, storage, caches, and write locks.
 import { BunFileSystem } from '@effect/platform-bun'
 import { Effect, Layer } from 'effect'
+import { SqlClient } from 'effect/sql'
 
 import { PostCommands } from './commands/posts.ts'
 import { SiteConfigCommands } from './commands/site-config.ts'
@@ -22,10 +23,14 @@ import { MediaStorage } from './services/media-storage.ts'
 
 // No consumer gets the connection until its schema is ready. The migrate CLI uses DatabaseLive
 // directly so a dry run doesn't apply migrations.
-const MigratedDatabase = DatabaseLive.pipe(
-  Layer.tap((context) => runMigrations({}).pipe(Effect.provideContext(context))),
-  Layer.provide(BunFileSystem.layer),
-)
+const MigratedDatabase = Layer.effect(
+  SqlClient.SqlClient,
+  Effect.gen(function* () {
+    let sql = yield* SqlClient.SqlClient
+    yield* runMigrations({})
+    return sql
+  }),
+).pipe(Layer.provide(DatabaseLive), Layer.provide(BunFileSystem.layer))
 
 const PostQueriesLive = PostQueries.layer.pipe(
   Layer.provide([MigratedDatabase, MediaStorage.layer]),

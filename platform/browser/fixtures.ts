@@ -81,7 +81,8 @@ class Application {
       const timeout = setTimeout(() => child.kill('SIGKILL'), 5_000)
       child.once('exit', (code, exitSignal) => {
         clearTimeout(timeout)
-        if (signal !== 'SIGKILL' && (code !== 0 || exitSignal !== null)) {
+        // Effect exits with 130 after a clean interruption, including SIGTERM.
+        if (signal !== 'SIGKILL' && ((code !== 0 && code !== 130) || exitSignal !== null)) {
           reject(
             new Error(`Server failed to stop gracefully (${code}, ${exitSignal})\n${this.logs}`),
           )
