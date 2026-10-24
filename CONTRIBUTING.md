@@ -34,7 +34,7 @@ bun run test:browser   # the composer in Chromium and WebKit; CI doesn't run the
 bun run build && bun scripts/smoke-test.ts dist/logspace   # if the build changed
 ```
 
-Tests use temporary data. [platform/AGENTS.md](platform/AGENTS.md) has the conventions and where common changes go, [posts.md](platform/docs/posts.md) the post format, and [the tour below](#platform-code) how the app fits together.
+Tests use temporary data. [platform/AGENTS.md](platform/AGENTS.md) has the conventions, `platform/src/domain/post.ts` the post format, and [the tour below](#platform-code) how the app fits together.
 
 ## Pull requests
 
@@ -49,9 +49,8 @@ The platform (the app, in `platform/`) is built with:
 - **[Effect v4](https://effect.website)** for structure: services share resources and application
   APIs, stateless operations are Effect functions, every expected failure is a typed error, and
   the database is [`effect/sql`](https://effect.website/docs).
-- **[Datastar](https://data-star.dev)** in the browser (with [Rocket](https://data-star.dev/reference/rocket),
-  its web components; 23 KB gzipped), for the theme toggle, share buttons, and the admin
-  composer, a Rocket component in `src/client/`.
+- **[Datastar](https://data-star.dev)** as the only JavaScript sent to browsers (13 KB gzipped),
+  for the theme toggle, share buttons, and the admin composer.
 - **A tiny JSX runtime** (`src/jsx`, about 110 lines) that renders TSX straight to HTML strings: no
   virtual DOM, no hydration.
 - **CQRS**: writes go through `src/commands`, and reads through `src/queries`, which query the
@@ -74,8 +73,8 @@ the normal network implementation for servers and scripts. The routes are `Publi
 remain available to the caller.
 
 `src/main.ts` is the binary's command line (`start` by default, and `setup`, `migrate`,
-`set-admin-password`, `upgrade`, `version`, `help`). `src/server.ts` supplies Bun's HTTP listener
-and closes draft streams before HTTP shutdown. The CLI and browser tests use this same server.
+`set-admin-password`, `upgrade`, `version`, `help`). `src/server.ts` supplies Bun's HTTP listener.
+The CLI and browser tests use this same server.
 
 #### 2. What things are: `src/domain/` (pure)
 
@@ -105,7 +104,6 @@ Database migrations are an Effect function, `runMigrations`, used by startup and
 | `database.ts`      | The SQLite connection (`@effect/sql-sqlite-bun`, in WAL mode) and the migrations, which write the same journal LogSpace 0.1 (the Remix version) did, so its databases upgrade in place                        |
 | `media-storage.ts` | Uploaded files as plain files under `MEDIA_DIR` (`posts/<id>/<file>`, `variants/…`, `site/…`, `link-images/…`), written atomically with `Bun.write` and served straight from disk; or in memory for the tests |
 | `images.ts`        | Everything Bun.Image does: reading and resizing photos, and making the logos, icons, and banner image                                                                                                         |
-| `draft-changes.ts` | Word that the composer's draft changed, and which tab changed it, for every open composer to follow (kept in memory; the draft is in the database)                                                            |
 
 #### 4. Writes: `src/commands/`
 
@@ -114,13 +112,11 @@ changed. They fail with typed errors (`commands/errors.ts`): `PostRejected` (wit
 show), `PostNotFound`, and `SiteConfigRejected`. Storage and database failures are defects (a 500,
 logged), as they're not something a user can fix.
 
-- `posts.ts`: `publish`, `edit`, `delete`, and the composer's `saveDraft`, `updateFiles`, and
-  `discard`. Uploads are saved before the post is checked, so a rejected form doesn't need its
-  files chosen again. The composer's one draft is a row in `drafts`, and the commands that change
-  it tell `DraftChanges`. Post changes run one at a time, so run one server process per data
-  directory.
+- `posts.ts`: `publish`, `edit`, `delete`, and the composer's `upload`, which saves a new post's
+  files as they're chosen. Uploads are saved before the post is checked, so a rejected form
+  doesn't need its files chosen again.
 - `post-files.ts`: `makePostFiles` captures SQL, storage, and images for stateless upload and
-  removal helpers, also used by test seeding. `PostCommands` owns the lock around writes.
+  removal helpers, also used by test seeding.
 - `site-config.ts`: saving `/admin/config`, turning uploads into the site's image files.
 
 #### 5. Reads: `src/queries/`
@@ -156,7 +152,7 @@ unconfigured site private, then the handler, with 404s, 500s, and security heade
 | `forms.ts`     | Reading a form within the upload limits (`UploadTooLarge` → the 413 page)                          |
 | `responses.ts` | Files with ranges, ETags, and caching; redirects                                                   |
 | `forwarded.ts` | The protocol and host behind Caddy (`TRUST_PROXY=1`)                                               |
-| `assets.ts`    | Datastar, the browser's modules, fonts, and the stylesheets, embedded in the binary                |
+| `assets.ts`    | Datastar, fonts, and the stylesheets, embedded in the binary                                       |
 
 #### 7. Pages: `src/views/` and `src/jsx/`
 
@@ -167,16 +163,12 @@ renders itself (Markdown output, the stylesheet, JSON-LD). Start with `document.
 `stylesheet.ts`, and inlined into each page. The admin pages add `admin.css`.
 
 **Datastar** runs the theme toggle (`data-on:click`) and share buttons (`data-on:click`,
-`data-class`, `data-attr`, one `_shared` signal) in `controls.tsx`. The composer is a
-[Rocket](https://data-star.dev/reference/rocket) component, `<logspace-composer>`, in
-`src/client/composer.ts`: TypeScript that `views/scripts.ts` transpiles, served as a module that
-imports Datastar through an import map. The server still renders its markup
-(`admin/composer-controls.tsx`), which binds to the component's signals (`$$uploading`) and calls
-its actions (`@preview()`) with Datastar attributes and modifiers
-(`data-on:input__throttle.100ms.trailing`); the component sends the requests, follows the stream
-of the draft's changes from the server, and keeps a stale response from being applied. Rocket
-applies Datastar to the whole component again after every patch, so its markup has no
-`data-init` or `data-indicator`. Every expression is a constant string. Values like the URL to
+`data-class`, `data-attr`, one `_shared` signal) in `controls.tsx`, and the composer in
+`admin/compose.tsx`: its file inputs and remove buttons post the form for its media
+(`data-on:change`, with `data-indicator:_uploading`), and typing posts it for the preview
+(`data-on:input__throttle.100ms.trailing`); the server answers with HTML for those parts. The
+composer keeps nothing on the server until it's posted, which is a plain form submission. Every
+expression is a one-line constant string. Values like the URL to
 share are passed in `data-*` attributes and read with `el.dataset`, so nothing a user typed can
 end up in an expression. Everything else works without JavaScript: navigation is links, forms are
 forms, and the delete dialog uses `command`/`commandfor`.
@@ -185,14 +177,13 @@ forms, and the delete dialog uses `command`/`commandfor`.
 
 `test/app.ts` builds the app with an in-memory database and storage and drives it through
 `fetch`-style requests. Services can also be called directly with `app.run(effect)`. The suites
-are the `*.test.ts` files; `platform/AGENTS.md` lists which cover each common change.
+are the `*.test.ts` files.
 
 #### Browser tests
 
 `browser/*.pw.ts` drive the composer in Chromium and WebKit with Playwright, which also needs
-Node.js 20 or newer: publishing each kind of post, drafts through reloads and other tabs, and
-recovering from failed requests and a restarted server. Each test starts the app with its own
-temporary data and port. Install the browsers once with `bun run test:browser:install`, then run
+Node.js 20 or newer: publishing each kind of post, with and without JavaScript. Each test starts
+the app with its own temporary data and port. Install the browsers once with `bun run test:browser:install`, then run
 `bun run test:browser`. CI doesn't run them.
 
 ### Security

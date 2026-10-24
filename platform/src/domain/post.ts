@@ -1,6 +1,5 @@
-// What a post is made of (see docs/posts.md), and the checks a post goes through
-// before it's stored. Pure: storing posts is in ../commands and ../queries, showing them in
-// presentation.ts.
+// What a post is made of, and the checks a post goes through before it's stored. Pure: storing
+// posts is in ../commands and ../queries, showing them in presentation.ts.
 import { Array as Arr, Result, Schema } from 'effect'
 
 import { toIssues, type Issue } from './issues.ts'

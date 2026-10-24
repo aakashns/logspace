@@ -2,9 +2,7 @@ import { afterAll, beforeEach, describe, expect, it, spyOn } from 'bun:test'
 import { Effect } from 'effect'
 import { SqlClient } from 'effect/sql'
 
-import { PostCommands, type PostSubmission } from '../src/commands/posts.ts'
 import { SiteConfigCommands } from '../src/commands/site-config.ts'
-import type { ComposeValues } from '../src/domain/compose.ts'
 import { SiteConfigQueries } from '../src/queries/site-config.ts'
 import { MediaStorage, mediaKeys } from '../src/services/media-storage.ts'
 import { defined, makeTestApp } from './app.ts'
@@ -13,34 +11,6 @@ import { TEST_SITE_CONFIG } from './seed.ts'
 const app = makeTestApp()
 beforeEach(app.seedDatabase)
 afterAll(app.dispose)
-const values = (id: string, photos: string[] = []): ComposeValues => ({
-  id,
-  caption: 'A draft',
-  city: '',
-  offset: '+00:00',
-  photos,
-})
-const submission = (id: string, photos = true): PostSubmission => ({
-  post: {
-    id,
-    type: photos ? 'photos' : 'text',
-    date: '2026-10-24T00:00:00Z',
-    caption: 'Posted',
-    ...(photos && { photos: [{ file: 'a.jpg', alt: 'A' }] }),
-  },
-  uploads: [],
-  issues: [],
-})
-const upload = { name: 'a.jpg', file: new Blob(['photo']) }
-const rows = (table: 'posts' | 'drafts') =>
-  app.run(
-    Effect.flatMap(SqlClient.SqlClient, (sql) =>
-      sql<{ id: string }>`select id from ${sql(table)}`.pipe(Effect.orDie),
-    ),
-  )
-const photoExists = (id: string) =>
-  app.run(Effect.flatMap(MediaStorage, (storage) => storage.has(mediaKeys.postFile(id, 'a.jpg'))))
-
 // A mutation has reached its actual filesystem step before the competing request starts.
 function barrier<A extends readonly unknown[], B>(original: (...args: A) => Effect.Effect<B>) {
   let entered = Promise.withResolvers<void>()
@@ -56,161 +26,6 @@ function barrier<A extends readonly unknown[], B>(original: (...args: A) => Effe
       }),
   }
 }
-
-describe('post mutations share the draft and media boundary', () => {
-  it('cannot publish between a media-removal check and the removal', async () => {
-    let commands = await app.run(PostCommands)
-    let storage = await app.run(MediaStorage)
-    let id = 'racepost01'
-    await app.run(commands.updateFiles(values(id, ['a.jpg']), [upload], []))
-    let gate = barrier(storage.remove)
-    let mock = spyOn(storage, 'remove').mockImplementationOnce(gate.run)
-    try {
-      let update = app.run(Effect.exit(commands.updateFiles(values(id), [], ['a.jpg'])))
-      await gate.entered
-      let started = Promise.withResolvers<void>()
-      let publish = app.run(
-        Effect.sync(() => started.resolve()).pipe(
-          Effect.andThen(commands.publish(submission(id))),
-          Effect.exit,
-        ),
-      )
-      await started.promise
-      let publishedWhileRemoving = (await rows('posts')).some((row) => row.id === id)
-      gate.release()
-      let updated = await update
-      let published = await publish
-      let page = await app.fetch(`/posts/${id}`)
-      let media = await app.fetch(`/posts/${id}/a.jpg`)
-      expect([page.status, media.status]).not.toEqual([200, 404])
-      expect(publishedWhileRemoving).toBe(false)
-      expect(updated._tag).toBe('Success')
-      expect(published._tag).toBe('Failure')
-      expect((await app.fetch(`/posts/${id}`)).status).toBe(404)
-      expect(await photoExists(id)).toBe(false)
-    } finally {
-      gate.release()
-      mock.mockRestore()
-    }
-  })
-
-  it('a publish holding the lock rejects later media updates and discard without touching files', async () => {
-    let commands = await app.run(PostCommands)
-    let storage = await app.run(MediaStorage)
-    let id = 'racepost02'
-    let gate = barrier(storage.put)
-    let mock = spyOn(storage, 'put').mockImplementationOnce(gate.run)
-    try {
-      let published = app.run(commands.publish({ ...submission(id), uploads: [upload] }))
-      await gate.entered
-      let updated = app.run(Effect.exit(commands.updateFiles(values(id), [], ['a.jpg'])))
-      let discarded = app.run(Effect.exit(commands.discard(id)))
-      gate.release()
-      await published
-      expect((await updated)._tag).toBe('Failure')
-      expect((await discarded)._tag).toBe('Failure')
-      expect((await app.fetch(`/posts/${id}/a.jpg`)).status).toBe(200)
-    } finally {
-      gate.release()
-      mock.mockRestore()
-    }
-  })
-
-  for (let action of ['discard', 'replace'] as const) {
-    it(`${action} retires the draft before late uploads or publication, including text-only drafts`, async () => {
-      let commands = await app.run(PostCommands)
-      let storage = await app.run(MediaStorage)
-      let id = 'racepost03'
-      await app.run(commands.saveDraft(values(id)))
-      let gate = barrier(storage.list)
-      let mock = spyOn(storage, 'list').mockImplementationOnce(gate.run)
-      try {
-        let retire = app.run(
-          action === 'discard'
-            ? commands.discard(id)
-            : commands.saveDraft(values('racepost04')).pipe(Effect.asVoid),
-        )
-        await gate.entered
-        let lateUpload = app.run(
-          Effect.exit(commands.updateFiles(values(id, ['a.jpg']), [upload], [])),
-        )
-        let latePublish = app.run(Effect.exit(commands.publish(submission(id, false))))
-        gate.release()
-        await retire
-        expect((await lateUpload)._tag).toBe('Failure')
-        expect((await latePublish)._tag).toBe('Failure')
-        expect((await app.run(Effect.exit(commands.saveDraft(values(id)))))._tag).toBe('Failure')
-        expect(await photoExists(id)).toBe(false)
-        expect((await rows('drafts')).some((row) => row.id === id)).toBe(false)
-      } finally {
-        gate.release()
-        mock.mockRestore()
-      }
-    })
-  }
-
-  it('rejects a stale media snapshot for the current draft after another tab removed its photo', async () => {
-    let commands = await app.run(PostCommands)
-    let id = 'racepost05'
-    await app.run(commands.updateFiles(values(id, ['a.jpg']), [upload], []))
-    await app.run(commands.updateFiles(values(id), [], ['a.jpg']))
-    expect((await app.run(Effect.exit(commands.saveDraft(values(id, ['a.jpg'])))))._tag).toBe(
-      'Failure',
-    )
-  })
-
-  it('serializes edit/delete and refuses reuse while deleted files are being cleaned up', async () => {
-    let commands = await app.run(PostCommands)
-    let storage = await app.run(MediaStorage)
-    let id = 'racepost06'
-    await app.run(commands.publish({ ...submission(id), uploads: [upload] }))
-    let gate = barrier(storage.list)
-    let mock = spyOn(storage, 'list').mockImplementationOnce(gate.run)
-    try {
-      let removed = app.run(commands.delete(id))
-      await gate.entered
-      let edit = app.run(Effect.exit(commands.edit(id, { ...submission(id), uploads: [upload] })))
-      let republish = app.run(
-        Effect.exit(commands.publish({ ...submission(id), uploads: [upload] })),
-      )
-      gate.release()
-      await removed
-      expect((await edit)._tag).toBe('Failure')
-      expect((await republish)._tag).toBe('Failure')
-      expect(await photoExists(id)).toBe(false)
-    } finally {
-      gate.release()
-      mock.mockRestore()
-    }
-  })
-
-  it('keeps draft media when its database update fails', async () => {
-    let commands = await app.run(PostCommands)
-    let id = 'racepost07'
-    await app.run(commands.updateFiles(values(id, ['a.jpg']), [upload], []))
-    await app.run(
-      Effect.flatMap(SqlClient.SqlClient, (sql) =>
-        sql
-          .unsafe(
-            "create trigger fail_draft before update on drafts begin select raise(abort, 'injected'); end",
-          )
-          .pipe(Effect.orDie),
-      ),
-    )
-    try {
-      expect(
-        (await app.run(Effect.exit(commands.updateFiles(values(id), [], ['a.jpg']))))._tag,
-      ).toBe('Failure')
-      expect(await photoExists(id)).toBe(true)
-    } finally {
-      await app.run(
-        Effect.flatMap(SqlClient.SqlClient, (sql) =>
-          sql`drop trigger fail_draft`.pipe(Effect.orDie),
-        ),
-      )
-    }
-  })
-})
 
 const siteText = { ...TEST_SITE_CONFIG, bannerImageAlt: 'A banner' }
 const saved = () => app.run(Effect.flatMap(SiteConfigQueries, (q) => q.saved))

@@ -6,8 +6,6 @@ import { HttpRouter } from 'effect/http'
 
 import {
   compose,
-  composerUpdates,
-  discardComposer,
   postFile,
   previewComposer,
   publishComposer,
@@ -28,8 +26,6 @@ export const AdminRoutes = HttpRouter.addAll([
   HttpRouter.route('POST', '/admin/posts/new', publishComposer),
   HttpRouter.route('POST', '/admin/posts/new/media', updateComposerMedia),
   HttpRouter.route('POST', '/admin/posts/new/preview', previewComposer),
-  HttpRouter.route('POST', '/admin/posts/new/discard', discardComposer),
-  HttpRouter.route('GET', '/admin/posts/new/updates', composerUpdates),
   HttpRouter.route('GET', '/admin/posts/:id/files/:file', postFile),
   HttpRouter.route('GET', '/admin/posts/:id/edit', editPost),
   HttpRouter.route('POST', '/admin/posts/:id/edit', savePost),

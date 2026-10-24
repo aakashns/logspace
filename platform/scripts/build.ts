@@ -3,13 +3,12 @@
 // version (`logspace version`).
 //
 // The app's files (migrations, Datastar, fonts, the default icon) are imported as text or files, so
-// Bun embeds them without help. What's made here is the stylesheets and the browser's modules, built
-// ahead of time and defined into the code (see src/views/stylesheet.ts and src/views/scripts.ts).
+// Bun embeds them without help. The one thing made here is the stylesheets, built ahead of time and
+// defined into the code (see src/views/stylesheet.ts).
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 
 import packageJson from '../package.json' with { type: 'json' }
-import { buildClientScripts } from '../src/views/scripts.ts'
 import { buildStylesheets } from '../src/views/stylesheet.ts'
 
 const ROOT = path.resolve(import.meta.dir, '..')
@@ -25,10 +24,7 @@ let result = await Bun.build({
     autoloadDotenv: false,
     autoloadBunfig: false,
   },
-  define: {
-    LOGSPACE_STYLESHEETS: JSON.stringify(await buildStylesheets()),
-    LOGSPACE_CLIENT_SCRIPTS: JSON.stringify(await buildClientScripts()),
-  },
+  define: { LOGSPACE_STYLESHEETS: JSON.stringify(await buildStylesheets()) },
   minify: { syntax: true, whitespace: true },
 })
 if (!result.success) {

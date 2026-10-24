@@ -98,12 +98,8 @@ export async function compose(page: Page, art: string, delay: number) {
       { delay },
     );
   await page
-    .locator('input[name="photo_uploads"]')
+    .locator('input[name="image_uploads"]')
     .setInputFiles(join(art, "long-way-home.png"));
-  await expect(page.locator(".composer-media img")).toBeVisible();
-  await page.getByRole("button", { name: "Add location" }).click();
-  await page.getByLabel("City", { exact: true }).pressSequentially("Portland", {
-    delay,
-  });
-  await expect(page.locator("#composer-preview")).toContainText("Portland");
+  await expect(page.locator("#composer-media img")).toBeVisible();
+  await expect(page.locator("#composer-preview img")).toBeVisible();
 }

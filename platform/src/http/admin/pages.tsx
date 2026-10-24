@@ -11,28 +11,18 @@ import { pageContext, pageResponse, requestUrl } from '../pages.ts'
 import { redirect, textResponse } from '../responses.ts'
 import { AdminAuth, type Session } from '../session.ts'
 
-// An admin page's response. `composer` adds the composer's module.
+// An admin page's response.
 export const adminPage = (
   title: string,
   content: Child,
-  options?: {
-    status?: number | undefined
-    loggedIn?: boolean | undefined
-    composer?: boolean | undefined
-  },
+  options?: { status?: number | undefined; loggedIn?: boolean | undefined },
 ) =>
   Effect.gen(function* () {
     let page = yield* pageContext
     let { pathname } = yield* requestUrl
     return pageResponse(
       page,
-      <AdminPage
-        page={page}
-        path={pathname}
-        title={title}
-        loggedIn={options?.loggedIn}
-        composer={options?.composer}
-      >
+      <AdminPage page={page} path={pathname} title={title} loggedIn={options?.loggedIn}>
         {content}
       </AdminPage>,
       options,

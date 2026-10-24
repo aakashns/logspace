@@ -8,13 +8,13 @@ import { join } from 'node:path'
 import { ServerLive } from '../src/server.ts'
 import { AppConfig } from '../src/config.ts'
 
-const [directory, password, secret, port = '0'] = process.argv.slice(2)
+const [directory, password, secret] = process.argv.slice(2)
 if (!directory || !password || !secret)
   throw new Error('Use the browser fixture to start this server')
 const config = Layer.succeed(
   AppConfig,
   AppConfig.of({
-    port: Number(port),
+    port: 0,
     hostname: '127.0.0.1',
     mode: 'test',
     trustProxy: false,

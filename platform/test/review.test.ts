@@ -30,12 +30,11 @@ describe('found in review', () => {
     expect((await app.fetch('/rss.xml')).status).toBe(200)
   })
 
-  it('publishes a new post submitted twice at once only once, refusing the other', async () => {
+  it('publishes a new post submitted twice at once only once, sending both to it', async () => {
     let form = () => {
       let body = new FormData()
-      body.append('id', 'twice00001')
-      body.append('offset', '+05:30')
-      body.append('photo_uploads', new File(['one'], 'one.jpg'))
+      body.append('post_id', 'twice00001')
+      body.append('image_uploads', new File(['one'], 'one.jpg'))
       return body
     }
     let cookie = defined(app.sessionCookie(await app.logIn()), 'a session cookie')
@@ -44,7 +43,7 @@ describe('found in review', () => {
     let statuses = (await Promise.all([submit(), submit()]))
       .map((response) => response.status)
       .sort()
-    expect(statuses).toEqual([303, 400])
+    expect(statuses).toEqual([303, 303])
   })
 
   it('reads at most a few kilobytes of a login form, which anyone can send', async () => {
@@ -81,11 +80,10 @@ describe('found in review', () => {
     let png = await new Bun.Image(await photo.bytes()).resize(2000, 1500).png().bytes()
     let cookie = defined(app.sessionCookie(await app.logIn()), 'a session cookie')
     let body = new FormData()
-    body.append('id', id)
-    body.append('offset', '+05:30')
+    body.append('post_id', id)
     // Enough of the file to read its size, but not its pixels.
     body.append(
-      'photo_uploads',
+      'image_uploads',
       new File([new Uint8Array(png.subarray(0, Math.floor(png.length * 0.6)))], 'cut.png'),
     )
     expect(

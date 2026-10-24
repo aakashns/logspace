@@ -14,7 +14,7 @@ const KINDS: [RegExp, Kind][] = [
   [/^platform\/(src\/|db\/migrations\/.*\.sql$)|^platform\/scripts\/|^install\.sh$/, 'source'],
   [/\.(json|toml)$|^\.github\/|\.gitignore$/, 'config'],
 ]
-const SKIPPED = /\.lock$|\/test\/content\/|\.woff2$|datastar-rocket\.js$|datastar\.d\.ts$/
+const SKIPPED = /\.lock$|\/test\/content\/|\.woff2$|datastar\.js$/
 
 let verbose = process.argv[2] === '-v'
 let root = fileURLToPath(new URL('../../', import.meta.url))

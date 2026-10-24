@@ -4,5 +4,5 @@ semi = false
 singleQuote = true
 printWidth = 100
 trailingComma = "all"
-ignorePatterns = ["bun.lock", "public/datastar-rocket.js", "src/client/datastar.d.ts"]
+ignorePatterns = ["bun.lock", "public/datastar.js"]
 

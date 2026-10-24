@@ -1,9 +1,8 @@
 // Posts as pages read them: the read side for posts. Every read queries the database, and
 // presents what it finds (media URLs, image sizes and versions, captions rendered to HTML).
-import { Context, Effect, Layer, Result, Schema } from 'effect'
+import { Context, Effect, Layer } from 'effect'
 import { SqlClient } from 'effect/sql'
 
-import { ComposeValues } from '../domain/compose.ts'
 import type { ImageInfo } from '../domain/images.ts'
 import { findImageNames, findPosterCandidates, renderArticle } from '../domain/markdown.ts'
 import { fromPostRow, POST_COLUMNS, type PostRow } from '../domain/post-rows.ts'
@@ -11,8 +10,6 @@ import { sortNewestFirst, type PostRecord } from '../domain/post.ts'
 import { toPost, type ArticlePost, type Post } from '../domain/presentation.ts'
 import { routes } from '../routes.ts'
 import { MediaStorage, mediaKeys } from '../services/media-storage.ts'
-
-const decodeDraft = Schema.decodeUnknownResult(Schema.fromJsonString(ComposeValues))
 
 type ImageRow = ImageInfo & { readonly post_id: string; readonly name: string }
 
@@ -26,20 +23,13 @@ export class PostQueries extends Context.Service<
     readonly findRecord: (id: string) => Effect.Effect<PostRecord | undefined>
     // The size and version of one of a post's images, if it's one.
     readonly imageInfo: (id: string, name: string) => Effect.Effect<ImageInfo | undefined>
-    // An article's body as HTML, its files served from /admin with `drafts` (for the composer).
-    readonly articleHtml: (
-      post: ArticlePost,
-      options?: { drafts?: boolean },
-    ) => Effect.Effect<string>
+    // An article's body as HTML.
+    readonly articleHtml: (post: ArticlePost) => Effect.Effect<string>
     // A post that may not be published yet, as the composer previews it: its files are served
     // from /admin, with their sizes and versions.
     readonly preview: (record: PostRecord) => Effect.Effect<Post>
     // The names and sizes of a post's files, from storage, for the /admin post form.
     readonly files: (id: string) => Effect.Effect<{ name: string; size: number }[]>
-    // What was last in the composer, if a post is being written (see PostCommands.saveDraft).
-    readonly draft: Effect.Effect<ComposeValues | undefined>
-    // Recovery must distinguish a never-saved composer from a published or discarded one.
-    readonly composerState: (id: string) => Effect.Effect<'active' | 'published' | 'retired'>
   }
 >()('logspace/PostQueries') {
   static readonly layer = Layer.effect(
@@ -100,10 +90,7 @@ export class PostQueries extends Context.Service<
 
       // The posters of an article's videos are found by name in storage (clip.mp4's is clip.jpg),
       // since they're named only by convention.
-      let articleHtml = Effect.fn('PostQueries.articleHtml')(function* (
-        post: ArticlePost,
-        options?: { drafts?: boolean },
-      ) {
+      let articleHtml = Effect.fn('PostQueries.articleHtml')(function* (post: ArticlePost) {
         let { body } = post.article
         let candidates = findPosterCandidates(post.id, body)
         let [found, imageRows] = yield* Effect.all(
@@ -121,12 +108,10 @@ export class PostQueries extends Context.Service<
             .filter(({ name }) => names.has(name))
             .map(({ name, width, height, version }) => [name, { width, height, version }]),
         )
-        return renderArticle(
-          post.id,
-          body,
-          { posters: candidates.filter((_, i) => found[i]), images },
-          options?.drafts ? routes.admin.postFile : routes.postFile,
-        )
+        return renderArticle(post.id, body, {
+          posters: candidates.filter((_, i) => found[i]),
+          images,
+        })
       })
 
       let preview = Effect.fn('PostQueries.preview')(function* (record: PostRecord) {
@@ -135,36 +120,10 @@ export class PostQueries extends Context.Service<
         return toPost(record, (file) => images.get(file), routes.admin.postFile)
       })
 
-      // A draft that doesn't decode (say, from an older version) is ignored, and the composer
-      // starts afresh. Its files go once the new post's draft replaces it.
-      let draft = Effect.gen(function* () {
-        let [row] = yield* sql<{
-          id: string
-          data: string
-        }>`select id, data from drafts order by updated_at desc limit 1`.pipe(Effect.orDie)
-        if (!row) return undefined
-        let decoded = decodeDraft(row.data)
-        if (Result.isFailure(decoded)) {
-          yield* Effect.logWarning(
-            `Ignoring the draft of ${row.id}, which doesn't decode`,
-            decoded.failure,
-          )
-          return undefined
-        }
-        // Its files are under the row's id.
-        return { ...decoded.success, id: row.id }
-      }).pipe(Effect.withSpan('PostQueries.draft'))
-
       return PostQueries.of({
         all,
-        draft,
         find,
         findRecord,
-        composerState: Effect.fn('PostQueries.composerState')(function* (id: string) {
-          if (yield* findRecord(id)) return 'published'
-          let retired = yield* sql`select 1 from retired_drafts where id = ${id}`.pipe(Effect.orDie)
-          return retired.length > 0 ? 'retired' : 'active'
-        }),
         imageInfo,
         articleHtml,
         preview,

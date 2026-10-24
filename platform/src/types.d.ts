@@ -15,9 +15,8 @@ declare module '*.woff2' {
   const path: string
   export default path
 }
-// Datastar, served as a file (see http/assets.ts) rather than imported as a module. The browser's
-// modules import it as `datastar`, typed by client/datastar.d.ts (see tsconfig.json).
-declare module '*/datastar-rocket.js' {
+// Datastar, served as a file (see http/assets.ts) rather than imported as a module.
+declare module '*/datastar.js' {
   const path: string
   export default path
 }

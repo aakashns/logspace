@@ -2,11 +2,6 @@
  * The pages under /admin (see ../admin/).
  */
 @layer components {
-  /* The composer's component (see compose.tsx) only wraps it, so it lays out as if it weren't there. */
-  logspace-composer {
-    display: contents;
-  }
-
   .admin-page {
     display: flex;
     flex-direction: column;
@@ -470,14 +465,6 @@
       outline: 2px solid var(--ring);
       outline-offset: 2px;
     }
-    &[data-disabled] {
-      opacity: 0.4;
-      cursor: default;
-
-      &:hover {
-        background: none;
-      }
-    }
     & svg {
       width: 1.25rem;
       height: 1.25rem;
@@ -520,29 +507,9 @@
     }
   }
 
-  /* A blank to fill in: just a line under it, and like the caption, no focus ring. */
-  .city-input {
-    width: 9rem;
-    min-width: 0;
-    padding: 0.25rem 0.125rem;
-    border: none;
-    border-bottom: 1px solid var(--input);
-    border-radius: 0;
-    font-size: 0.875rem;
-
-    &:focus-visible {
-      outline: none;
-    }
-  }
-
   /* Pushed to the far end of the toolbar. */
-  /* Always there, even empty, so it pushes itself and the Post button to the right. */
-  .draft-note {
-    margin-left: auto;
-    padding-inline: 0.5rem;
-  }
-
   .post-button {
+    margin-left: auto;
     padding-inline: 1.25rem;
 
     &:disabled {
@@ -551,50 +518,9 @@
     }
   }
 
-  /* What goes with the media: a video's poster, an article's cover. */
+  /* What goes with the media: a video's poster. */
   .attachment-note {
     margin-top: 0.5rem;
-  }
-
-  /* An article: its cover, then its title and summary to edit, like the feed's card. */
-  .article-attachment-cover {
-    aspect-ratio: 16 / 9;
-  }
-
-  .article-attachment-fields {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-    padding: 0.75rem 1rem;
-
-    /* Without a cover, the remove button sits over the title. */
-    &:first-child {
-      padding-right: 3.5rem;
-    }
-
-    & input {
-      width: 100%;
-      padding: 0;
-      border: none;
-      background: none;
-      color: inherit;
-      font: inherit;
-      outline: none;
-
-      &::placeholder {
-        color: var(--muted-foreground);
-      }
-    }
-    & .article-title-input {
-      font-weight: 600;
-    }
-    & .article-summary-input {
-      color: var(--muted-foreground);
-    }
-  }
-
-  .missing-file {
-    color: var(--destructive);
   }
 
   .composer-preview {
@@ -611,11 +537,5 @@
 
   .composer-empty {
     padding: 1.5rem 1rem;
-  }
-
-  /* An article's own page, under its card. */
-  .composer-article {
-    padding-inline: 1rem;
-    border-top: 1px solid var(--border);
   }
 }

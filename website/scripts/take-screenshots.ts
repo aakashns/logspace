@@ -55,9 +55,7 @@ try {
       form: { password },
     });
     await page.goto(`${baseURL}/admin/posts/new`);
-    // The post is written once; the composer picks it up again from its draft.
-    if (theme === "dark") await compose(page, site.art, 0);
-    else await expect(page.locator(".composer-media img")).toBeVisible();
+    await compose(page, site.art, 0);
     await page.mouse.move(0, 0);
     await shoot("composer");
     await context.close();

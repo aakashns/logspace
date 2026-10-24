@@ -16,7 +16,6 @@ import { PostMedia } from './queries/post-media.ts'
 import { PostQueries } from './queries/posts.ts'
 import { SiteConfigQueries } from './queries/site-config.ts'
 import { DatabaseLive, runMigrations } from './services/database.ts'
-import { DraftChanges } from './services/draft-changes.ts'
 import { PublicHttpLive, PublicNetwork } from './services/public-http.ts'
 import { Images } from './services/images.ts'
 import { MediaStorage } from './services/media-storage.ts'
@@ -43,14 +42,11 @@ export const AppServices = Layer.mergeAll(
   MigratedDatabase,
   MediaStorage.layer,
   Images.layer,
-  DraftChanges.layer,
   PostQueriesLive,
   SiteConfigQueriesLive,
   Assets.layer,
   AdminAuth.layer.pipe(Layer.provide(MigratedDatabase)),
-  PostCommands.layer.pipe(
-    Layer.provide([MigratedDatabase, MediaStorage.layer, Images.layer, DraftChanges.layer]),
-  ),
+  PostCommands.layer.pipe(Layer.provide([MigratedDatabase, MediaStorage.layer, Images.layer])),
   SiteConfigCommands.layer.pipe(
     Layer.provide([MigratedDatabase, MediaStorage.layer, Images.layer, SiteConfigQueriesLive]),
   ),

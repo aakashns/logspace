@@ -23,7 +23,7 @@ const screenshots = [
   },
   {
     name: "composer",
-    alt: "The composer, with a caption, a photo, and a city filled in, ready to post.",
+    alt: "The composer, with a caption and a photo, ready to post.",
     caption: "Write a post, add photos, and preview it before posting.",
   },
 ];
