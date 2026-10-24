@@ -142,7 +142,8 @@ export function ShareButton(props: { url: string }): Html {
 // when it's posted. Each tab also follows the draft as other tabs change it (ComposerUpdates).
 // Two local signals, declared on the form, say what's in flight: `_uploading` (set by
 // data-indicator on whatever is uploading) and `_posting`. While either is, the preview waits,
-// since a preview posts the whole form, chosen files and all.
+// since a preview posts the whole form, chosen files and all. `_published` keeps Post disabled
+// while the browser goes to the post.
 const URL_OF = (kind: 'media' | 'preview') => `el.closest('form').dataset.${kind}`
 // Mutations need an explicit retry: a lost response may already have committed the write.
 // Datastar 1.0.4 also needs retryMaxCount: 0 to stop transport-error retries.
@@ -152,18 +153,12 @@ const PREVIEW = `$_uploading || $_posting || @post(${URL_OF('preview')}, ${FORM_
 // While typing, the preview follows at most every 100 ms, and once more after the last keystroke.
 // A newer preview cancels one still on its way. A modifier's dot can't be in a JSX attribute's
 // name, so this one is spread in.
-// Datastar compares incoming values with DOM defaults. Keep those defaults current so a
-// patch clearing a field (e.g. another tab discarding) also clears its edited value.
-const PREVIEW_ON_INPUT = {
-  'data-on:input':
-    "el instanceof HTMLTextAreaElement ? (el.defaultValue = el.value) : el.setAttribute('value', el.value)",
-  'data-on:input__throttle.100ms.trailing': PREVIEW,
-}
+const PREVIEW_ON_INPUT = { 'data-on:input__throttle.100ms.trailing': PREVIEW }
 // Media re-rendered after an upload, a removal, or a rejected post: the preview catches up with
 // what was typed meanwhile. Publishing resets its own busy state even without returned markup.
 const REFRESH = `@post(${URL_OF('preview')}, ${FORM_REQUEST}).catch(() => {})`
 const PUBLISH =
-  '!$_uploading && !$_posting && ($_posting = true) && ' +
+  '!$_uploading && !$_posting && !$_published && ($_posting = true) && ' +
   `@post(el.getAttribute('action'), ${FORM_REQUEST}).catch(() => {}).finally(() => ($_posting = false))`
 // HTTP errors resolve Datastar's promise; transport failures reject it. Both emit fetch events.
 const REQUEST_FEEDBACK =
@@ -189,8 +184,9 @@ export function ComposerForm(props: { id: string; children: Child }): Html {
       class="composer"
       data-media={routes.admin.newPostMedia()}
       data-preview={routes.admin.newPostPreview()}
-      data-signals="{_uploading: false, _posting: false, _city: false, _requestError: false}"
+      data-signals="{_uploading: false, _posting: false, _published: false, _city: false, _requestError: false}"
       data-on:datastar-fetch={REQUEST_FEEDBACK}
+      data-on:pageshow__window="evt.persisted && ($_published = false)"
       data-on:submit__prevent={PUBLISH}
     >
       <div role="alert" class="alert" hidden data-attr:hidden="!$_requestError">
@@ -230,7 +226,7 @@ const TOGGLE_CITY =
   '$_city = !$_city; const input = el.parentElement.nextElementSibling; ' +
   "input.setAttribute('data-signals:_city', String($_city)); " +
   '$_city ? requestAnimationFrame(() => input.focus()) : ' +
-  `((input.value = ''), (input.defaultValue = ''), ${PREVIEW})`
+  `((input.value = ''), ${PREVIEW})`
 const CITY_LABEL = "$_city ? 'Remove location' : 'Add location'"
 
 export function CityInput(props: { value: string }): Html {
@@ -355,16 +351,33 @@ export function PreviewRefresh(): Html {
   return <span hidden data-init={REFRESH} />
 }
 
+// A morph keeps what's typed in a field unless the server's value differs from the field's
+// default (its value attribute, or a textarea's text). Once the server has saved the draft, its
+// values become the defaults: another tab's change (or a discard) still replaces a field, but
+// what's typed here and not saved yet, as during an outage, stays.
+const SAVE_DEFAULTS =
+  "const form = el.closest('form'); " +
+  'for (const [name, value] of Object.entries(JSON.parse(el.dataset.values))) { ' +
+  'const field = form.elements.namedItem(name); ' +
+  'if (field instanceof HTMLTextAreaElement) field.defaultValue = value; ' +
+  "else if (field instanceof HTMLInputElement) field.setAttribute('value', value); }"
+
+export function SavedDefaults(props: { values: Record<string, string> }): Html {
+  return <span hidden data-values={JSON.stringify(props.values)} data-init={SAVE_DEFAULTS} />
+}
+
 // The composer again, from the server, whenever another tab changes the draft (see
 // composerUpdates in http/admin.tsx). Datastar closes the stream while the tab is hidden and opens
 // it again when it's shown, which sends the draft as it is then. The server ends it when it stops,
 // so it's opened again (`always`) for when the server's back, unless it redirects to the login.
-// Morphing keeps existing media nodes, including failed images. A reconnect must give photos
-// interrupted by the outage another chance, without reloading healthy images or playing video.
-const RETRY_IMAGES =
+// After each patch, as when the stream is back after an outage: morphing keeps existing media
+// nodes, so images that failed to load get another chance (healthy images and video are left
+// alone), and if saving failed meanwhile, what's typed here is saved again, as a keystroke would.
+const AFTER_UPDATE =
   "if (evt.detail.el === el && evt.detail.type === 'datastar-patch-elements') { " +
   "document.querySelectorAll('#composer-page img').forEach((img) => { " +
-  'if (img.complete && !img.naturalWidth) { img.srcset = img.srcset; img.src = img.src; } }); }'
+  'if (img.complete && !img.naturalWidth) { img.srcset = img.srcset; img.src = img.src; } }); ' +
+  "if ($_requestError) document.querySelector('#composer-page [name=caption]')?.dispatchEvent(new Event('input')); }"
 
 export function ComposerUpdates(props: { url: string }): Html {
   return (
@@ -372,7 +385,7 @@ export function ComposerUpdates(props: { url: string }): Html {
       hidden
       data-url={props.url}
       data-init="@get(el.dataset.url, {retry: 'always'})"
-      data-on:datastar-fetch={RETRY_IMAGES}
+      data-on:datastar-fetch={AFTER_UPDATE}
     />
   )
 }
@@ -389,7 +402,11 @@ export function UploadingNote(): Html {
 
 export function PostButton(): Html {
   return (
-    <button type="submit" class="button post-button" data-attr:disabled="$_uploading || $_posting">
+    <button
+      type="submit"
+      class="button post-button"
+      data-attr:disabled="$_uploading || $_posting || $_published"
+    >
       Post
     </button>
   )
@@ -407,5 +424,11 @@ export function ClearFiles(): Html {
 
 // Where the browser goes once the post is published.
 export function Redirect(props: { href: string }): Html {
-  return <span hidden data-href={props.href} data-init="location.assign(el.dataset.href)" />
+  return (
+    <span
+      hidden
+      data-href={props.href}
+      data-init="$_published = true; location.assign(el.dataset.href)"
+    />
+  )
 }

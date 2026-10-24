@@ -910,6 +910,13 @@ describe('the composer', () => {
         ])
       ).text()
       expect(preview).toContain('>Saved</span>')
+      // What was saved becomes the fields' defaults, so a morph keeps only unsaved typing.
+      expect(JSON.parse(unescapeHtml(capture(preview, /data-values="([^"]*)"/)))).toEqual({
+        caption: 'Morning <walk> & tea\n\nWith friends',
+        city: 'Pune',
+        article_title: '',
+        article_summary: '',
+      })
       expect(await draftIds()).toEqual([id])
 
       let { id: resumed, html } = await openComposer()

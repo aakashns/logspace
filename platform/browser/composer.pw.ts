@@ -199,6 +199,32 @@ test('transport failure while publishing allows retry without reloading', async 
   await publish(page)
 })
 
+test('Post stays disabled while the browser goes to the published post', async ({ page }) => {
+  // Marks the publish request settled, after its promise callbacks (a task after the event).
+  await page.addInitScript(() => {
+    document.addEventListener('datastar-fetch', (event) => {
+      if (
+        event instanceof CustomEvent &&
+        event.detail.type === 'finished' &&
+        event.detail.el instanceof HTMLFormElement
+      ) {
+        setTimeout(() => (document.documentElement.dataset.publishSettled = 'true'))
+      }
+    })
+  })
+  await openComposer(page)
+  await caption(page, 'Published only once')
+  // Staying on the page when it's asked to leave keeps the composer as it was meanwhile.
+  await page.evaluate(() => addEventListener('beforeunload', (event) => event.preventDefault()))
+  const leaving = page.waitForEvent('dialog')
+  await page.getByRole('button', { name: 'Post', exact: true }).click()
+  const dialog = await leaving
+  expect(dialog.type()).toBe('beforeunload')
+  await dialog.dismiss()
+  await expect(page.locator('html')).toHaveAttribute('data-publish-settled', 'true')
+  await expect(page.getByRole('button', { name: 'Post', exact: true })).toBeDisabled()
+})
+
 test('two tabs propagate edits, preserve dialog focus, discard, and publish', async ({
   page,
   context,
@@ -318,6 +344,44 @@ test('update stream reconnects after abrupt application restart', async ({
   await expect(page.getByLabel('Caption', { exact: true })).toHaveValue('Updated after reconnect')
   await publish(page)
   await loadedImages(page, 'main article img', 1)
+})
+
+test('what is typed during an outage survives the reconnect and is saved', async ({
+  page,
+  context,
+  app,
+}) => {
+  await openComposer(page)
+  await caption(page, 'Saved before the outage')
+  const previous = Number(await page.locator('html').getAttribute('data-browser-updates'))
+  await app.stop('SIGKILL')
+  const failed = page.waitForEvent('requestfailed', {
+    predicate: (request) => request.url().endsWith('/preview'),
+  })
+  await page.getByLabel('Caption', { exact: true }).fill('Typed during the outage')
+  await failed
+  await expect(page.getByRole('alert')).toContainText('try again')
+
+  const saved = page.waitForResponse(
+    (response) =>
+      response.url().endsWith('/preview') &&
+      response.request().postData()?.includes('Typed during the outage') === true,
+  )
+  await app.start()
+  await expect
+    .poll(async () => Number(await page.locator('html').getAttribute('data-browser-updates')))
+    .toBeGreaterThan(previous)
+  expect((await saved).status()).toBe(200)
+  await expect(page.getByLabel('Caption', { exact: true })).toHaveValue('Typed during the outage')
+  await expect(page.locator('#composer-draft')).toHaveText('Saved')
+  await expect(page.getByRole('alert')).toBeHidden()
+
+  const other = await context.newPage()
+  await openComposer(other)
+  await expect(other.getByLabel('Caption', { exact: true })).toHaveValue('Typed during the outage')
+  // Saved text still gives way to another tab's change.
+  await caption(other, 'Changed in another tab')
+  await expect(page.getByLabel('Caption', { exact: true })).toHaveValue('Changed in another tab')
 })
 
 test.describe('without JavaScript', () => {

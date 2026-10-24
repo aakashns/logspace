@@ -5,7 +5,7 @@ tmp/
 .env
 .DS_Store
 
-# Playwright artifacts (uploaded on CI failures, never committed).
+# Playwright artifacts, never committed.
 test-results/
 playwright-report/
 blob-report/

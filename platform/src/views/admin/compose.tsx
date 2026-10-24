@@ -31,6 +31,7 @@ import {
   PreviewRefresh,
   Redirect,
   RemoveMediaButton,
+  SavedDefaults,
   Tooltip,
   UploadingNote,
 } from '../controls.tsx'
@@ -187,10 +188,23 @@ export function ComposerIssues(props: {
   )
 }
 
-export function DraftNote(props: { state: DraftState }): Html {
+// `saved` is the draft as a request just saved it, whose text the fields then take as their
+// defaults (see SavedDefaults).
+export function DraftNote(props: { state: DraftState; saved?: ComposeValues | undefined }): Html {
   let text = { saved: 'Saved', refused: 'Not saved' }
+  let { saved } = props
   return (
     <span id={COMPOSER_IDS.draft} role="status" class="muted draft-note">
+      {saved ? (
+        <SavedDefaults
+          values={{
+            caption: saved.caption,
+            city: saved.city,
+            article_title: saved.article?.title ?? '',
+            article_summary: saved.article?.summary ?? '',
+          }}
+        />
+      ) : null}
       {props.state ? text[props.state] : ''}
     </span>
   )
