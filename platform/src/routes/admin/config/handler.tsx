@@ -17,7 +17,7 @@ import { redirect } from '../../../lib/http/responses.ts'
 import { AdminAuth } from '../../../lib/http/session.ts'
 import { urls } from '../../../lib/urls.ts'
 import { adminPage, loggedIn } from '../admin.tsx'
-import { ConfigPage } from './page.tsx'
+import { CONFIG_PAGE_STYLES, ConfigPage } from './page.tsx'
 
 const configPage = (props: {
   values: SiteText
@@ -29,7 +29,7 @@ const configPage = (props: {
     return yield* adminPage(
       'Configure Site',
       <ConfigPage {...props} images={saved} unconfigured={!isSiteConfigured(saved)} />,
-      { status: props.issues ? 400 : 200 },
+      { styles: CONFIG_PAGE_STYLES, status: props.issues ? 400 : 200 },
     )
   })
 

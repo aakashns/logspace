@@ -15,7 +15,8 @@ import type { Child, Html } from '#jsx/jsx-runtime'
 
 import { Tooltip } from '../../../components/controls.tsx'
 import { CloseIcon, ImageIcon, VideoIcon } from '../../../components/icons.tsx'
-import { Caption, PostMedia, PostMeta } from '../../../components/post.tsx'
+import { Caption, POST_STYLES, PostMedia, PostMeta } from '../../../components/post.tsx'
+import { stylesheet } from '../../../components/stylesheet.ts'
 import type { PostIssue } from '../../../data/posts/post.ts'
 import {
   FULL_WIDTH_IMAGE_SIZES,
@@ -27,6 +28,10 @@ import {
 } from '../../../data/posts/presentation.ts'
 import { urls } from '../../../lib/urls.ts'
 import type { ComposeValues } from './form.ts'
+import css from './page.css' with { type: 'text' }
+
+// The preview shows the post as its page does.
+export const COMPOSE_PAGE_STYLES = POST_STYLES + stylesheet(css)
 
 export const COMPOSER_IDS = {
   issues: 'composer-issues',

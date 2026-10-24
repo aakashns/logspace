@@ -1,8 +1,13 @@
 import type { Html } from '#jsx/jsx-runtime'
+import { POST_STYLES } from '../../components/post.tsx'
+import { stylesheet } from '../../components/stylesheet.ts'
 
 import { getBannerSrcset, getSiteImageHref } from '../../data/site/site-images.ts'
 import type { SiteConfig } from '../../data/site/site.ts'
 import { Feed, type FeedItem } from './feed.tsx'
+import css from './page.css' with { type: 'text' }
+
+export const HOME_PAGE_STYLES = POST_STYLES + stylesheet(css)
 
 // The home page's banner, which spans the screen on phones and the column with its padding on
 // wider screens (see .banner in page.css).

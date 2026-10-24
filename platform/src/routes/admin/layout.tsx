@@ -2,23 +2,28 @@ import type { Child, Html } from '#jsx/jsx-runtime'
 
 import { LogoutButton } from '../../components/controls.tsx'
 import { Document, type PageContext } from '../../components/document.tsx'
+import { stylesheet } from '../../components/stylesheet.ts'
+import css from './layout.css' with { type: 'text' }
 
-// An admin page: kept out of search results, with the admin styles, and a logout button in the
-// navbar once logged in.
+const ADMIN_STYLES = stylesheet(css)
+
+// An admin page: kept out of search results, with the admin styles and then its own, and a logout
+// button in the navbar once logged in.
 export function AdminPage(props: {
   page: PageContext
   path: string
   title: string
+  styles: string
   loggedIn?: boolean | undefined
   children: Child
 }): Html {
-  let { page, path, title, loggedIn = true, children } = props
+  let { page, path, title, styles, loggedIn = true, children } = props
   return (
     <Document
       page={page}
       meta={{ path, title, noindex: true }}
+      styles={ADMIN_STYLES + styles}
       navActions={loggedIn ? <LogoutButton /> : null}
-      admin
     >
       {children}
     </Document>

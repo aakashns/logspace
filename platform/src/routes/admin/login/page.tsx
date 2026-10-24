@@ -1,6 +1,10 @@
 import type { Html } from '#jsx/jsx-runtime'
 
+import { stylesheet } from '../../../components/stylesheet.ts'
 import { urls } from '../../../lib/urls.ts'
+import css from './page.css' with { type: 'text' }
+
+export const LOGIN_PAGE_STYLES = stylesheet(css)
 
 export function LoginPage(props: { error?: string | undefined; enabled: boolean }): Html {
   let { error, enabled } = props

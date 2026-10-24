@@ -23,7 +23,7 @@
 }
 
 /*
- * Embedded in the page as a data URL (see EMBEDDED_FONTS in stylesheet.ts), so headings
+ * Embedded in the page as a data URL (see ../lib/http/assets.ts), so headings
  * render in it from the first paint. A downloaded font could arrive after first paint and
  * swap in, and `optional` doesn't prevent that in Safari, where a stylesheet change after load
  * makes WebKit pick up the late font anyway. Since the font is already in the page, `block` only

@@ -14,6 +14,11 @@ import {
 } from '../data/posts/presentation.ts'
 import { urls } from '../lib/urls.ts'
 import { ShareButton } from './controls.tsx'
+import css from './post.css' with { type: 'text' }
+import { stylesheet } from './stylesheet.ts'
+
+// For the pages that show posts.
+export const POST_STYLES = stylesheet(css)
 
 // A small link preview card's thumbnail (see .small-card in post.css).
 const LINK_THUMBNAIL_SIZES = '6.5rem'

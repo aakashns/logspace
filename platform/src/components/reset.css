@@ -1,7 +1,10 @@
 /*
  * CSS reset, adapted from remix.run's global stylesheet (itself based on Tailwind's preflight).
- * The first of the stylesheets site.css imports.
+ * The first CSS on every page (see document.tsx), so the layer order is declared here: later
+ * layers win whatever the selectors' specificity.
  */
+@layer reset, theme, components;
+
 @layer reset {
   *,
   ::before,

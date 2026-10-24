@@ -30,7 +30,7 @@ export const pageContext = Effect.gen(function* () {
     theme: theme === 'light' || theme === 'dark' ? theme : undefined,
     admin: request.cookies[ADMIN_HINT_COOKIE] === '1',
     nonce: crypto.getRandomValues(new Uint8Array(16)).toHex(),
-    stylesheets: yield* assets.stylesheets,
+    stylesheet: assets.stylesheet,
     datastarHref: assets.datastarHref,
   } satisfies PageContext
 })

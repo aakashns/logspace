@@ -1,5 +1,6 @@
 import type { Child, Html } from '#jsx/jsx-runtime'
 
+import { stylesheet } from '../../../components/stylesheet.ts'
 import { getIconHref, getSiteImageHref } from '../../../data/site/site-images.ts'
 import type {
   SiteConfig,
@@ -11,6 +12,9 @@ import type {
 } from '../../../data/site/site.ts'
 import { urls } from '../../../lib/urls.ts'
 import { Field, TextareaField, TextField } from './fields.tsx'
+import css from './page.css' with { type: 'text' }
+
+export const CONFIG_PAGE_STYLES = stylesheet(css)
 
 export interface ConfigPageProps {
   // What was typed, and the images that are saved.

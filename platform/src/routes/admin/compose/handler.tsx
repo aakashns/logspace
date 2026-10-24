@@ -29,6 +29,7 @@ import { urls } from '../../../lib/urls.ts'
 import { adminPage, loggedIn, message } from '../admin.tsx'
 import { composePost, composeValues, readComposeForm, type ComposeValues } from './form.ts'
 import {
+  COMPOSE_PAGE_STYLES,
   COMPOSER_IDS,
   ComposePage,
   ComposerIssues,
@@ -98,6 +99,7 @@ const composePage = (
 ) =>
   Effect.flatMap(composerProps(values, published, issues), (props) =>
     adminPage(published ? 'Edit Post' : 'New Post', <ComposePage {...props} />, {
+      styles: COMPOSE_PAGE_STYLES,
       status: issues ? 400 : 200,
     }),
   )

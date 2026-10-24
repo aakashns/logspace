@@ -1,8 +1,13 @@
 import type { Html } from '#jsx/jsx-runtime'
 
-import { Caption, PostMedia, PostMeta } from '../../components/post.tsx'
+import { Caption, POST_STYLES, PostMedia, PostMeta } from '../../components/post.tsx'
+import { stylesheet } from '../../components/stylesheet.ts'
 import type { LinkPreview, Post } from '../../data/posts/presentation.ts'
 import { urls } from '../../lib/urls.ts'
+import css from './page.css' with { type: 'text' }
+
+// For a post's page, and the page saying there's no post.
+export const POST_PAGE_STYLES = POST_STYLES + stylesheet(css)
 
 // A post on its own page: its caption, with every photo at full size.
 export function PostPage(props: {

@@ -9,7 +9,7 @@ import { isSiteConfigured } from '../../../data/site/site.ts'
 import { redirect } from '../../../lib/http/responses.ts'
 import { urls } from '../../../lib/urls.ts'
 import { adminPage, loggedIn } from '../admin.tsx'
-import { PostsPage } from './page.tsx'
+import { POSTS_PAGE_STYLES, PostsPage } from './page.tsx'
 
 const index = loggedIn(() =>
   Effect.gen(function* () {
@@ -18,7 +18,9 @@ const index = loggedIn(() =>
       return redirect(urls.admin.config())
     }
     let posts = yield* (yield* PostQueries).all
-    return yield* adminPage('Manage Site', <PostsPage posts={posts} />)
+    return yield* adminPage('Manage Site', <PostsPage posts={posts} />, {
+      styles: POSTS_PAGE_STYLES,
+    })
   }),
 )
 

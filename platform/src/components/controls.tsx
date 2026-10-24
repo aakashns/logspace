@@ -6,6 +6,7 @@
 import type { Child, Html } from '#jsx/jsx-runtime'
 
 import { urls } from '../lib/urls.ts'
+import css from './controls.css' with { type: 'text' }
 import {
   CheckIcon,
   ComposeIcon,
@@ -15,6 +16,9 @@ import {
   ShareIcon,
   SunIcon,
 } from './icons.tsx'
+import { stylesheet } from './stylesheet.ts'
+
+export const CONTROLS_STYLES = stylesheet(css)
 
 // Cookie holding the user's chosen theme ('light' or 'dark'); absent means follow the system.
 // A cookie rather than localStorage so the server renders the right theme on every request.
