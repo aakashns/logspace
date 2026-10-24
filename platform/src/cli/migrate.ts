@@ -4,7 +4,7 @@
 import { Config, Console, Effect, FileSystem, Layer, Option } from 'effect'
 
 import { AppConfig } from '../config.ts'
-import { DatabaseLive, runMigrations } from '../services/database.ts'
+import { DatabaseLive, runMigrations } from '../lib/database.ts'
 import { DOMAINS_FILE, SERVER_DATABASE_PATH } from './deploy.ts'
 import { fail, reportFailures } from './shell.ts'
 

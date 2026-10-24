@@ -1,15 +1,17 @@
-// Reading a submitted form, within the limits on uploads (see domain/constants.ts). Bun parses it
+// Reading a submitted form, within the limits on uploads (below). Bun parses it
 // natively; the limits are checked against Content-Length before a byte of the body is read, and
 // against the parsed files for a body sent without one. The login form, which anyone can send,
 // gets a much smaller limit (see LOGIN_FORM_LIMIT).
 import { Effect, Schema, Stream } from 'effect'
 import { HttpServerRequest } from 'effect/http'
 
-import {
-  MAX_UPLOAD_FILE_SIZE,
-  MAX_UPLOAD_FILES,
-  MAX_UPLOAD_TOTAL_SIZE,
-} from '../domain/constants.ts'
+// Limits on one submission of an /admin form. Uploaded files are held in memory until they're
+// saved, so these also bound how much memory an upload takes. The total stays under Bun's limit
+// on a request's body (128 MB), so a form over it gets the 413 page that says why.
+export const MAX_UPLOAD_FILE_SIZE = 100 * 1024 * 1024
+export const MAX_UPLOAD_TOTAL_SIZE = 120 * 1024 * 1024
+// File inputs count even when no file is chosen, and a photos post has one per photo.
+export const MAX_UPLOAD_FILES = 100
 
 // The form was over the limits, and nothing in it was saved.
 export class UploadTooLarge extends Schema.TaggedError<UploadTooLarge>()('UploadTooLarge', {}) {}

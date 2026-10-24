@@ -2,7 +2,7 @@
 import { Effect } from 'effect'
 import { HttpServerRequest, HttpServerResponse } from 'effect/http'
 
-import type { StoredFile } from '../services/media-storage.ts'
+import type { StoredFile } from '../lib/media-storage.ts'
 
 // For URLs with a hash of what they serve in them, which change when it does.
 export const IMMUTABLE = 'public, max-age=31536000, immutable'
@@ -10,6 +10,10 @@ export const IMMUTABLE = 'public, max-age=31536000, immutable'
 // A plain text response, like an error's.
 export const textResponse = (text: string, status: number, headers?: Record<string, string>) =>
   HttpServerResponse.text(text, { status, headers, contentType: 'text/plain; charset=utf-8' })
+
+// A file for machines, like a feed, of this type, in UTF-8.
+export const textFileResponse = (body: string, type: string) =>
+  HttpServerResponse.text(body, { contentType: `${type}; charset=utf-8` })
 
 export const notFound = () => textResponse('Not Found', 404)
 

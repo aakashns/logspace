@@ -1,0 +1,8 @@
+/*
+ * What the pages under /admin add to site.css (see stylesheet.ts).
+ */
+@import '../admin/components/page.css';
+@import '../admin/components/login.css';
+@import '../posts/manage/components/posts.css';
+@import '../site/config/components/config.css';
+@import '../posts/composer/components/compose.css';

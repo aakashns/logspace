@@ -19,9 +19,9 @@ import {
 } from 'effect/http'
 
 import { AppConfig } from '../config.ts'
-import { isSiteConfigured } from '../domain/site.ts'
-import { SiteConfigQueries } from '../queries/site-config.ts'
 import { routes } from '../routes.ts'
+import { SiteConfigQueries } from '../site/queries.ts'
+import { isSiteConfigured } from '../site/site.ts'
 import { getForwardedOrigin } from './forwarded.ts'
 import { notFound, redirect, textResponse } from './responses.ts'
 

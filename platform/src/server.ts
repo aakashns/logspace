@@ -6,22 +6,23 @@ import { Effect, Layer } from 'effect'
 import { HttpRouter } from 'effect/http'
 import { SqlClient } from 'effect/sql'
 
-import { PostCommands } from './commands/posts.ts'
-import { SiteConfigCommands } from './commands/site-config.ts'
+import { AdminRoutes } from './admin/handlers.tsx'
+import { AdminAuth } from './admin/session.ts'
 import { AppConfig } from './config.ts'
-import { AdminRoutes } from './http/admin.tsx'
-import { Assets } from './http/assets.ts'
+import { AssetRoutes, Assets } from './http/assets.ts'
 import { AppMiddleware } from './http/middleware.ts'
-import { PublicRoutes } from './http/public.tsx'
-import { AdminAuth } from './http/session.ts'
-import { LinkPreviews } from './queries/link-previews.ts'
-import { PostMedia } from './queries/post-media.ts'
-import { PostQueries } from './queries/posts.ts'
-import { SiteConfigQueries } from './queries/site-config.ts'
-import { DatabaseLive, runMigrations } from './services/database.ts'
-import { PublicHttpLive, PublicNetwork } from './services/public-http.ts'
-import { Images } from './services/images.ts'
-import { MediaStorage } from './services/media-storage.ts'
+import { DatabaseLive, runMigrations } from './lib/database.ts'
+import { Images } from './lib/images.ts'
+import { MediaStorage } from './lib/media-storage.ts'
+import { PublicHttpLive, PublicNetwork } from './lib/public-http.ts'
+import { PostCommands } from './posts/commands.ts'
+import { PostRoutes } from './posts/handlers.ts'
+import { LinkPreviews } from './posts/link-previews/link-previews.ts'
+import { PostMedia } from './posts/media.ts'
+import { PostQueries } from './posts/queries.ts'
+import { SiteConfigCommands } from './site/commands.ts'
+import { SiteRoutes } from './site/handlers.ts'
+import { SiteConfigQueries } from './site/queries.ts'
 
 // No consumer gets the connection until its schema is ready. The migrate CLI uses DatabaseLive
 // directly so a dry run doesn't apply migrations.
@@ -72,7 +73,13 @@ export const AppLive = AppServices.pipe(Layer.provide(PublicNetwork.layer))
 export const ROUTER_CONFIG = { ignoreTrailingSlash: false }
 
 // ServerLive serves these routes; tests drive them through an in-memory web handler.
-export const AppRoutes = Layer.mergeAll(PublicRoutes, AdminRoutes, AppMiddleware)
+export const AppRoutes = Layer.mergeAll(
+  PostRoutes,
+  SiteRoutes,
+  AdminRoutes,
+  AssetRoutes,
+  AppMiddleware,
+)
 
 // The app on AppConfig's port. Retains the app services and listener for startup logging and the
 // browser fixture's address.

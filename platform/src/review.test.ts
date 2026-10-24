@@ -1,0 +1,93 @@
+// Regressions for what a security and correctness review of this app found.
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test'
+
+import { defined, makeTestApp } from '../test/app.ts'
+import { TEST_CONTENT_DIR } from '../test/seed.ts'
+import { isUploadableFileName, mimeType } from './posts/post.ts'
+
+const app = makeTestApp()
+beforeAll(app.seedMedia)
+beforeEach(app.seedDatabase)
+afterAll(app.dispose)
+
+describe('found in review', () => {
+  it('publishes a new post submitted twice at once only once, sending both to it', async () => {
+    let form = () => {
+      let body = new FormData()
+      body.append('post_id', 'twice00001')
+      body.append('image_uploads', new File(['one'], 'one.jpg'))
+      return body
+    }
+    let cookie = defined(app.sessionCookie(await app.logIn()), 'a session cookie')
+    let submit = () =>
+      app.fetch('/admin/posts', { method: 'POST', headers: { Cookie: cookie }, body: form() })
+    let statuses = (await Promise.all([submit(), submit()]))
+      .map((response) => response.status)
+      .sort()
+    expect(statuses).toEqual([303, 303])
+  })
+
+  it('reads at most a few kilobytes of a login form, which anyone can send', async () => {
+    let big = new URLSearchParams({ password: 'x'.repeat(64 * 1024) })
+    let response = await app.fetch('/admin/login', { method: 'POST', body: big })
+    expect(response.status).toBe(413)
+    expect(response.headers.get('Cache-Control')).toBe('no-store')
+    let declared = await app.fetch('/admin/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Length': String(50 * 1024 * 1024),
+      },
+      body: 'password=x',
+    })
+    expect(declared.status).toBe(413)
+    let wrong = await app.logIn('wrong-password')
+    expect(wrong.headers.get('Cache-Control')).toBe('no-store')
+    expect(wrong.headers.get('X-Robots-Tag')).toBe('noindex')
+  })
+
+  it('declares UTF-8 on plain text responses', async () => {
+    let fresh = makeTestApp()
+    let response = await fresh.fetch('/rss.xml')
+    expect(response.status).toBe(503)
+    expect(response.headers.get('Content-Type')).toBe('text/plain; charset=utf-8')
+    expect(await response.text()).toBe('This site isn’t set up yet.')
+    await fresh.dispose()
+  })
+
+  it('answers a resized copy of a photo Bun can’t decode with a 404, not a 500', async () => {
+    let id = 'truncated1'
+    let photo = Bun.file(`${TEST_CONTENT_DIR}/posts/t83tytis1i/cover.jpg`)
+    let png = await new Bun.Image(await photo.bytes()).resize(2000, 1500).png().bytes()
+    let cookie = defined(app.sessionCookie(await app.logIn()), 'a session cookie')
+    let body = new FormData()
+    body.append('post_id', id)
+    // Enough of the file to read its size, but not its pixels.
+    body.append(
+      'image_uploads',
+      new File([new Uint8Array(png.subarray(0, Math.floor(png.length * 0.6)))], 'cut.png'),
+    )
+    expect(
+      (await app.fetch('/admin/posts', { method: 'POST', headers: { Cookie: cookie }, body }))
+        .status,
+    ).toBe(303)
+    let html = await (await app.fetch(`/posts/${id}`)).text()
+    let src = defined(html.match(/srcset="([^" ]+)/)?.[1], 'a srcset').replaceAll('&amp;', '&')
+    expect(src).toMatch(/\/posts\/truncated1\/cut\.png\?w=/)
+    expect((await app.fetch(src)).status).toBe(404)
+  })
+
+  it('accepts the photo and video formats LogSpace 0.1 did, with its types', () => {
+    for (let [name, type] of [
+      ['a.jfif', 'image/pjpeg'],
+      ['a.JXL', 'image/jxl'],
+      ['a.dng', 'image/x-adobe-dng'],
+      ['a.bmp', 'image/bmp'],
+      ['a.ts', 'video/mp2t'],
+      ['a.m2ts', 'video/mp2t'],
+      ['a.mov', 'video/quicktime'],
+    ] as const) {
+      expect([name, mimeType(name), isUploadableFileName(name)]).toEqual([name, type, true])
+    }
+  })
+})

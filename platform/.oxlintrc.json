@@ -11,22 +11,44 @@
   "env": { "builtin": true },
   // Vendored, minified.
   "ignorePatterns": ["public/datastar.js"],
-  // The layers of src/ (see ../CONTRIBUTING.md), kept apart: each may only import the ones below it.
+  // What each kind of file may import (see ../CONTRIBUTING.md). They're told apart by name, wherever
+  // they are: a feature's model, queries.ts, commands.ts, handlers.tsx, and components/.
   "overrides": [
     {
-      // Pure: no database, storage, images, HTTP, or pages.
-      "files": ["src/domain/**"],
+      // Pure: no database, storage, images, network, reads, writes, HTTP, or pages.
+      "files": [
+        "src/posts/post.ts",
+        "src/posts/rows.ts",
+        "src/posts/presentation.ts",
+        "src/posts/caption.ts",
+        "src/posts/format.ts",
+        "src/posts/composer/compose.ts",
+        "src/posts/feeds/feeds.ts",
+        "src/posts/link-previews/link-metadata.ts",
+        "src/site/site.ts",
+        "src/site/site-images.ts",
+        "src/lib/image-widths.ts",
+        "src/lib/issues.ts"
+      ],
       "rules": {
         "no-restricted-imports": [
           "error",
           {
             "patterns": [
-              "**/services/**",
-              "**/commands/**",
-              "**/queries/**",
+              "**/lib/database.ts",
+              "**/lib/media-storage.ts",
+              "**/lib/images.ts",
+              "**/lib/public-http.ts",
+              "**/queries.ts",
+              "**/media.ts",
+              "**/link-previews.ts",
+              "**/commands.ts",
+              "**/files.ts",
+              "**/handlers.ts",
+              "**/handlers.tsx",
               "**/http/**",
-              "**/views/**",
               "**/cli/**",
+              "**/components/**",
               "effect/sql",
               "node:fs*"
             ]
@@ -36,35 +58,66 @@
     },
     {
       // The read side never writes.
-      "files": ["src/queries/**"],
-      "rules": {
-        "no-restricted-imports": [
-          "error",
-          { "patterns": ["**/commands/**", "**/http/**", "**/views/**", "**/cli/**"] }
-        ]
-      }
-    },
-    {
-      "files": ["src/commands/**", "src/services/**"],
-      "rules": {
-        "no-restricted-imports": [
-          "error",
-          { "patterns": ["**/http/**", "**/views/**", "**/cli/**"] }
-        ]
-      }
-    },
-    {
-      // Pages render what they're given; they don't fetch or write. URLs and the shapes they show
-      // come from domain/.
-      "files": ["src/views/**"],
+      "files": [
+        "src/**/queries.ts",
+        "src/posts/media.ts",
+        "src/posts/link-previews/link-previews.ts",
+        "src/site/files.ts"
+      ],
       "rules": {
         "no-restricted-imports": [
           "error",
           {
             "patterns": [
-              "**/services/**",
-              "**/commands/**",
-              "**/queries/**",
+              "**/commands.ts",
+              "**/files.ts",
+              "**/handlers.ts",
+              "**/handlers.tsx",
+              "**/http/**",
+              "**/cli/**",
+              "**/components/**"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      // Writes and shared services don't know about requests or pages.
+      "files": ["src/**/commands.ts", "src/posts/files.ts", "src/lib/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              "**/handlers.ts",
+              "**/handlers.tsx",
+              "**/http/**",
+              "**/cli/**",
+              "**/components/**"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      // Components render what they're given; they don't fetch or write. URLs and the shapes they show come from the model.
+      "files": ["src/**/components/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              "**/lib/database.ts",
+              "**/lib/media-storage.ts",
+              "**/lib/images.ts",
+              "**/lib/public-http.ts",
+              "**/queries.ts",
+              "**/media.ts",
+              "**/link-previews.ts",
+              "**/commands.ts",
+              "**/files.ts",
+              "**/handlers.ts",
+              "**/handlers.tsx",
               "**/http/**",
               "**/cli/**",
               "effect/sql"
@@ -75,18 +128,29 @@
     },
     {
       // Public pages (and the navbar's controls) don't use the admin's, like the composer's.
-      "files": ["src/views/*"],
+      "files": ["src/components/**", "src/posts/components/**", "src/posts/pages/components/**"],
       "rules": {
         "no-restricted-imports": [
           "error",
           {
             "patterns": [
-              "**/admin/**",
-              "**/services/**",
-              "**/commands/**",
-              "**/queries/**",
+              "**/lib/database.ts",
+              "**/lib/media-storage.ts",
+              "**/lib/images.ts",
+              "**/lib/public-http.ts",
+              "**/queries.ts",
+              "**/media.ts",
+              "**/link-previews.ts",
+              "**/commands.ts",
+              "**/files.ts",
+              "**/handlers.ts",
+              "**/handlers.tsx",
               "**/http/**",
               "**/cli/**",
+              "**/admin/**",
+              "**/composer/**",
+              "**/manage/**",
+              "**/config/**",
               "effect/sql"
             ]
           }
@@ -95,28 +159,22 @@
     },
     {
       // Public routes only read, and show public pages.
-      "files": ["src/http/public.tsx"],
-      "rules": {
-        "no-restricted-imports": [
-          "error",
-          { "patterns": ["**/commands/**", "**/admin/**", "**/admin.tsx", "**/cli/**"] }
-        ]
-      }
-    },
-    {
-      // The admin's handlers share admin/pages.tsx; the route table (admin.tsx) is the only place
-      // that imports them all.
-      "files": ["src/http/admin/**"],
+      "files": [
+        "src/posts/pages/handlers.tsx",
+        "src/posts/feeds/handlers.ts",
+        "src/posts/link-previews/handlers.ts"
+      ],
       "rules": {
         "no-restricted-imports": [
           "error",
           {
             "patterns": [
-              "./login.tsx",
-              "./config.tsx",
-              "./posts.tsx",
-              "./composer.tsx",
-              "../admin.tsx",
+              "**/commands.ts",
+              "**/files.ts",
+              "**/admin/**",
+              "**/composer/**",
+              "**/manage/**",
+              "**/config/**",
               "**/cli/**"
             ]
           }

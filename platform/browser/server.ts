@@ -5,8 +5,8 @@ import { Context, Effect, Layer, Redacted } from 'effect'
 import { HttpServer } from 'effect/http'
 import { join } from 'node:path'
 
-import { ServerLive } from '../src/server.ts'
 import { AppConfig } from '../src/config.ts'
+import { ServerLive } from '../src/server.ts'
 
 const [directory, password, secret] = process.argv.slice(2)
 if (!directory || !password || !secret)

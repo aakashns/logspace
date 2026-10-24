@@ -3,13 +3,16 @@
 // hash of it, and fonts never change in place, so browsers keep both for a year. In development
 // the stylesheets are made again for every page, so an edit shows on reload.
 import { Context, Effect, Layer } from 'effect'
+import { HttpRouter, HttpServerResponse } from 'effect/http'
 
 import datastarFile from '../../public/datastar.js' with { type: 'file' }
 import latinFont from '../../public/fonts/instrument-sans-latin-600.woff2' with { type: 'file' }
 import latinExtFont from '../../public/fonts/instrument-sans-latin-ext-600.woff2' with { type: 'file' }
+import { loadStylesheets, type Stylesheets } from '../components/stylesheet.ts'
 import { AppConfig } from '../config.ts'
-import { hash } from '../services/images.ts'
-import { loadStylesheets, type Stylesheets } from '../views/stylesheet.ts'
+import { hash } from '../lib/images.ts'
+import { requestUrl } from './pages.ts'
+import { IMMUTABLE, notFound } from './responses.ts'
 
 export interface Asset {
   readonly bytes: Uint8Array<ArrayBuffer>
@@ -46,3 +49,19 @@ export class Assets extends Context.Service<
     }),
   )
 }
+
+// Datastar and the fonts, which never change at a URL.
+const asset = Effect.gen(function* () {
+  let { pathname } = yield* requestUrl
+  let file = (yield* Assets).files.get(pathname)
+  if (!file) return notFound()
+  return HttpServerResponse.uint8Array(file.bytes, {
+    contentType: file.type,
+    headers: { 'Cache-Control': IMMUTABLE },
+  })
+})
+
+export const AssetRoutes = HttpRouter.addAll([
+  HttpRouter.route('GET', '/assets/:file', asset),
+  HttpRouter.route('GET', '/fonts/:file', asset),
+])

@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "imports": {
-    "#jsx/*": "./src/jsx/*.ts"
+    "#jsx/*": "./src/lib/jsx/*.ts"
   },
   "scripts": {
     "dev": "NODE_ENV=development bun --watch src/entry.ts start",

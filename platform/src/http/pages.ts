@@ -4,11 +4,11 @@ import { Effect, Option } from 'effect'
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from 'effect/http'
 
 import type { Html } from '#jsx/jsx-runtime'
-import { THEME_COOKIE_NAME } from '../domain/constants.ts'
-import { SiteConfigQueries } from '../queries/site-config.ts'
-import type { PageContext } from '../views/document.tsx'
+import { ADMIN_HINT_COOKIE } from '../admin/session.ts'
+import { THEME_COOKIE_NAME } from '../components/controls.tsx'
+import type { PageContext } from '../components/document.tsx'
+import { SiteConfigQueries } from '../site/queries.ts'
 import { Assets } from './assets.ts'
-import { ADMIN_HINT_COOKIE } from './session.ts'
 
 // The request's URL, as the browser sent it (with TRUST_PROXY, its protocol and host are the
 // ones the proxy forwarded, see middleware.ts).
@@ -20,7 +20,7 @@ export const requestUrl = Effect.map(HttpServerRequest.HttpServerRequest, (reque
 export const param = (name: string) => Effect.map(HttpRouter.params, (params) => params[name] ?? '')
 
 // What every page needs to know about the request. The nonce is new for every response:
-// Datastar runs its expressions with it (see views/controls.tsx), and nothing else can run.
+// Datastar runs its expressions with it (see ../components/controls.tsx), and nothing else can run.
 export const pageContext = Effect.gen(function* () {
   let request = yield* HttpServerRequest.HttpServerRequest
   let assets = yield* Assets

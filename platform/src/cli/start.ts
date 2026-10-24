@@ -3,8 +3,8 @@
 import { Context, Effect, Layer } from 'effect'
 
 import { AppConfig } from '../config.ts'
+import { MediaStorage } from '../lib/media-storage.ts'
 import { ServerLive } from '../server.ts'
-import { MediaStorage } from '../services/media-storage.ts'
 import { VERSION } from './shell.ts'
 
 export const start = Effect.gen(function* () {

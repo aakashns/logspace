@@ -16,8 +16,8 @@ import * as fs from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 const PACKAGE = 'package.json'
-// What the binary is made of, from the repository's root. package.json is in it too, apart from its
-// version.
+// What the binary is made of, from the repository's root, apart from the tests beside the code
+// (TESTS). package.json is in it too, apart from its version.
 const BINARY = [
   'platform/src/',
   'platform/db/',
@@ -26,6 +26,7 @@ const BINARY = [
   'platform/tsconfig.json',
   'platform/scripts/build.ts',
 ]
+const TESTS = /\.(test|pw)\.ts$/
 // What tests the binary, which needs a build to check but not a release.
 const BINARY_TESTS = [
   'platform/scripts/smoke-test.ts',
@@ -47,7 +48,7 @@ if (base) {
   let [major, minor, patch] = parseVersion(baseFile) ?? [0, 0, 0]
   let changed = git('diff', '--name-only', base, 'HEAD').split('\n')
   let binaryChanged =
-    changed.some((path) => BINARY.some((input) => path.startsWith(input))) ||
+    changed.some((path) => !TESTS.test(path) && BINARY.some((input) => path.startsWith(input))) ||
     withoutVersion(file) !== withoutVersion(baseFile)
   release = version.join('.') !== [major, minor, patch].join('.')
   build = binaryChanged || changed.some((path) => BINARY_TESTS.includes(path))

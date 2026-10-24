@@ -16,7 +16,7 @@
     "isolatedModules": true,
     "skipLibCheck": true,
     "noEmit": true,
-    // Pages are TSX rendered straight to HTML strings by src/jsx (no virtual DOM).
+    // Pages are TSX rendered straight to HTML strings by src/lib/jsx (no virtual DOM).
     "jsx": "react-jsx",
     "jsxImportSource": "#jsx"
   },

@@ -25,7 +25,7 @@ export class AppConfig extends Context.Service<
     // Where caches are kept: link previews, which are fetched again if it's deleted.
     readonly cacheDir: string
     // /admin's password, and the secret that signs its session cookie. /admin is switched off
-    // until both are at least 16 characters (see http/session.ts).
+    // until both are at least 16 characters (see admin/session.ts).
     readonly adminPassword: Redacted.Redacted<string>
     readonly sessionSecret: Redacted.Redacted<string>
   }

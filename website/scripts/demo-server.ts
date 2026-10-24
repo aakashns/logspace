@@ -7,8 +7,8 @@ import {
   Layer,
 } from "../../platform/node_modules/effect/dist/index.js";
 import { AppLive } from "../../platform/src/server.ts";
-import { PostCommands } from "../../platform/src/commands/posts.ts";
-import { SiteConfigCommands } from "../../platform/src/commands/site-config.ts";
+import { PostCommands } from "../../platform/src/posts/commands.ts";
+import { SiteConfigCommands } from "../../platform/src/site/commands.ts";
 import { AppConfig } from "../../platform/src/config.ts";
 
 const art = process.env.LOGSPACE_DEMO_ART;
