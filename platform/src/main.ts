@@ -80,7 +80,7 @@ const upgrade = Command.make(
 
 const logspace = Command.make('logspace', {}, () => runServer).pipe(
   Command.withDescription(
-    `LogSpace ${VERSION}. The server is configured with environment variables: PORT (44100), HOST (127.0.0.1), ` +
+    `LogSpace ${VERSION}. The server is configured with environment variables: PORT (44100), HOST (::), ` +
       'DATABASE_PATH (data/app.sqlite), MEDIA_DIR (data/media), CACHE_DIR (data/cache), ' +
       'ADMIN_PASSWORD and AUTH_SESSION_SECRET (the admin password and the secret that signs its ' +
       'session cookie), and TRUST_PROXY=1 behind a reverse proxy.',

@@ -23,8 +23,9 @@ bun run build && bun scripts/smoke-test.ts dist/logspace
 bun scripts/seed.ts  # fills DATABASE_PATH and MEDIA_DIR with the test posts
 ```
 
-The server is configured with environment variables: `PORT`, `HOST` (defaults to `127.0.0.1`), `DATABASE_PATH`, `MEDIA_DIR`,
-`CACHE_DIR`, `ADMIN_PASSWORD`, `AUTH_SESSION_SECRET`, `TRUST_PROXY`, and `MEDIA_STORAGE=fs|memory`.
+The server is configured with environment variables: `PORT`, `HOST` (defaults to `::`, all interfaces),
+`DATABASE_PATH`, `MEDIA_DIR`, `CACHE_DIR`, `ADMIN_PASSWORD`, `AUTH_SESSION_SECRET`, `TRUST_PROXY`,
+and `MEDIA_STORAGE=fs|memory`. The managed systemd service sets `HOST=127.0.0.1` behind Caddy.
 Without them, data goes in `data/` in the working directory. `AGENTS.md` has the conventions, and
 `docs/posts.md` what a post is made of.
 

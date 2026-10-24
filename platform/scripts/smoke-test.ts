@@ -28,6 +28,7 @@ let server = Bun.spawn([binary, 'start'], {
   cwd: dir,
   env: {
     ...process.env,
+    HOST: undefined,
     PORT: String(PORT),
     ADMIN_PASSWORD: 'smoke-password-1234',
     AUTH_SESSION_SECRET: 'smoke-session-secret',
@@ -41,6 +42,10 @@ try {
     if (i > 500) throw new Error('The server didn’t start')
     await Bun.sleep(20)
   }
+  check(
+    (await fetch(`http://[::1]:${PORT}/admin/login`)).ok,
+    'without HOST, the default listener still accepts IPv6 connections',
+  )
   check(
     (await fetch(base, { redirect: 'manual' })).status === 302,
     'an unconfigured site sends visitors to the login',

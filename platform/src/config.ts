@@ -8,6 +8,7 @@ export class AppConfig extends Context.Service<
   AppConfig,
   {
     readonly port: number
+    // Keep the existing wildcard listener for custom deployments; setup sets loopback explicitly.
     readonly hostname: string
     // 'production' serves pages for real; 'development' runs `bun run dev`; 'test' runs the tests
     // (which mustn't reach out to the network).
@@ -50,7 +51,7 @@ export class AppConfig extends Context.Service<
         )
       return AppConfig.of({
         port: yield* Config.Port('PORT').pipe(Config.withDefault(44100)),
-        hostname: yield* Config.String('HOST').pipe(Config.withDefault('127.0.0.1')),
+        hostname: yield* Config.String('HOST').pipe(Config.withDefault('::')),
         mode,
         trustProxy: (yield* Config.String('TRUST_PROXY').pipe(Config.withDefault(''))) === '1',
         databasePath: yield* resolve('DATABASE_PATH', 'data/app.sqlite'),
