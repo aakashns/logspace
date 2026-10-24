@@ -1,5 +1,6 @@
 // Cloudflare Workers Builds runs `bun run build`, then `wrangler deploy`, which serves dist/ as
-// static assets: no Worker code, and 404.html for paths without a file.
+// static assets: no Worker code, and 404.html for paths without a file. For other branches it
+// runs `wrangler preview`, which needs the `previews` block, even an empty one.
 {
   "$schema": "https://unpkg.com/wrangler/config-schema.json",
   "name": "logspace",
@@ -8,4 +9,5 @@
     "directory": "./dist",
     "not_found_handling": "404-page",
   },
+  "previews": {},
 }
