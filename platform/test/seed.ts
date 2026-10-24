@@ -24,8 +24,8 @@ export const TEST_SITE_CONFIG: SiteText = {
   bannerImageAlt: '',
 }
 
-// Saves TEST_SITE_CONFIG and replaces every post with the sample posts, so a beforeEach can run
-// it to start each test afresh.
+// Saves TEST_SITE_CONFIG and replaces every post with the sample posts, with no draft, so a
+// beforeEach can run it to start each test afresh.
 export const seedDatabase = Effect.gen(function* () {
   let sql = yield* SqlClient.SqlClient
   yield* (yield* SiteConfigCommands).save(TEST_SITE_CONFIG)
@@ -33,6 +33,7 @@ export const seedDatabase = Effect.gen(function* () {
   yield* sql.withTransaction(
     Effect.gen(function* () {
       yield* sql`delete from posts`
+      yield* sql`delete from drafts`
       yield* sql`insert into posts ${sql.insert(rows.map((row) => ({ ...row })))}`
     }),
   )

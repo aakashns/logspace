@@ -40,8 +40,9 @@ describe('migrations', () => {
       '0003_create_post_images',
       '0004_create_config',
       '0005_rename_social_image_to_banner',
+      '0006_create_drafts',
     ])
-    expect(await migrate(file)).toHaveLength(5)
+    expect(await migrate(file)).toHaveLength(6)
     expect(await migrate(file)).toEqual([])
 
     let db = new Database(file, { readonly: true })
@@ -78,11 +79,22 @@ describe('migrations', () => {
         checksum: '825062aee1c7f6119ce0d1132a3ea6658f1446f3432343a40a783225dce81815',
         batch: 1,
       },
+      {
+        id: '0006',
+        name: 'create_drafts',
+        checksum: '6c1bf762e88c5d03c415e75f5388c4d48310786fd840b7b93e66ea5087d083d6',
+        batch: 1,
+      },
     ])
     let columns = Schema.decodeUnknownSync(Schema.Array(Schema.Struct({ name: Schema.String })))(
       db.query("select name from pragma_table_info('posts')").all(),
     ).map((row) => row.name)
     expect(columns).toContain('article_body')
+    expect(db.query("select name from pragma_table_info('drafts')").all()).toEqual([
+      { name: 'id' },
+      { name: 'data' },
+      { name: 'updated_at' },
+    ])
     db.close()
   })
 

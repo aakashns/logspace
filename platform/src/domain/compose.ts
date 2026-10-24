@@ -3,9 +3,10 @@
 // from its media, its date is when it's posted, and a photo's alt text is its file name. Media is
 // uploaded as it's chosen, so each submission lists what was added before (in hidden fields) and
 // any files chosen with it. The form is views/admin/compose.tsx.
-import { Array as Arr } from 'effect'
+import { Array as Arr, Schema } from 'effect'
 
 import {
+  FileName,
   isPostFileName,
   isUploadableFileName,
   mimeType,
@@ -15,27 +16,44 @@ import {
 import { findArticleFiles } from './markdown.ts'
 import { uploadName } from './post-form.ts'
 
-export interface ComposeValues {
-  readonly id: string
+// The composer's values, also kept as the draft (see PostCommands.saveDraft) as JSON.
+export const ArticleValues = Schema.Struct({
+  title: Schema.String,
+  summary: Schema.String,
+  // Markdown, as the file had it, less a title heading at the top.
+  body: Schema.String,
+  // The name of the file it came from.
+  source: Schema.String,
+})
+export type ArticleValues = typeof ArticleValues.Type
+
+const OFFSET = /^[+-](0\d|1[0-4]):[0-5]\d$/
+
+export const ComposeValues = Schema.Struct({
+  id: Schema.String,
   // Markdown, as typed.
-  readonly caption: string
-  readonly city: string
+  caption: Schema.String,
+  city: Schema.String,
   // The UTC offset of where it's written, like "+05:30": the browser's, else the newest post's.
-  readonly offset: string
-  readonly photos: readonly string[]
-  readonly video?: string | undefined
-  readonly poster?: string | undefined
-  readonly article?: ArticleValues | undefined
-  readonly cover?: string | undefined
+  offset: Schema.String.check(Schema.isPattern(OFFSET)),
+  photos: Schema.Array(FileName),
+  video: Schema.optional(FileName),
+  poster: Schema.optional(FileName),
+  article: Schema.optional(ArticleValues),
+  cover: Schema.optional(FileName),
+})
+export type ComposeValues = typeof ComposeValues.Type
+
+// Whether there's nothing in the composer to keep: no caption, location, or media.
+export function isEmptyComposer(values: ComposeValues): boolean {
+  let { caption, city, photos, video, article } = values
+  return caption.trim() === '' && city === '' && photos.length === 0 && !video && !article
 }
 
-export interface ArticleValues {
-  readonly title: string
-  readonly summary: string
-  // Markdown, as the file had it, less a title heading at the top.
-  readonly body: string
-  // The name of the file it came from.
-  readonly source: string
+// The files the composer names itself (its article's body may name more, uploaded or not).
+export function composerFiles(values: ComposeValues): string[] {
+  let { photos, video, poster, cover } = values
+  return [...photos, video, poster, cover].filter((file) => file !== undefined)
 }
 
 // A submitted composer: what it holds, the files chosen with it (already named in `values`), the
@@ -171,7 +189,7 @@ export function readComposeForm(formData: FormData): ComposeForm {
     id,
     caption: text('caption'),
     city: text('city').trim(),
-    offset: /^[+-](0\d|1[0-4]):[0-5]\d$/.test(offset) ? offset : '+00:00',
+    offset: OFFSET.test(offset) ? offset : '+00:00',
     photos,
     video,
     poster,
