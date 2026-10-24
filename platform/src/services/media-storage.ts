@@ -26,7 +26,8 @@ export const mediaKeys = {
   // A post's file's resized copies, each <width>-<version>.webp (see queries/post-media.ts).
   variants: (id: string, name: string) => `variants/${id}/${name}/`,
   postVariants: (id: string) => `variants/${id}/`,
-  siteFile: (name: string) => `site/${name}`,
+  siteFile: (name: string, generation?: string) =>
+    generation ? `site/generations/${generation}/${name}` : `site/${name}`,
   // The banner image's resized copies, each <width>-<version>.webp (see queries/site-files.ts).
   siteVariants: (name: string) => `site-variants/${name}/`,
   // A link preview's image, resized (see queries/link-previews.ts).

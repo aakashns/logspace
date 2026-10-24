@@ -3,14 +3,16 @@
 // browser, and so does changing the secret, since old cookies no longer verify. /admin stays
 // switched off until both are set and at least 16 characters.
 //
-// The session is the cookie: base64url JSON, a dot, and its HMAC-SHA256 signature. It's
+// A session also needs an unexpired SQLite row, removed on logout. The cookie is base64url JSON,
+// a dot, and its HMAC-SHA256 signature. It's
 // HttpOnly, SameSite=Lax, Secure in production, and sent only to /admin, so public pages never
 // receive it. Beside it, a logged-in browser gets a cookie that only says so (ADMIN_HINT_COOKIE),
 // sent to every page, so they can show the navbar's link to the composer. It proves nothing: a
 // made-up one just shows a link that leads to the login page.
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto'
-import { Context, Effect, Layer, Option, Redacted, Schema } from 'effect'
+import { Clock, Context, Effect, Layer, Option, Redacted, Schema } from 'effect'
 import { HttpServerRequest, HttpServerResponse } from 'effect/http'
+import { SqlClient } from 'effect/sql'
 
 import { AppConfig } from '../config.ts'
 
@@ -18,6 +20,7 @@ const COOKIE_NAME = 'admin_session'
 export const ADMIN_HINT_COOKIE = 'admin'
 const MAX_AGE = 60 * 60 * 24 * 30
 const MIN_SECRET_LENGTH = 16
+const MAX_SESSIONS = 100
 
 export const Session = Schema.Struct({
   // A new id on login guards against session fixation.
@@ -39,13 +42,13 @@ export class AdminAuth extends Context.Service<
   AdminAuth,
   {
     readonly enabled: boolean
-    readonly checkPassword: (input: unknown) => boolean
     // The request's session, or a new empty one.
     readonly session: Effect.Effect<Session, never, HttpServerRequest.HttpServerRequest>
     // The request's session if it's logged in as admin.
     readonly requireLogin: Effect.Effect<Session, NotLoggedIn, HttpServerRequest.HttpServerRequest>
     // A new logged-in session.
-    readonly logIn: () => Session
+    readonly logIn: (input: unknown) => Effect.Effect<Session | undefined>
+    readonly logOut: Effect.Effect<void, never, HttpServerRequest.HttpServerRequest>
     // Sets the session's cookie on a response, or with undefined, clears it. The hint cookie is
     // set while it's logged in, and cleared with it.
     readonly saveSession: (
@@ -58,6 +61,8 @@ export class AdminAuth extends Context.Service<
     AdminAuth,
     Effect.gen(function* () {
       let config = yield* AppConfig
+      let sql = yield* SqlClient.SqlClient
+      let clock = yield* Clock.Clock
       let password = Redacted.value(config.adminPassword)
       let secret = Redacted.value(config.sessionSecret)
       let enabled = password.length >= MIN_SECRET_LENGTH && secret.length >= MIN_SECRET_LENGTH
@@ -66,8 +71,8 @@ export class AdminAuth extends Context.Service<
 
       let read = (cookie: string | undefined): Session | undefined => {
         if (!enabled || !cookie) return undefined
-        let [payload, signature] = cookie.split('.')
-        if (!payload || !signature) return undefined
+        let [payload, signature, extra] = cookie.split('.')
+        if (!payload || !signature || extra !== undefined) return undefined
         let expected = sign(payload)
         let given = Buffer.from(signature, 'base64url')
         if (given.length !== expected.length || !timingSafeEqual(given, expected)) return undefined
@@ -76,27 +81,51 @@ export class AdminAuth extends Context.Service<
         )
       }
 
-      let session = Effect.map(
-        HttpServerRequest.HttpServerRequest,
-        (request): Session => read(request.cookies[COOKIE_NAME]) ?? { id: crypto.randomUUID() },
-      )
+      let session = Effect.gen(function* () {
+        let request = yield* HttpServerRequest.HttpServerRequest
+        let decoded = read(request.cookies[COOKIE_NAME])
+        if (decoded?.auth === fingerprint) {
+          let now = clock.currentTimeMillisUnsafe()
+          let rows = yield* sql`select 1 from admin_sessions where id = ${decoded.id}
+            and auth = ${fingerprint} and expires_at > ${now}`.pipe(Effect.orDie)
+          if (rows.length > 0) return decoded
+        }
+        return Session.make({ id: crypto.randomUUID() })
+      })
+
+      let logIn = Effect.fn('AdminAuth.logIn')(function* (input: unknown) {
+        if (!enabled || typeof input !== 'string') return undefined
+        let hash = (value: string) => createHash('sha256').update(value).digest()
+        if (!timingSafeEqual(hash(input), hash(password))) return undefined
+        let now = clock.currentTimeMillisUnsafe()
+        let loggedIn = { id: crypto.randomUUID(), auth: fingerprint }
+        yield* Effect.gen(function* () {
+          yield* sql`delete from admin_sessions where expires_at <= ${now} or auth != ${fingerprint}`
+          yield* sql`delete from admin_sessions where id not in
+            (select id from admin_sessions order by expires_at desc, id limit ${MAX_SESSIONS - 1})`
+          yield* sql`insert into admin_sessions ${sql.insert({
+            ...loggedIn,
+            expires_at: now + MAX_AGE * 1000,
+          })}`
+        }).pipe(sql.withTransaction, Effect.orDie)
+        return loggedIn
+      })
 
       return AdminAuth.of({
         enabled,
-        checkPassword: (input) => {
-          if (!enabled || typeof input !== 'string') return false
-          // Hashing first gives equal-length buffers, so the comparison takes the same time
-          // either way.
-          let hash = (value: string) => createHash('sha256').update(value).digest()
-          return timingSafeEqual(hash(input), hash(password))
-        },
         session,
         requireLogin: Effect.flatMap(session, (session) =>
           enabled && session.auth === fingerprint
             ? Effect.succeed(session)
             : Effect.fail(new NotLoggedIn()),
         ),
-        logIn: () => ({ id: crypto.randomUUID(), auth: fingerprint }),
+        logIn,
+        logOut: Effect.flatMap(session, (current) =>
+          sql`delete from admin_sessions where id = ${current.id}`.pipe(
+            Effect.orDie,
+            Effect.asVoid,
+          ),
+        ),
         saveSession: (response, session) => {
           let options = {
             httpOnly: true,

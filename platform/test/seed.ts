@@ -34,6 +34,8 @@ export const seedDatabase = Effect.gen(function* () {
     Effect.gen(function* () {
       yield* sql`delete from posts`
       yield* sql`delete from drafts`
+      yield* sql`delete from retired_drafts`
+      yield* sql`delete from admin_sessions`
       yield* sql`insert into posts ${sql.insert(rows.map((row) => ({ ...row })))}`
     }),
   )

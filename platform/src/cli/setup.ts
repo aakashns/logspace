@@ -21,21 +21,42 @@ const SERVICE_FILE = '/etc/systemd/system/logspace.service'
 const CADDYFILE = '/etc/caddy/Caddyfile'
 const DEFAULT_PORT = 44100
 
-const service = (binary: string) => `[Unit]
+export const service = (binary: string) => `[Unit]
 Description=LogSpace
 After=network.target
 
 [Service]
+Type=exec
 # The binary logspace setup was run from.
 ExecStart=${binary} start
+DynamicUser=yes
+UMask=0077
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+LockPersonality=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+# Bun uses JIT compilation: MemoryDenyWriteExecute is intentionally not enabled.
 # The default port, which PORT in ${ENV_FILE} overrides (EnvironmentFile= wins over
 # Environment=). logspace setup points Caddy at the same one.
 Environment=PORT=${DEFAULT_PORT}
 Environment=TRUST_PROXY=1
+Environment=HOST=127.0.0.1
 # The SQLite database, media, and caches live in folders systemd creates before the service starts
 # (StateDirectory, CacheDirectory), which the app runs in.
 StateDirectory=logspace
+StateDirectoryMode=0700
 CacheDirectory=logspace
+CacheDirectoryMode=0700
 WorkingDirectory=/var/lib/logspace
 Environment=DATABASE_PATH=${SERVER_DATABASE_PATH}
 # Media (post photos and videos, and the site's logo and icon), uploaded at /admin, is kept there
@@ -84,16 +105,28 @@ export const setup = Effect.fn('setup')(function* (args: readonly string[]) {
   yield* createEnvFile
   let env = yield* readEnvFile
   let port = env.get('PORT') || String(DEFAULT_PORT)
-  if (!/^[1-9]\d{0,4}$/.test(port) || Number(port) > 65535) {
-    return yield* fail(`Not a port: PORT=${port} in ${ENV_FILE}`)
+  if (!/^[1-9]\d{0,4}$/.test(port) || Number(port) > 65535 || Number(port) < 1024) {
+    return yield* fail(`Expected an unprivileged port (1024–65535): PORT=${port} in ${ENV_FILE}`)
   }
-  yield* Console.log(`The app listens on port ${port}`)
+  let binary = yield* fs.realPath(process.execPath)
+  let problem = installedConfigProblem(binary, env)
+  if (problem) return yield* fail(problem)
+  for (let location of [
+    '/var/lib/logspace',
+    SERVER_DATABASE_PATH,
+    '/var/lib/logspace/media',
+    '/var/cache/logspace',
+  ]) {
+    if (!(yield* fs.exists(location))) continue
+    let problem = installedPathProblem(location, yield* fs.realPath(location))
+    if (problem) return yield* fail(problem)
+  }
+  yield* Console.log(`The app listens on 127.0.0.1:${port}`)
   if (!env.get('ADMIN_PASSWORD') && process.stdin.isTTY) {
     yield* Console.log('Choose a password for /admin, at least 16 characters long.')
     yield* setEnvVariable('ADMIN_PASSWORD', yield* promptAdminPassword)
   }
 
-  let binary = yield* fs.realPath(process.execPath)
   yield* Console.log(`Installing logspace.service, which runs ${binary}...`)
   yield* fs.writeFileString(SERVICE_FILE, service(binary))
   yield* fs.chmod(SERVICE_FILE, 0o644)
@@ -170,3 +203,39 @@ const updateCaddyfile = Effect.fnUntraced(function* (
   )
   yield* Console.log(`The previous Caddyfile is in ${backup}`)
 })
+
+// Refuse incompatible existing overrides before changing the unit or moving any data. systemd
+// owns StateDirectory/CacheDirectory and migrates their existing contents to the dynamic user
+// on restart. Custom storage needs an explicitly administered unit instead of a recursive chown
+// of an arbitrary path. Keep secrets root-only: the system manager reads EnvironmentFile.
+export function installedConfigProblem(
+  binary: string,
+  env: ReadonlyMap<string, string>,
+): string | undefined {
+  if (!/^\/(usr\/(local\/)?bin|var\/usrlocal\/bin|opt)\/[A-Za-z0-9_./-]+$/.test(binary)) {
+    return 'Install the binary in /usr/local/bin (outside home directories) before running setup'
+  }
+  for (let [name, expected] of [
+    ['HOST', '127.0.0.1'],
+    ['TRUST_PROXY', '1'],
+    ['MEDIA_STORAGE', 'fs'],
+    ['DATABASE_PATH', SERVER_DATABASE_PATH],
+    ['MEDIA_DIR', '/var/lib/logspace/media'],
+    ['CACHE_DIR', '/var/cache/logspace'],
+  ]) {
+    if (name && expected && env.has(name) && env.get(name) !== expected) {
+      return `${ENV_FILE}: ${name} must be ${expected} for the managed service; preserve your data and use a custom unit for custom paths`
+    }
+  }
+}
+
+// systemd's own private-directory symlinks are compatible with repeated setup. External storage
+// symlinks are custom paths too; refuse them before replacing a working service's unit.
+export function installedPathProblem(location: string, resolved: string): string | undefined {
+  let privateLocation = location
+    .replace('/var/lib/logspace', '/var/lib/private/logspace')
+    .replace('/var/cache/logspace', '/var/cache/private/logspace')
+  if (resolved !== location && resolved !== privateLocation) {
+    return `${location} resolves to ${resolved}; preserve your data and use a custom unit for external storage`
+  }
+}

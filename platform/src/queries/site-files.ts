@@ -36,13 +36,16 @@ export class SiteFiles extends Context.Service<
     Effect.gen(function* () {
       let storage = yield* MediaStorage
       let { defaultIcons, resize } = yield* Images
-      let stored = (name: string, version: string) =>
-        Effect.map(storage.get(mediaKeys.siteFile(name)), (file) => file && { file, version })
+      let stored = (name: string, version: string, generation?: string) =>
+        Effect.map(
+          storage.get(mediaKeys.siteFile(name, generation)),
+          (file) => file && { file, version },
+        )
 
       return SiteFiles.of({
         get: Effect.fn('SiteFiles.get')(function* (name, images) {
           if (ICON_FILES.includes(name)) {
-            if (images.icon) return yield* stored(name, images.icon.version)
+            if (images.icon) return yield* stored(name, images.icon.version, images.icon.generation)
             let icon = (yield* defaultIcons).files.find((file) => file.name === name)
             if (!icon) return undefined
             let blob = new Blob([icon.bytes], { type: icon.type })
@@ -52,7 +55,7 @@ export class SiteFiles extends Context.Service<
           let image = [images.logo, images.darkLogo, images.bannerImage].find(
             (image) => image?.file === name,
           )
-          return image ? yield* stored(name, image.version) : undefined
+          return image ? yield* stored(name, image.version, image.generation) : undefined
         }),
         // Unlike PostMedia, two requests for a copy that isn't made yet both make it: there's
         // only one banner, and its copies are each asked for about once.
@@ -62,7 +65,7 @@ export class SiteFiles extends Context.Service<
           let key = `${mediaKeys.siteVariants(name)}${width}-${version}.webp`
           let existing = yield* storage.get(key)
           if (existing) return existing
-          let file = yield* storage.get(mediaKeys.siteFile(name))
+          let file = yield* storage.get(mediaKeys.siteFile(name, bannerImage.generation))
           if (!file) return undefined
           let bytes = new Uint8Array(yield* Effect.promise(() => file.blob.arrayBuffer()))
           // The app made the banner, so Bun can read it.

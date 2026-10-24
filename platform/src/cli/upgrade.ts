@@ -81,6 +81,9 @@ export const upgrade = Effect.fn('upgrade')(
     }).pipe(Effect.ensuring(fs.remove(tmp, { force: true }).pipe(Effect.orDie)))
     yield* Console.log(`Upgraded LogSpace ${VERSION} to ${version}`)
     yield* Console.log('Run logspace migrate, then restart LogSpace to run it')
+    yield* Console.log(
+      'For a service installed by setup, run sudo logspace setup to apply the current service defaults',
+    )
   },
   reportFailures,
   Effect.provide(FetchHttpClient.layer),

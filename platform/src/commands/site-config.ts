@@ -1,6 +1,6 @@
 // Saving the site's settings from /admin/config: the write side for the `config` table and the
 // site's image files.
-import { Context, Effect, Layer } from 'effect'
+import { Context, Effect, Layer, Semaphore } from 'effect'
 import { SqlClient } from 'effect/sql'
 
 import {
@@ -38,6 +38,7 @@ export class SiteConfigCommands extends Context.Service<
       let storage = yield* MediaStorage
       let images = yield* Images
       let queries = yield* SiteConfigQueries
+      let mutations = yield* Semaphore.make(1)
 
       let save = Effect.fn('SiteConfigCommands.save')(function* (config: SiteConfig) {
         let rows = [...TEXT_SETTINGS, ...SITE_IMAGE_KINDS].flatMap((key) => {
@@ -58,18 +59,22 @@ export class SiteConfigCommands extends Context.Service<
       let removeImageFiles = (image: SiteImage) =>
         Effect.forEach(
           image.file === 'icon-512.png' ? ICON_FILES : [image.file],
-          (name) => storage.remove(mediaKeys.siteFile(name)),
+          (name) => storage.remove(mediaKeys.siteFile(name, image.generation)),
           { discard: true },
         )
       // The banner's resized copies, made from a version of it that's gone.
       let removeVariants = (image: SiteImage) =>
         Effect.flatMap(storage.list(mediaKeys.siteVariants(image.file)), (files) =>
-          Effect.forEach(files, (file) => storage.remove(file.key), { discard: true }),
+          Effect.forEach(
+            files.filter((file) => file.key.endsWith(`-${image.version}.webp`)),
+            (file) => storage.remove(file.key),
+            { discard: true },
+          ),
         )
 
-      // Uploads are turned into the files they're served as first, but only stored once
-      // everything is valid. An image's old files are removed after its new ones are stored, and
-      // the config is saved last, so if a step fails the config still names files that exist.
+      // Stage every file in a fresh generation before committing the config. A failed write or
+      // transaction leaves the old generation usable, even for the four-file icon. Cleanup after
+      // commit is best effort: failure leaves unreferenced files, never missing published media.
       let update = Effect.fn('SiteConfigCommands.update')(function* (
         text: SiteText,
         uploads: Partial<Record<SiteImageKind, Blob>>,
@@ -105,28 +110,32 @@ export class SiteConfigCommands extends Context.Service<
         }
 
         for (let [kind, upload] of processed) {
+          if (removals.includes(kind)) continue
+          let generation = crypto.randomUUID()
           for (let file of upload.files)
-            yield* storage.put(mediaKeys.siteFile(file.name), file.bytes)
-          // The replaced image's files that the new one doesn't overwrite.
-          let previous = current[kind]
-          if (previous && !upload.files.some((file) => file.name === previous.file)) {
-            yield* removeImageFiles(previous)
-          }
-          if (previous) yield* removeVariants(previous)
-          current[kind] = upload.image
+            yield* storage.put(mediaKeys.siteFile(file.name, generation), file.bytes)
+          current[kind] = { ...upload.image, generation }
         }
-        for (let kind of removals) {
-          let image = current[kind]
-          if (image) {
-            yield* removeImageFiles(image)
-            yield* removeVariants(image)
-          }
-          delete current[kind]
-        }
+        for (let kind of removals) delete current[kind]
         yield* save({ ...parsed.success, ...current })
+        for (let kind of SITE_IMAGE_KINDS) {
+          let previous = saved[kind]
+          if (!previous || previous === current[kind]) continue
+          yield* removeImageFiles(previous).pipe(
+            Effect.andThen(
+              current[kind]?.file === previous.file && current[kind]?.version === previous.version
+                ? Effect.void
+                : removeVariants(previous),
+            ),
+            Effect.catchCause((cause) => Effect.logWarning('Site image cleanup failed', cause)),
+          )
+        }
       })
 
-      return SiteConfigCommands.of({ update, save })
+      return SiteConfigCommands.of({
+        update: (...args) => mutations.withPermit(Effect.uninterruptible(update(...args))),
+        save: (...args) => mutations.withPermit(Effect.uninterruptible(save(...args))),
+      })
     }),
   )
 }

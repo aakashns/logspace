@@ -23,8 +23,9 @@ bun run build && bun scripts/smoke-test.ts dist/logspace
 bun scripts/seed.ts  # fills DATABASE_PATH and MEDIA_DIR with the test posts
 ```
 
-The server is configured with environment variables: `PORT`, `DATABASE_PATH`, `MEDIA_DIR`,
-`CACHE_DIR`, `ADMIN_PASSWORD`, `AUTH_SESSION_SECRET`, `TRUST_PROXY`, and `MEDIA_STORAGE=fs|memory`.
+The server is configured with environment variables: `PORT`, `HOST` (defaults to `::`, all interfaces),
+`DATABASE_PATH`, `MEDIA_DIR`, `CACHE_DIR`, `ADMIN_PASSWORD`, `AUTH_SESSION_SECRET`, `TRUST_PROXY`,
+and `MEDIA_STORAGE=fs|memory`. The managed systemd service sets `HOST=127.0.0.1` behind Caddy.
 Without them, data goes in `data/` in the working directory. `AGENTS.md` has the conventions, and
 `docs/posts.md` what a post is made of.
 
@@ -88,7 +89,8 @@ logged), as they're not something a user can fix.
 - `posts.ts`: `publish`, `edit`, `delete`, and the composer's `saveDraft`, `updateFiles`, and
   `discard`. Uploads are saved before the post is checked, so a rejected form doesn't need its
   files chosen again. The composer's one draft is a row in `drafts`, and the commands that change
-  it tell `DraftChanges`.
+  it tell `DraftChanges`. Post changes run one at a time, so run one server process per data
+  directory.
 - `post-files.ts`: saving one upload (with its image size and hash in `post_images`) and removing
   a post's files.
 - `site-config.ts`: saving `/admin/config`, turning uploads into the site's image files.
@@ -156,9 +158,11 @@ are `public.test.ts`, `admin.test.ts`, `config.test.ts`,
   carry `data-ignore`, so Datastar never evaluates attributes in it, even if escaping failed.
 - **Admin**: one password, compared in constant time; a session cookie signed with HMAC-SHA256,
   `HttpOnly`, `SameSite=Lax`, `Secure` in production, sent only to `/admin`, and holding a
-  fingerprint of the password, so changing it logs everyone out. Login is checked before an
-  upload's body is read, and the login form itself, which anyone can send, is read only up to
-  16 KB.
+  fingerprint of the password, so changing it logs everyone out. SQLite records enforce a fixed
+  30-day lifetime and logout revocation; changing the signing secret also invalidates cookies.
+  At most 100 sessions are retained, with expired/old-credential rows removed on login. Login is
+  checked before an upload's body is read, and the login form itself, which anyone can send, is
+  read only up to 16 KB.
 - **Forms from other sites** are refused (`Sec-Fetch-Site`, else `Origin` against the host), as
   Remix's `cop()` did. Behind Caddy, the host is taken from `X-Forwarded-Host`, which
   Caddy overwrites, before the `Forwarded` header, which it passes through from the browser.
@@ -167,7 +171,8 @@ are `public.test.ts`, `admin.test.ts`, `config.test.ts`,
   claims, and SVG isn't accepted for posts. Site images are re-encoded as PNG or JPEG.
   Unpublished posts' files aren't served. Link previews' images are fetched only over https,
   refused past 10 MB or 25 megapixels (checked from the header, before decoding), and served
-  only as WebP that the app re-encoded.
+  only as WebP that the app re-encoded. Link previews fetch only public addresses on standard
+  ports, checking each redirect.
 
 Datastar is © Star Federation, MIT licensed (`public/datastar.LICENSE.md`). The composer's and
 navbar's plus, image, video, Markdown file, map pin, and × icons are from Phosphor Icons, © 2023 Phosphor Icons, MIT

@@ -9,7 +9,6 @@
 //   http/ (the routes):         PublicRoutes, AdminRoutes, and AppMiddleware around them all
 import { BunFileSystem } from '@effect/platform-bun'
 import { Effect, Layer } from 'effect'
-import { FetchHttpClient } from 'effect/http'
 
 import { PostFiles } from './commands/post-files.ts'
 import { PostCommands } from './commands/posts.ts'
@@ -26,6 +25,7 @@ import { SiteConfigQueries } from './queries/site-config.ts'
 import { SiteFiles } from './queries/site-files.ts'
 import { DatabaseLive, Migrations } from './services/database.ts'
 import { DraftChanges } from './services/draft-changes.ts'
+import { PublicHttpLive } from './services/public-http.ts'
 import { Images } from './services/images.ts'
 import { MediaStorage } from './services/media-storage.ts'
 
@@ -38,7 +38,7 @@ const Infrastructure = Migrations.layer.pipe(
 
 const Queries = Layer.mergeAll(
   PostMedia.layer,
-  LinkPreviews.layer.pipe(Layer.provide(FetchHttpClient.layer)),
+  LinkPreviews.layer.pipe(Layer.provide(PublicHttpLive)),
 ).pipe(
   Layer.provideMerge(Layer.mergeAll(SiteConfigQueries.layer, PostQueries.layer, SiteFiles.layer)),
 )

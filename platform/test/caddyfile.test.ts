@@ -7,7 +7,7 @@ import { addSite, type CaddySite } from '../src/cli/caddyfile.ts'
 const SITE: CaddySite = { domains: ['example.com', 'www.example.com'], port: 44100 }
 const BLOCKS = `example.com {
 	encode zstd gzip
-	reverse_proxy localhost:44100
+	reverse_proxy 127.0.0.1:44100
 }
 
 www.example.com {
@@ -29,7 +29,7 @@ describe('addSite', () => {
   it('points the site at the port and adds no redirects without other domains', () => {
     assert.equal(
       caddyfile('', { domains: ['example.com'], port: 8080 }),
-      'example.com {\n\tencode zstd gzip\n\treverse_proxy localhost:8080\n}\n',
+      'example.com {\n\tencode zstd gzip\n\treverse_proxy 127.0.0.1:8080\n}\n',
     )
   })
 
