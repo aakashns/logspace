@@ -1,8 +1,6 @@
 // Regressions for what a security and correctness review of this app found.
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test'
-import { Effect } from 'effect'
 
-import { PostCommands } from '../src/commands/posts.ts'
 import { isUploadableFileName, mimeType } from '../src/domain/post.ts'
 import { defined, makeTestApp } from './app.ts'
 
@@ -11,25 +9,7 @@ beforeAll(app.seedMedia)
 beforeEach(app.seedDatabase)
 afterAll(app.dispose)
 
-const publish = (post: { id: string; type: string; [field: string]: unknown }) =>
-  app.run(
-    Effect.flatMap(PostCommands, (commands) => commands.publish({ post, uploads: [], issues: [] })),
-  )
-
 describe('found in review', () => {
-  it('renders an article with a stray % in an image or video name, and the feed with it', async () => {
-    let id = 'percent001'
-    let body = '![v](https://example.com/100%.mp4)\n\n![x](/posts/percent001/50%.jpg)'
-    await publish({
-      id,
-      type: 'article',
-      date: '2026-10-23T09:00:00Z',
-      article: { title: 'T', summary: 'S', body },
-    })
-    expect((await app.fetch(`/posts/${id}`)).status).toBe(200)
-    expect((await app.fetch('/rss.xml')).status).toBe(200)
-  })
-
   it('publishes a new post submitted twice at once only once, sending both to it', async () => {
     let form = () => {
       let body = new FormData()

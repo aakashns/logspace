@@ -33,7 +33,7 @@ bun run build && bun scripts/smoke-test.ts dist/logspace
   like `@post(...)`, a signal); anything more is the server's job, not JavaScript in the markup.
   Pass values in `data-*` attributes, and put `data-ignore` on any HTML made from what someone
   wrote
-- Markup unescaped is `raw()`, only for HTML the app made (Markdown output, CSS, JSON-LD)
+- Markup unescaped is `raw()`, only for HTML the app made (captions, CSS, JSON-LD)
 - Embed any file the app reads with an `import … with { type: 'file' }` (or `'text'`), so the
   binary has it
 - Read the site's settings from `SiteConfigQueries`; never hardcode anything about a site's owner

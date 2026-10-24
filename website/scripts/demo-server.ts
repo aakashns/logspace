@@ -38,19 +38,16 @@ const posts = [
   },
   {
     id: "mirastory1",
-    type: "article",
+    type: "photos",
     date: "2026-10-18T18:20:00Z",
-    caption: "A few notes from a Sunday with nowhere to be.",
-    article: {
-      title: "A notebook, a long walk, and no plans",
-      summary:
-        "On leaving a little room in the day for things you didn’t plan to notice.",
-      cover: {
+    caption:
+      "Left my phone at home and brought a notebook instead. **No route, no list, no podcast.**\n\nDrew three bad sketches of the maple by the river, then wrote down *one* good sentence. That felt like enough.",
+    photos: [
+      {
         file: "desk.png",
         alt: "An open sketchbook, a pencil, and a cup of coffee on a wooden desk.",
       },
-      body: "I left my phone at home and brought a notebook instead. No route, no list, no podcast. Just the neighborhood and whatever it felt like showing me.\n\n## The long way around\n\nThere was a new plant in the bookshop window, a dog asleep in a patch of sun, and a maple on the corner that had decided to turn gold overnight. I must have walked past that tree a hundred times without really looking at it.\n\nI stopped at the café by the river and drew three bad sketches of it anyway. Then I wrote down one good sentence. That felt like enough.\n\n> Most days don’t need a plan. They need a little room.\n\n## A little room\n\nI used to think a good weekend needed a highlight reel: somewhere to go, something to show for it. Lately I’m less sure. The days I remember best are the ones with a gap in them, where something small had space to happen.\n\nSo here’s my plan for next Sunday: no plans. I’ll bring the notebook.",
-    },
+    ],
   },
   {
     id: "miracoast1",
@@ -103,9 +100,7 @@ await Effect.runPromise(
     );
     const commands = yield* PostCommands;
     for (const post of posts) {
-      const files =
-        post.photos?.map((photo) => photo.file) ??
-        (post.article ? [post.article.cover.file] : []);
+      const files = post.photos?.map((photo) => photo.file) ?? [];
       const uploads = files.map((name) => ({
         name,
         file: image(name.replace(/\.png$/, "")),

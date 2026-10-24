@@ -50,12 +50,11 @@ export function PostForm(props: PostFormProps): Html {
           rows={6}
           value={values.caption}
           invalid={fields.invalid('caption')}
-          hint="Markdown. Every new line is a line break, and a blank line starts a new paragraph. Required for text posts."
+          hint="Every new line is a line break, and a blank line starts a new paragraph. **Bold** and *italic* are the only formatting. Required for text posts."
         />
         <MediaFiles id={values.id} files={files} />
         {values.type === 'photos' ? <PhotosFields {...fields} /> : null}
         {values.type === 'video' ? <VideoFields {...fields} /> : null}
-        {values.type === 'article' ? <ArticleFields {...fields} /> : null}
 
         <div class="actions">
           <button type="submit" class="button">
@@ -107,9 +106,6 @@ function fieldLabel(field: string): string {
     return parts.length === 1 ? 'Photos' : `Photo ${Number(parts[1]) + 1} ${name(parts[2])}`
   }
   if (parts[0] === 'video') return `Video ${name(parts[1])}`
-  if (parts[0] === 'article') {
-    return parts[1] === 'cover' ? `Cover photo ${name(parts[2])}` : `Article ${name(parts[1])}`
-  }
   return name(parts[0]).replace(/^./, (c) => c.toUpperCase())
 }
 
@@ -156,8 +152,8 @@ function DateFields(props: FieldsProps): Html {
   )
 }
 
-// How media fields work, and the post's files so far, which they and an article's body can name,
-// linking to where they're served.
+// How media fields work, and the post's files so far, which they can name, linking to where
+// they're served.
 function MediaFiles(props: { id: string; files: readonly { name: string; size: number }[] }): Html {
   let { id, files } = props
   return (
@@ -273,66 +269,6 @@ function VideoFields(props: FieldsProps): Html {
             />
           </Field>
         ))}
-      </FieldRow>
-    </TypeFields>
-  )
-}
-
-function ArticleFields(props: FieldsProps): Html {
-  let { values, invalid } = props
-  let article = values.article ?? {}
-  let cover = article.cover ?? {}
-  return (
-    <TypeFields legend="Article">
-      <TextField
-        label="Title"
-        name="article_title"
-        id="article-title"
-        value={article.title}
-        invalid={invalid('article.title')}
-      />
-      <TextareaField
-        label="Summary"
-        name="article_summary"
-        id="article-summary"
-        rows={3}
-        value={article.summary}
-        invalid={invalid('article.summary')}
-      />
-      <TextareaField
-        label="Body"
-        name="article_body"
-        id="article-body"
-        rows={20}
-        monospace
-        value={article.body}
-        invalid={invalid('article.body')}
-        hint="Markdown. Images, videos, and links can name the post’s media files, like ![A desk](desk.jpg); an image or video on its own line shows full width."
-      />
-      <UploadField
-        label="Upload files for the body"
-        name="article_uploads"
-        id="article-uploads"
-        accept="image/*,video/*"
-        hint="Saved as this post’s files, under their own names, for the body to name. A video’s poster is the image named like it, e.g. clip.jpg for clip.mp4."
-      />
-      <FieldRow>
-        <MediaFileField
-          label="Cover photo (optional)"
-          name="cover_file"
-          upload="cover_upload"
-          accept="image/*"
-          id="cover-file"
-          value={cover.file}
-          invalid={invalid('article.cover.file')}
-        />
-        <TextField
-          label="Cover alt text"
-          name="cover_alt"
-          id="cover-alt"
-          value={cover.alt}
-          invalid={invalid('article.cover.alt')}
-        />
       </FieldRow>
     </TypeFields>
   )

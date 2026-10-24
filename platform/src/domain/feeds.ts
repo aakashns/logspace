@@ -37,17 +37,11 @@ export function createRobotsTxt({ siteUrl }: SiteConfig): string {
   return `User-agent: *\nAllow: /\n\nSitemap: ${siteUrl}${routes.sitemap()}\n`
 }
 
-export interface FeedItem {
-  readonly post: Post
-  // An article's body as HTML.
-  readonly articleHtml?: string
-}
-
-// rss.xml: RSS 2.0, with each post's whole content (caption, photos, video, or article) as HTML
-// in its description, so it can be read in a feed reader. `items` are newest first.
-export function createRssFeed(items: readonly FeedItem[], site: SiteConfig): string {
+// rss.xml: RSS 2.0, with each post's whole content (caption, photos, or video) as HTML in its
+// description, so it can be read in a feed reader. `posts` are newest first.
+export function createRssFeed(posts: readonly Post[], site: SiteConfig): string {
   let { siteTitle, siteUrl, siteDescription } = site
-  let entries = items.map(({ post, articleHtml }) => {
+  let entries = posts.map((post) => {
     let url = siteUrl + routes.post(post.id)
     return [
       '    <item>',
@@ -55,11 +49,11 @@ export function createRssFeed(items: readonly FeedItem[], site: SiteConfig): str
       `      <link>${escapeXml(url)}</link>`,
       `      <guid isPermaLink="true">${escapeXml(url)}</guid>`,
       `      <pubDate>${new Date(post.date).toUTCString()}</pubDate>`,
-      `      <description>${escapeXml(renderPostHtml(post, siteUrl, articleHtml))}</description>`,
+      `      <description>${escapeXml(renderPostHtml(post, siteUrl))}</description>`,
       '    </item>',
     ].join('\n')
   })
-  let lastBuildDate = items[0] ? new Date(items[0].post.date).toUTCString() : undefined
+  let lastBuildDate = posts[0] ? new Date(posts[0].date).toUTCString() : undefined
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">',
@@ -79,27 +73,17 @@ export function createRssFeed(items: readonly FeedItem[], site: SiteConfig): str
 
 // A post as HTML for a feed reader, with absolute URLs since readers show it away from the site.
 // Photos link to the uploaded files rather than resized copies, as readers pick their own sizes.
-function renderPostHtml(post: Post, siteUrl: string, articleHtml = ''): string {
+function renderPostHtml(post: Post, siteUrl: string): string {
   let parts = post.captionHtml ? [post.captionHtml] : []
-  let image = (photo: Photo) =>
-    `<p><img src="${escapeXml(photo.src)}" alt="${escapeXml(photo.alt)}"${size(photo)}></p>`
-  switch (post.type) {
-    case 'photos':
-      parts.push(...post.photos.map(image))
-      break
-    case 'video': {
-      let { src, posterImage, ...video } = post.video
-      let poster = posterImage ? ` poster="${escapeXml(posterImage)}"` : ''
-      parts.push(`<p><video src="${escapeXml(src)}"${poster}${size(video)} controls></video></p>`)
-      break
-    }
-    case 'article': {
-      let { summary, cover } = post.article
-      parts.push(`<p><em>${escapeXml(summary)}</em></p>`)
-      if (cover) parts.push(image(cover))
-      parts.push(articleHtml)
-      break
-    }
+  if (post.type === 'photos') {
+    let image = (photo: Photo) =>
+      `<p><img src="${escapeXml(photo.src)}" alt="${escapeXml(photo.alt)}"${size(photo)}></p>`
+    parts.push(...post.photos.map(image))
+  }
+  if (post.type === 'video') {
+    let { src, posterImage, ...video } = post.video
+    let poster = posterImage ? ` poster="${escapeXml(posterImage)}"` : ''
+    parts.push(`<p><video src="${escapeXml(src)}"${poster}${size(video)} controls></video></p>`)
   }
   return absoluteUrls(parts.join('\n'), siteUrl)
 }

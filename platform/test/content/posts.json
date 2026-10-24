@@ -25,22 +25,20 @@
     "type": "text",
     "date": "2026-10-15T15:40:00Z",
     "city": "Bengaluru",
-    "caption": "Rebuilt this site on Remix 3 over the weekend. No build step, Web APIs everywhere, and the whole page ships almost no JavaScript.\n\nhttps://remix.run"
+    "caption": "Rebuilt this site on Remix 3 over the weekend. **No build step**, Web APIs everywhere, and the whole page ships *almost no* JavaScript.\n\nhttps://remix.run"
   },
   {
     "id": "t83tytis1i",
-    "type": "article",
+    "type": "photos",
     "date": "2026-10-14T03:45:00Z",
     "city": "Bengaluru",
-    "caption": "New post: what a year of building in public taught me about shipping small.",
-    "article": {
-      "title": "A year of building in public",
-      "summary": "Notes on writing weekly updates, why tiny releases beat big launches, and the surprising upside of sharing work before it feels ready.",
-      "cover": {
+    "caption": "A year of building in public, and the lesson is still the same: ship small.",
+    "photos": [
+      {
         "file": "cover.jpg",
         "alt": "Laptop and notebook on a wooden desk"
       }
-    }
+    ]
   },
   {
     "id": "steq6e0rsh",

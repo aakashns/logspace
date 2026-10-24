@@ -4,7 +4,7 @@ import { Array as Arr, Result, Schema } from 'effect'
 
 import { toIssues, type Issue } from './issues.ts'
 
-export const POST_TYPES = ['text', 'photos', 'video', 'article'] as const
+export const POST_TYPES = ['text', 'photos', 'video'] as const
 export type PostType = (typeof POST_TYPES)[number]
 
 // A problem with a post. `field` is the path to the value, like "photos.0.file".
@@ -78,8 +78,6 @@ export const FileName = Schema.String.check(
 const Pixels = Schema.Number.annotate(message('Expected a size in pixels')).check(
   valid((n: number) => Number.isInteger(n) && n > 0, 'Expected a size in pixels'),
 )
-const NotBlank = (text: string) =>
-  Schema.String.check(valid((value: string) => value.trim() !== '', text))
 
 export const PhotoRecord = Schema.Struct({ file: FileName, alt: Schema.String })
 export type PhotoRecord = typeof PhotoRecord.Type
@@ -103,7 +101,9 @@ const basePost = {
 const TextPost = Schema.Struct({
   ...basePost,
   type: Schema.Literal('text'),
-  caption: NotBlank('Text posts need a caption'),
+  caption: Schema.String.check(
+    valid((caption: string) => caption.trim() !== '', 'Text posts need a caption'),
+  ),
 })
 
 const PhotosPost = Schema.Struct({
@@ -126,25 +126,13 @@ const VideoPost = Schema.Struct({
   }),
 })
 
-const ArticlePost = Schema.Struct({
-  ...basePost,
-  type: Schema.Literal('article'),
-  // The body is Markdown (see markdown.ts).
-  article: Schema.Struct({
-    title: NotBlank('Articles need a title'),
-    summary: Schema.String,
-    body: NotBlank('Articles need a body'),
-    cover: Schema.optionalKey(PhotoRecord),
-  }),
-})
-
 // A valid post, as it's stored: its media are named by their files.
 export type PostRecord = typeof PostRecord.Type
-export const PostRecord = Schema.Union([TextPost, PhotosPost, VideoPost, ArticlePost])
+export const PostRecord = Schema.Union([TextPost, PhotosPost, VideoPost])
 
 // The type is checked first, so a post of no known type gets one issue about it, rather than one
 // for each type it might have been. The union then checks only the fields of the post's type.
-const TYPE_MESSAGE = 'Expected text, photos, video, or article'
+const TYPE_MESSAGE = 'Expected text, photos, or video'
 const decodeType = Schema.decodeUnknownResult(
   Schema.Struct({
     type: Schema.Literals(POST_TYPES)
@@ -162,16 +150,13 @@ export function parsePostRecord(data: unknown): Result.Result<PostRecord, PostIs
   )
 }
 
-// The files a post names: photos, an article's cover, or a video and its poster. An article's
-// body can name more, in its Markdown.
+// The files a post names: photos, or a video and its poster.
 export function getPostFileNames(post: PostRecord): string[] {
   switch (post.type) {
     case 'photos':
       return post.photos.map((photo) => photo.file)
     case 'video':
       return post.video.poster ? [post.video.file, post.video.poster] : [post.video.file]
-    case 'article':
-      return post.article.cover ? [post.article.cover.file] : []
     case 'text':
       return []
   }

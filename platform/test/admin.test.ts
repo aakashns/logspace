@@ -1,7 +1,6 @@
 // Logging in and out, and the admin post pages.
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test'
 import { Effect } from 'effect'
-import { SqlClient } from 'effect/sql'
 
 import { makePostFiles } from '../src/commands/post-files.ts'
 import { PostCommands } from '../src/commands/posts.ts'
@@ -255,7 +254,7 @@ describe('admin post pages', () => {
     let post = await samplePost('text')
     let response = await app.adminFetch(`/admin/posts/${post.id}/edit`, {
       method: 'POST',
-      body: textPostForm({ type: 'article', caption: 'Still text' }),
+      body: textPostForm({ type: 'photos', caption: 'Still text' }),
     })
     expect(response.status).toBe(303)
     let saved = await findPost(post.id)
@@ -263,103 +262,22 @@ describe('admin post pages', () => {
     expect(saved?.caption).toBe('Still text')
   })
 
-  it('saves an article’s body in its own column', async () => {
-    let post = await samplePost('article')
-    let html = await (await app.adminFetch(`/admin/posts/${post.id}/edit`)).text()
-    expect(html).toMatch(/<textarea [^>]*name="article_body"[^>]*>[^<]*\S/)
-    let form = (body: string) =>
-      textPostForm({
-        type: 'article',
-        article_title: post.article.title,
-        article_summary: post.article.summary,
-        article_body: body,
-      })
-    let response = await app.adminFetch(`/admin/posts/${post.id}/edit`, {
-      method: 'POST',
-      body: form('## Rewritten\r\n\r\nWith ![a desk](desk.jpg) in it.'),
-    })
-    expect(response.status).toBe(303)
-    let saved = await findPost(post.id)
-    expect(saved?.type === 'article' && saved.article.body).toBe(
-      '## Rewritten\n\nWith ![a desk](desk.jpg) in it.',
-    )
-    // Stored in its own column, for search, rather than in the details JSON.
-    let rows = await app.run(
-      Effect.flatMap(
-        SqlClient.SqlClient,
-        (sql) =>
-          sql<{
-            article_body: string
-            details: string
-          }>`select article_body, details from posts where id = ${post.id}`,
-      ).pipe(Effect.orDie),
-    )
-    let row = defined(rows[0], 'the post’s row')
-    expect(row.article_body).toBe('## Rewritten\n\nWith ![a desk](desk.jpg) in it.')
-    expect(row.details).not.toMatch(/Rewritten/)
-    let page = await (await app.fetch(`/posts/${post.id}`)).text()
-    expect(page).toMatch(/<h2[^>]*>Rewritten<\/h2>/)
-    expect(page).toContain(`<img src="/posts/${post.id}/desk.jpg"`)
-
-    let empty = await app.adminFetch(`/admin/posts/${post.id}/edit`, {
-      method: 'POST',
-      body: form('   '),
-    })
-    expect(empty.status).toBe(400)
-    expect(await empty.text()).toMatch(/Article body: Articles need a body/)
-  })
-
-  it('keeps Markdown exactly as typed, through a save and an unrelated edit', async () => {
-    let post = await samplePost('article')
-    // An indented code fence strips its indentation from the code, so the opening line's spaces
-    // matter; so do a caption's, where four start a code block.
-    let body = '  ```python\n  print("hello")\n  ```\n\nAfter the code.\n'
-    let caption = '    indented code\n\nThen text.'
-    // Browsers send textarea line breaks as \r\n.
-    let crlf = (text: string) => text.replaceAll('\n', '\r\n')
-    let save = (title: string, fields: { caption: string; body: string }) =>
+  it('saves a caption trimmed, with its line breaks, and needs one for a text post', async () => {
+    let post = await samplePost('text')
+    let save = (caption: string) =>
       app.adminFetch(`/admin/posts/${post.id}/edit`, {
         method: 'POST',
-        body: textPostForm({
-          type: 'article',
-          caption: crlf(fields.caption),
-          article_title: title,
-          article_summary: post.article.summary,
-          article_body: crlf(fields.body),
-        }),
+        body: textPostForm({ caption }),
       })
-    let saved = async () => {
-      let found = await findPost(post.id)
-      if (found?.type !== 'article') throw new Error('Not an article')
-      return found
-    }
-
-    expect((await save('First', { caption, body })).status).toBe(303)
-    expect((await saved()).article.body).toBe(body)
-    expect((await saved()).caption).toBe(caption)
-    expect(await (await app.fetch(`/posts/${post.id}`)).text()).toMatch(
-      /<code[^>]*>print\(&quot;hello&quot;\)/,
+    expect((await save('  **Bold**\r\n\r\nand *italic*  \r\n')).status).toBe(303)
+    expect((await findPost(post.id))?.caption).toBe('**Bold**\n\nand *italic*')
+    expect(await (await app.fetch(`/posts/${post.id}`)).text()).toContain(
+      '<p><strong>Bold</strong></p>\n<p>and <em>italic</em></p>',
     )
 
-    // Resubmit what the edit page shows, as a browser would read it, changing only the title.
-    let html = await (await app.adminFetch(`/admin/posts/${post.id}/edit`)).text()
-    let textarea = (name: string) =>
-      unescapeHtml(
-        capture(html, new RegExp(`<textarea [^>]*name="${name}"[^>]*>\\n([^<]*)</textarea>`)),
-      )
-    expect(
-      (await save('Second', { caption: textarea('caption'), body: textarea('article_body') }))
-        .status,
-    ).toBe(303)
-    let after = await saved()
-    expect(after.article.title).toBe('Second')
-    expect(after.article.body).toBe(body)
-    expect(after.caption).toBe(caption)
-
-    // Blank Markdown still counts as missing.
-    let blank = await save('Third', { caption: '  \n ', body: ' \n\n ' })
+    let blank = await save('  \r\n ')
     expect(blank.status).toBe(400)
-    expect(await blank.text()).toMatch(/Article body: Articles need a body/)
+    expect(await blank.text()).toMatch(/Caption: Text posts need a caption/)
   })
 
   it('deletes a post from its edit page', async () => {
@@ -440,7 +358,7 @@ describe('admin post pages', () => {
     expect(await file.text()).toBe('three')
   })
 
-  it('an edit can replace a video and upload files for an article body', async () => {
+  it('an edit can replace a video', async () => {
     let video = await samplePost('video')
     let response = await app.adminFetch(`/admin/posts/${video.id}/edit`, {
       method: 'POST',
@@ -454,26 +372,8 @@ describe('admin post pages', () => {
     expect(saved?.type === 'video' && saved.video.src).toBe(`/posts/${video.id}/garden.mp4`)
     expect(saved?.type === 'video' && saved.video.poster).toBeUndefined()
 
-    let article = await samplePost('article')
-    let edit = await app.adminFetch(`/admin/posts/${article.id}/edit`, {
-      method: 'POST',
-      body: multipartForm(
-        {
-          date: '2026-10-21T09:30',
-          article_title: article.article.title,
-          article_summary: article.article.summary,
-          article_body: 'A chart:\n\n![Chart](chart.png)',
-        },
-        [
-          ['article_uploads', new File(['png'], 'chart.png')],
-          ['cover_upload', noFile()],
-        ],
-      ),
-    })
-    expect(edit.status).toBe(303)
-    expect(await hasPostFile(article.id, 'chart.png')).toBe(true)
-    let page = await (await app.adminFetch(`/admin/posts/${article.id}/edit`)).text()
-    expect(page).toContain(`<a href="/posts/${article.id}/chart.png"><code>chart.png</code>`)
+    let page = await (await app.adminFetch(`/admin/posts/${video.id}/edit`)).text()
+    expect(page).toContain(`<a href="/posts/${video.id}/garden.mp4"><code>garden.mp4</code>`)
   })
 
   it('rejects files that aren’t photos or videos, and keeps the ones that are', async () => {
@@ -759,11 +659,3 @@ describe('the composer', () => {
     expect(logout.headers.getSetCookie().join('\n')).toMatch(/^admin=;.*Max-Age=0/m)
   })
 })
-
-function unescapeHtml(html: string) {
-  return html
-    .replaceAll('&lt;', '<')
-    .replaceAll('&gt;', '>')
-    .replaceAll('&quot;', '"')
-    .replaceAll('&amp;', '&')
-}

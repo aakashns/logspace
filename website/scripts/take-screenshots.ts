@@ -45,11 +45,9 @@ try {
 
     await page.goto(`${baseURL}/posts/mirastory1`);
     await expect(
-      page.getByRole("heading", {
-        name: "A notebook, a long walk, and no plans",
-      }),
+      page.getByText("No route, no list, no podcast."),
     ).toBeVisible();
-    await shoot("article");
+    await shoot("post");
 
     await context.request.post(`${baseURL}/admin/login`, {
       form: { password },

@@ -3,7 +3,7 @@
 // rendered the moment it's created, so a page is one pass of string concatenation.
 //
 // Text and attribute values are escaped. The only way to put markup in a page unescaped is
-// raw(), which is kept to HTML this app renders itself (Markdown output, the inlined stylesheet).
+// raw(), which is kept to HTML this app renders itself (captions, the inlined stylesheet).
 
 // Markup that's already safe to put in a page. Strings are escaped; Html isn't.
 export class Html {

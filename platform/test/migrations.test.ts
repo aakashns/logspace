@@ -63,8 +63,9 @@ describe('migrations', () => {
       '0007_protect_content_access',
       '0008_drop_drafts',
       '0009_dates_in_utc',
+      '0010_drop_articles',
     ])
-    expect(await migrate(file)).toHaveLength(9)
+    expect(await migrate(file)).toHaveLength(10)
     expect(await migrate(file)).toEqual([])
 
     let db = new Database(file, { readonly: true })
@@ -125,11 +126,17 @@ describe('migrations', () => {
         checksum: 'd60ff9c3822efe688868b9efe801c12e1ad924066c39779e633532afbe0ee419',
         batch: 1,
       },
+      {
+        id: '0010',
+        name: 'drop_articles',
+        checksum: 'd1362d6732d04f1a7f29a8abf5944669c4ee61b105741bae0251d3ccb2e1593f',
+        batch: 1,
+      },
     ])
     let columns = Schema.decodeUnknownSync(Schema.Array(Schema.Struct({ name: Schema.String })))(
       db.query("select name from pragma_table_info('posts')").all(),
     ).map((row) => row.name)
-    expect(columns).toContain('article_body')
+    expect(columns).not.toContain('article_body')
     expect(db.query("select name from sqlite_master where name like '%drafts'").all()).toEqual([])
     db.close()
   })

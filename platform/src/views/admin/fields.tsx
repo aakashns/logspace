@@ -44,22 +44,13 @@ export function TextField(props: InputProps & { size?: FieldSize | undefined }):
   )
 }
 
-// `monospace` suits long Markdown, where the markup should stand out.
-export function TextareaField(
-  props: InputProps & { rows: number; monospace?: boolean | undefined },
-): Html {
-  let { label, name, id, value, invalid, hint, rows, monospace } = props
+export function TextareaField(props: InputProps & { rows: number }): Html {
+  let { label, name, id, value, invalid, hint, rows } = props
   return (
     <Field label={label} for={id} hint={hint}>
       {/* A textarea drops a newline right after its start tag, so one goes there, and a value
           that starts with a newline keeps it. */}
-      <textarea
-        id={id}
-        name={name}
-        rows={rows}
-        aria-invalid={invalid}
-        class={monospace ? 'input monospace' : 'input'}
-      >
+      <textarea id={id} name={name} rows={rows} aria-invalid={invalid} class="input">
         {`\n${value ?? ''}`}
       </textarea>
     </Field>

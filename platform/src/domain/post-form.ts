@@ -16,12 +16,6 @@ export type PostFormValues = {
     readonly width?: number | string
     readonly height?: number | string
   }
-  readonly article?: {
-    readonly title?: string
-    readonly summary?: string
-    readonly body?: string
-    readonly cover?: PhotoValues
-  }
 }
 
 // A photo's size is read from its file, so only a video has width and height fields.
@@ -38,23 +32,15 @@ export interface PostForm {
 }
 
 // Reads a submitted edit post form. Only the fields of the post's `type` are kept, since a post's
-// type can't change. A media
-// field is a file name, or a file chosen next to it, which `uploads` has and whose name the field
-// takes; `issues` has the chosen files that can't be uploaded.
+// type can't change. A media field is a file name, or a file chosen next to it, which `uploads`
+// has and whose name the field takes; `issues` has the chosen files that can't be uploaded.
 export function readPostForm(formData: FormData, id: string, type: string): PostForm {
-  let raw = (name: string) => {
+  let text = (name: string) => {
     let value = formData.get(name)
     // Browsers send textarea line breaks as \r\n.
-    return typeof value === 'string' ? value.replace(/\r\n?/g, '\n') : ''
+    return typeof value === 'string' ? value.replace(/\r\n?/g, '\n').trim() : ''
   }
-  let text = (name: string) => raw(name).trim()
   let optional = (name: string) => text(name) || undefined
-  // Markdown is kept as typed, since leading spaces can matter (four start a code block, and an
-  // indented code fence strips that much from its lines); only a blank value counts as empty.
-  let markdown = (name: string) => {
-    let value = raw(name)
-    return value.trim() === '' ? undefined : value
-  }
   // A size is a number when it looks like one, else what was typed, for the schema to reject.
   let size = (value: string) =>
     value === '' ? undefined : /^\d+$/.test(value) ? Number(value) : value
@@ -81,23 +67,22 @@ export function readPostForm(formData: FormData, id: string, type: string): Post
     uploads.push({ name, file: value })
     return name
   }
-  let file = (prefix: string) => upload(formData.get(`${prefix}upload`)) ?? text(`${prefix}file`)
 
   // The date is typed in UTC; datetime-local leaves out the seconds when they're zero.
   let date = text('date')
   if (/T\d{2}:\d{2}$/.test(date)) date += ':00'
   let city = optional('city')
-  let caption = markdown('caption')
+  let caption = optional('caption')
   let base = {
     id,
     type,
     date: date + 'Z',
     ...(city !== undefined && { city }),
+    ...(caption !== undefined && { caption }),
   }
-  let withCaption = { ...base, ...(caption !== undefined && { caption }) }
 
   let readPost = (): PostFormValues => {
-    switch (base.type) {
+    switch (type) {
       case 'text':
         // Kept even when empty, so the error says that text posts need one.
         return { ...base, caption: caption ?? '' }
@@ -115,17 +100,17 @@ export function readPostForm(formData: FormData, id: string, type: string): Post
           .getAll('photo_uploads')
           .map((value) => ({ file: upload(value) ?? '', alt: '' }))
         return {
-          ...withCaption,
+          ...base,
           photos: [...rows, ...added].filter((photo) => photo.file !== ''),
         }
       }
       case 'video': {
-        let videoFile = file('video_')
+        let videoFile = upload(formData.get('video_upload')) ?? text('video_file')
         let poster = upload(formData.get('video_poster_upload')) ?? optional('video_poster')
         let width = size(text('video_width'))
         let height = size(text('video_height'))
         return {
-          ...withCaption,
+          ...base,
           video: {
             file: videoFile,
             ...(poster !== undefined && { poster }),
@@ -134,27 +119,15 @@ export function readPostForm(formData: FormData, id: string, type: string): Post
           },
         }
       }
-      case 'article': {
-        let cover = { file: file('cover_'), alt: text('cover_alt') }
-        let article = {
-          title: text('article_title'),
-          summary: text('article_summary'),
-          body: markdown('article_body') ?? '',
-          ...(cover.file !== '' && { cover }),
-        }
-        // Files for the body are named in its Markdown rather than in a field.
-        for (let value of formData.getAll('article_uploads')) upload(value)
-        return { ...withCaption, article }
-      }
       default:
-        return withCaption
+        return base
     }
   }
   return { post: readPost(), uploads, issues }
 }
 
 // The name an uploaded file is saved under: its own, without any folders (some browsers send
-// them), and with dashes for spaces, since Markdown can't name a file with spaces in it.
+// them), and with dashes for spaces, so its URL reads cleanly.
 export function uploadName(name: string): string {
   return (name.split(/[\\/]/).pop() ?? '').trim().replace(/\s+/g, '-')
 }
