@@ -44,6 +44,12 @@ export const ComposeValues = Schema.Struct({
 })
 export type ComposeValues = typeof ComposeValues.Type
 
+// Ordered within one server lifetime; the epoch distinguishes a restarted server.
+export interface DraftVersion {
+  readonly epoch: string
+  readonly revision: number
+}
+
 // Whether there's nothing in the composer to keep: no caption, location, or media.
 export function isEmptyComposer(values: ComposeValues): boolean {
   let { caption, city, photos, video, article } = values

@@ -38,6 +38,8 @@ export class PostQueries extends Context.Service<
     readonly files: (id: string) => Effect.Effect<{ name: string; size: number }[]>
     // What was last in the composer, if a post is being written (see PostCommands.saveDraft).
     readonly draft: Effect.Effect<ComposeValues | undefined>
+    // Recovery must distinguish a never-saved composer from a published or discarded one.
+    readonly composerState: (id: string) => Effect.Effect<'active' | 'published' | 'retired'>
   }
 >()('logspace/PostQueries') {
   static readonly layer = Layer.effect(
@@ -158,6 +160,11 @@ export class PostQueries extends Context.Service<
         draft,
         find,
         findRecord,
+        composerState: Effect.fn('PostQueries.composerState')(function* (id: string) {
+          if (yield* findRecord(id)) return 'published'
+          let retired = yield* sql`select 1 from retired_drafts where id = ${id}`.pipe(Effect.orDie)
+          return retired.length > 0 ? 'retired' : 'active'
+        }),
         imageInfo,
         articleHtml,
         preview,

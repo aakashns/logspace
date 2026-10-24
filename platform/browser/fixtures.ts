@@ -71,6 +71,8 @@ class Application {
       await expect.poll(async () => (await fetch(`${this.origin}/admin/login`)).status).toBe(200)
     } finally {
       lines.close()
+      // readline.close() pauses its input even when the log listener still needs it.
+      child.stdout.resume()
     }
   }
 
@@ -130,17 +132,21 @@ export const test = base.extend<{ app: Application }>({
       return route.abort('blockedbyclient')
     })
     await context.addInitScript(() => {
-      document.addEventListener('datastar-fetch', (event) => {
-        if (
-          event instanceof CustomEvent &&
-          event.detail.type === 'datastar-patch-elements' &&
-          event.detail.argsRaw.selector === '#composer-page'
-        ) {
-          document.documentElement.dataset.browserUpdates = String(
-            Number(document.documentElement.dataset.browserUpdates ?? 0) + 1,
-          )
-        }
-      })
+      document.addEventListener(
+        'datastar-fetch',
+        (event) => {
+          if (
+            event instanceof CustomEvent &&
+            event.detail.type === 'datastar-patch-elements' &&
+            event.detail.argsRaw.selector === '#composer-page'
+          ) {
+            document.documentElement.dataset.browserUpdates = String(
+              Number(document.documentElement.dataset.browserUpdates ?? 0) + 1,
+            )
+          }
+        },
+        { capture: true },
+      )
     })
     await use(context)
     expect(external, 'No browser request may leave the fixture origin').toEqual([])
@@ -163,7 +169,8 @@ export { expect }
 
 export async function openComposer(page: Page, updates = true) {
   await page.goto(composePath)
-  // Seeing the initial SSE patch proves the real Datastar asset has initialized.
+  // Receiving the initial SSE patch proves Datastar initialized, even if a newer save means
+  // the composer correctly ignores that snapshot before morphing it.
   await expect(page.locator('html')).not.toHaveAttribute('data-nonce')
   if (updates) await expect(page.locator('html')).toHaveAttribute('data-browser-updates', /[1-9]/)
   await expect(page.getByLabel('Caption', { exact: true })).toBeVisible()

@@ -21,23 +21,32 @@ const URL_OF = (kind: 'media' | 'preview') => `el.closest('form').dataset.${kind
 // Mutations need an explicit retry: a lost response may already have committed the write.
 // Datastar 1.0.4 also needs retryMaxCount: 0 to stop transport-error retries.
 const FORM_REQUEST = "{contentType: 'form', retry: 'never', retryMaxCount: 0}"
-const UPDATE_MEDIA = `@post(${URL_OF('media')}, ${FORM_REQUEST}).catch(() => {})`
-const PREVIEW = `$_uploading || $_posting || @post(${URL_OF('preview')}, ${FORM_REQUEST}).catch(() => {})`
+const UPDATE_MEDIA = `$_mediaRetry = el; @post(${URL_OF('media')}, ${FORM_REQUEST}).catch(() => {})`
+const PREVIEW = `$_needsPreview = true; if (!$_uploading && !$_posting) { $_needsPreview = false; @post(${URL_OF('preview')}, ${FORM_REQUEST}).catch(() => {}); }`
 // While typing, the preview follows at most every 100 ms, and once more after the last keystroke.
 // A newer preview cancels one still on its way. A modifier's dot can't be in a JSX attribute's
 // name, so this one is spread in.
 const PREVIEW_ON_INPUT = { 'data-on:input__throttle.100ms.trailing': PREVIEW }
 // Media re-rendered after an upload, a removal, or a rejected post: the preview catches up with
 // what was typed meanwhile. Publishing resets its own busy state even without returned markup.
-const REFRESH = `@post(${URL_OF('preview')}, ${FORM_REQUEST}).catch(() => {})`
+const REFRESH = `$_needsPreview = false; @post(${URL_OF('preview')}, ${FORM_REQUEST}).catch(() => {})`
 const PUBLISH =
-  '!$_uploading && !$_posting && !$_published && ($_posting = true) && ' +
-  `@post(el.getAttribute('action'), ${FORM_REQUEST}).catch(() => {}).finally(() => ($_posting = false))`
-// HTTP errors resolve Datastar's promise; transport failures reject it. Both emit fetch events.
+  "if (!$_uploading && !$_posting && !$_published) { const id = el.elements.namedItem('post_id').value; " +
+  '$_posting = true; $_needsPreview = false; ' +
+  `@post(el.getAttribute('action'), ${FORM_REQUEST}).catch(() => {}).finally(() => { ` +
+  "$_posting = false; if ($_needsPreview && !$_published && el.elements.namedItem('post_id').value === id) " +
+  "el.elements.namedItem('caption').dispatchEvent(new Event('input')); }); }"
+// A successful preview only acknowledges text. It must not hide an upload or publish failure.
+// Remember the submitted id independently of DOM attributes (which a morph can remove), including
+// for body-size errors that cannot read the form. Ignore delayed failures for another post.
 const REQUEST_FEEDBACK =
-  "if (evt.detail.el.closest('form') === el) { " +
-  "if (evt.detail.type === 'started') $_requestError = false; " +
-  "if (['error', 'retries-failed'].includes(evt.detail.type)) $_requestError = true; }"
+  "const source = evt.detail.el; if (evt.detail.type === 'started' && source.closest('form') === el) " +
+  "$_requestIds.set(source, el.elements.namedItem('post_id').value); " +
+  "if ($_requestIds.get(source) === el.elements.namedItem('post_id').value && " +
+  "['error', 'retries-failed'].includes(evt.detail.type)) { " +
+  "if (source.dataset.request === 'media') $_mediaError = true; " +
+  "else if (source.dataset.request === 'publish') $_publishError = true; " +
+  "else if (source.dataset.request === 'preview') $_previewError = true; }"
 // Cmd or Ctrl + Enter posts, as on X.
 const POST_SHORTCUT =
   "(evt.metaKey || evt.ctrlKey) && evt.key === 'Enter' && (evt.preventDefault(), el.form.requestSubmit())"
@@ -57,14 +66,30 @@ export function ComposerForm(props: { id: string; children: Child }): Html {
       class="composer"
       data-media={routes.admin.newPostMedia()}
       data-preview={routes.admin.newPostPreview()}
-      data-signals="{_uploading: false, _posting: false, _published: false, _draft: '', _city: false, _requestError: false}"
+      data-request="publish"
+      data-signals="{_uploading: false, _posting: false, _published: false, _draft: '', _city: false, _previewError: false, _mediaError: false, _publishError: false, _mediaRetry: false, _needsPreview: false, _epoch: '', _revision: -1, _epochs: [], _reconnecting: false, _resetComposer: false, _imageRetries: new WeakMap(), _requestIds: new WeakMap()}"
+      data-init="const id = el.elements.namedItem('post_id'); $_draft = 'saved' in id.dataset ? id.value : ''"
       data-on:datastar-fetch={REQUEST_FEEDBACK}
       data-on:pageshow__window="evt.persisted && ($_published = false)"
       data-on:submit__prevent={PUBLISH}
     >
-      <div role="alert" class="alert" hidden data-attr:hidden="!$_requestError">
+      <div
+        role="alert"
+        class="alert"
+        hidden
+        data-attr:hidden="!($_previewError || $_mediaError || $_publishError)"
+      >
         Couldn’t complete the request. Your input is still here; check your connection and try
-        again.
+        again.{' '}
+        <button
+          type="button"
+          class="link-button"
+          hidden
+          data-attr:hidden="!$_mediaError"
+          data-on:click="$_mediaRetry.isConnected && $_mediaRetry.dispatchEvent(new Event($_mediaRetry.type === 'file' ? 'change' : 'click'))"
+        >
+          Retry media change
+        </button>
       </div>
       {props.children}
     </form>
@@ -83,6 +108,7 @@ export function CaptionInput(props: { value: string }): Html {
       placeholder="What’s happening?"
       autofocus
       class="composer-text"
+      data-request="preview"
       {...PREVIEW_ON_INPUT}
       data-on:keydown={POST_SHORTCUT}
     >
@@ -98,8 +124,8 @@ export function CaptionInput(props: { value: string }): Html {
 const TOGGLE_CITY =
   '$_city = !$_city; const input = el.parentElement.nextElementSibling; ' +
   "input.setAttribute('data-signals:_city', String($_city)); " +
-  '$_city ? requestAnimationFrame(() => input.focus()) : ' +
-  `((input.value = ''), ${PREVIEW})`
+  'if ($_city) requestAnimationFrame(() => input.focus()); else { ' +
+  `input.value = ''; ${PREVIEW} }`
 const CITY_LABEL = "$_city ? 'Remove location' : 'Add location'"
 
 export function CityInput(props: { value: string }): Html {
@@ -111,6 +137,7 @@ export function CityInput(props: { value: string }): Html {
           type="button"
           aria-label={label}
           class="tool-button"
+          data-request="preview"
           data-on:click={TOGGLE_CITY}
           data-attr:aria-label={CITY_LABEL}
         >
@@ -125,6 +152,7 @@ export function CityInput(props: { value: string }): Html {
         class="input city-input"
         data-signals:_city={props.value === '' ? 'false' : 'true'}
         data-show="$_city"
+        data-request="preview"
         {...PREVIEW_ON_INPUT}
       />
     </>
@@ -159,6 +187,7 @@ export function ArticleTextInput(props: {
       aria-label={props.label}
       placeholder={props.label}
       class={props.class}
+      data-request="preview"
       {...PREVIEW_ON_INPUT}
     />
   )
@@ -187,6 +216,7 @@ export function MediaPicker(props: {
         disabled={disabled}
         aria-label={label}
         class="visually-hidden"
+        data-request="media"
         data-on:change={UPDATE_MEDIA}
         data-indicator:_uploading
       />
@@ -211,6 +241,7 @@ export function RemoveMediaButton(props: {
       aria-label={text ? undefined : label}
       title={text ? undefined : label}
       class={text ? 'link-button' : 'remove-button'}
+      data-request="media"
       data-on:click={UPDATE_MEDIA}
       data-indicator:_uploading
     >
@@ -221,7 +252,7 @@ export function RemoveMediaButton(props: {
 
 // Runs once, when the server's HTML puts it on the page.
 export function PreviewRefresh(): Html {
-  return <span hidden data-init={REFRESH} />
+  return <span hidden data-request="preview" data-init={REFRESH} />
 }
 
 // A morph keeps what's typed in a field unless the server's value differs from the field's
@@ -229,42 +260,74 @@ export function PreviewRefresh(): Html {
 // values become the defaults: another tab's change (or a discard) still replaces a field, but
 // what's typed here and not saved yet, as during an outage, stays.
 const SAVE_DEFAULTS =
-  "const form = el.closest('form'); $_draft = form.elements.namedItem('post_id').value; " +
+  "const form = el.closest('form'); if (form.elements.namedItem('post_id').value === el.dataset.postId) { " +
+  '$_draft = el.dataset.postId; ' +
   'for (const [name, value] of Object.entries(JSON.parse(el.dataset.values))) { ' +
   'const field = form.elements.namedItem(name); ' +
   'if (field instanceof HTMLTextAreaElement) field.defaultValue = value; ' +
-  "else if (field instanceof HTMLInputElement) field.setAttribute('value', value); }"
+  "else if (field instanceof HTMLInputElement) field.setAttribute('value', value); } }"
 
-export function SavedDefaults(props: { values: Record<string, string> }): Html {
-  return <span hidden data-values={JSON.stringify(props.values)} data-init={SAVE_DEFAULTS} />
+export function SavedDefaults(props: { id: string; values: Record<string, string> }): Html {
+  return (
+    <span
+      hidden
+      data-post-id={props.id}
+      data-values={JSON.stringify(props.values)}
+      data-init={SAVE_DEFAULTS}
+    />
+  )
 }
 
-// The composer again, from the server, whenever another tab changes the draft (see
-// composerUpdates in http/admin/composer.tsx). Datastar closes the stream while the tab is hidden and opens
-// it again when it's shown, which sends the draft as it is then. The server ends it when it stops,
-// so it's opened again (`always`) for when the server's back, unless it redirects to the login.
-// After each patch, as when the stream is back after an outage: morphing keeps existing media
-// nodes, so images that failed to load get another chance (healthy images and video are left
-// alone). If the draft this tab saved is gone (another tab discarded or published it), what was
-// typed here for it goes too, and the fields show the composer as sent. Otherwise, if saving
-// failed meanwhile, what's typed here is saved again, as a keystroke would. A new tab's post isn't
-// saved yet, so its id changing on the first patch is no reason to clear anything.
-const AFTER_UPDATE =
-  "if (evt.detail.el === el && evt.detail.type === 'datastar-patch-elements') { " +
-  "document.querySelectorAll('#composer-page img').forEach((img) => { " +
-  'if (img.complete && !img.naturalWidth) { img.srcset = img.srcset; img.src = img.src; } }); ' +
+// Only a reconnect retries broken images, once per element/source. Ordinary remote edits
+// must not repeatedly request permanently missing article images. Uploads and publishing need
+// an explicit retry: their response may have been lost after committing the mutation.
+const RECOVER =
   "const form = document.querySelector('#composer-page form'); " +
-  "const id = form.elements.namedItem('post_id'); " +
-  'if ($_draft && $_draft !== id.value) { form.reset(); $_requestError = false; } ' +
-  "else if ($_requestError) form.elements.namedItem('caption').dispatchEvent(new Event('input')); " +
-  "$_draft = 'saved' in id.dataset ? id.value : ''; }"
+  "if ($_reconnecting) document.querySelectorAll('#composer-page img').forEach((img) => { " +
+  'const source = img.src + img.srcset; if (img.complete && !img.naturalWidth && $_imageRetries.get(img) !== source) { ' +
+  "$_imageRetries.set(img, source); if (img.hasAttribute('srcset')) img.setAttribute('srcset', img.getAttribute('srcset')); " +
+  "if (img.hasAttribute('src')) img.setAttribute('src', img.getAttribute('src')); } }); " +
+  '$_reconnecting = false; ' +
+  "if ($_previewError && !$_posting && !$_uploading) form.elements.namedItem('caption').dispatchEvent(new Event('input')); "
+
+// Run before Datastar's patch watcher. A stream snapshot can have been rendered before a save
+// whose response has already arrived. Every response also belongs to a particular post; none
+// of its patches (including media and redirects) may be applied to a different composer.
+const BEFORE_UPDATE =
+  "if (evt.detail.type === 'datastar-patch-elements' && evt.detail.argsRaw.composer) { " +
+  'const update = JSON.parse(evt.detail.argsRaw.composer); ' +
+  "const form = document.querySelector('#composer-page form'); const id = form.elements.namedItem('post_id').value; " +
+  "const stream = update.kind === 'stream'; const version = update.version; " +
+  'const stale = version && (($_epochs.includes(version.epoch) && $_epoch !== version.epoch) || ' +
+  '($_epoch === version.epoch && (stream ? version.revision <= $_revision : version.revision < $_revision))); ' +
+  'if ((!stream && (update.id || $_requestIds.get(evt.detail.el)) !== id) || stale) { ' +
+  'evt.stopImmediatePropagation(); if (stream) { ' +
+  RECOVER +
+  ' } ' +
+  '} else { ' +
+  'if (version) { if (!$_epochs.includes(version.epoch)) $_epochs.push(version.epoch); $_epoch = version.epoch; $_revision = version.revision; } ' +
+  "if (stream) { $_resetComposer = ($_draft && $_draft !== update.id) || (update.previousId === id && ['published', 'retired'].includes(update.previousState)); } " +
+  "else { if (update.kind === 'preview') $_previewError = false; " +
+  "if (update.kind === 'media') { $_mediaError = false; $_previewError = false; } " +
+  "if (update.kind === 'publish') { $_publishError = false; $_mediaError = false; $_previewError = false; } } } }"
+
+const AFTER_UPDATE =
+  "if (evt.detail.el === el) { if (evt.detail.type === 'retrying') $_reconnecting = true; " +
+  "if (evt.detail.type === 'datastar-patch-elements') { " +
+  "const form = document.querySelector('#composer-page form'); const id = form.elements.namedItem('post_id'); " +
+  'if ($_resetComposer) { form.reset(); $_previewError = false; $_mediaError = false; $_publishError = false; $_needsPreview = false; $_resetComposer = false; } ' +
+  "$_draft = 'saved' in id.dataset ? id.value : ''; " +
+  '{ ' +
+  RECOVER +
+  ' } } }'
 
 export function ComposerUpdates(props: { url: string }): Html {
   return (
     <span
       hidden
       data-url={props.url}
-      data-init="@get(el.dataset.url, {retry: 'always'})"
+      data-init="@get(el.dataset.url, {filterSignals: {include: /^_postId$/, exclude: /^$/}, retry: 'always', retryMaxCount: Infinity}).catch(() => {})"
+      data-on:datastar-fetch__capture={BEFORE_UPDATE}
       data-on:datastar-fetch={AFTER_UPDATE}
     />
   )

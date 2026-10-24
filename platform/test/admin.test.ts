@@ -1145,15 +1145,16 @@ describe('the composer', () => {
         expect(captionOf(next)).toBe('From the first tab')
         expect(next).toContain('>Saved</span>')
 
-        // Its own change isn't sent back, even when it's the latest as the stream opens (as when
-        // the tab is shown again): the next it's sent is the first tab's. A third tab's stream,
-        // opened after it, has sent the draft first.
+        // Reopening reconciles even its own latest write: that response could have been lost.
+        // Subsequent changes from this tab still aren't echoed back.
         await updates.close()
         await write('second-tab', id, 'From the second tab')
         updates = await openUpdates('second-tab')
+        expect(captionOf(await updates.next())).toBe('From the second tab')
         let waiting = updates.next()
+        await write('second-tab', id, 'Another edit from the second tab')
         let third = await openUpdates('third-tab')
-        expect(captionOf(await third.next())).toBe('From the second tab')
+        expect(captionOf(await third.next())).toBe('Another edit from the second tab')
         await third.close()
         await write(tab, id, 'From the first tab again')
         expect(captionOf(await waiting)).toBe('From the first tab again')

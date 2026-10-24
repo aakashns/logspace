@@ -69,8 +69,8 @@ export interface ComposerProps {
 export function ComposePage(props: ComposerProps & { tab: string }): Html {
   return (
     <>
-      <ComposerUpdates url={routes.admin.newPostUpdates(props.tab)} />
       <Composer {...props} />
+      <ComposerUpdates url={routes.admin.newPostUpdates(props.tab)} />
     </>
   )
 }
@@ -102,6 +102,7 @@ export function Composer(props: ComposerProps & { tab: string }): Html {
           name="post_id"
           value={values.id}
           data-saved={props.draft === 'saved'}
+          data-bind:_post-id
         />
         <input type="hidden" name="tab" value={props.tab} />
         <OffsetInput value={values.offset} />
@@ -193,15 +194,15 @@ export function ComposerIssues(props: {
   )
 }
 
-// `saved` is the draft as a request just saved it, whose text the fields then take as their
-// defaults (see SavedDefaults).
-export function DraftNote(props: { state: DraftState; saved?: ComposeValues | undefined }): Html {
+// Only an acknowledged save makes the submitted values the fields' defaults (see SavedDefaults).
+export function DraftNote(props: { state: DraftState; values?: ComposeValues | undefined }): Html {
   let text = { saved: 'Saved', refused: 'Not saved' }
-  let { saved } = props
+  let saved = props.state === 'saved' ? props.values : undefined
   return (
     <span id={COMPOSER_IDS.draft} role="status" class="muted draft-note">
       {saved ? (
         <SavedDefaults
+          id={saved.id}
           values={{
             caption: saved.caption,
             city: saved.city,
