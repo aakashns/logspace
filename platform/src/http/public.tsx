@@ -1,5 +1,5 @@
 // The public pages and files: the home page, a post's page and files, the feeds, the site's icons
-// and images, and the assets every page loads.
+// and images, link previews' images, and the assets every page loads.
 import { Effect } from 'effect'
 import { HttpRouter, HttpServerResponse } from 'effect/http'
 
@@ -170,6 +170,12 @@ const siteFile = (name: string) =>
     return yield* fileResponse(found.file, current ? IMMUTABLE : 'public, max-age=3600')
   })
 
+// A link preview's image, whose URL has a hash of it.
+const linkImage = Effect.gen(function* () {
+  let file = yield* (yield* LinkPreviews).image(yield* param('file'))
+  return file ? yield* fileResponse(file, IMMUTABLE) : notFound()
+})
+
 // Datastar and the fonts, which never change at a URL.
 const asset = Effect.gen(function* () {
   let { pathname } = yield* requestUrl
@@ -201,6 +207,7 @@ export const PublicRoutes = HttpRouter.addAll([
         : siteFile(name),
     ),
   ),
+  HttpRouter.route('GET', '/link-images/:file', linkImage),
   HttpRouter.route('GET', '/assets/:file', asset),
   HttpRouter.route('GET', '/fonts/:file', asset),
 ])

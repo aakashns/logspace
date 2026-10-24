@@ -3,7 +3,11 @@ import type { Array as Arr } from 'effect'
 
 import { raw, type Html } from '#jsx/jsx-runtime'
 
-import { FULL_WIDTH_IMAGE_SIZES, HALF_WIDTH_IMAGE_SIZES } from '../domain/constants.ts'
+import {
+  FULL_WIDTH_IMAGE_SIZES,
+  HALF_WIDTH_IMAGE_SIZES,
+  LINK_THUMBNAIL_SIZES,
+} from '../domain/constants.ts'
 import { formatPostDate } from '../domain/format.ts'
 import type { ArticlePost, Photo, Post, Video } from '../domain/presentation.ts'
 import type { LinkPreview } from '../queries/link-previews.ts'
@@ -156,7 +160,11 @@ function LinkCard(props: { preview: LinkPreview }): Html {
       class={`media-frame card link-card${preview.smallImage ? ' small-card' : ''}`}
     >
       {preview.image ? (
-        <img src={preview.image} alt="" loading="lazy" decoding="async" class="card-image" />
+        <PostImage
+          photo={preview.image}
+          sizes={preview.smallImage ? LINK_THUMBNAIL_SIZES : undefined}
+          class="card-image"
+        />
       ) : null}
       <div class="card-text">
         <span class="link-domain">{preview.domain}</span>

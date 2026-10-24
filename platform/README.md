@@ -71,12 +71,12 @@ No database, files, or HTTP: lint fails if anything here imports them (`.oxlintr
 
 Each is an Effect service (`Context.Service`) with a `layer` that builds it.
 
-| Service            | Does                                                                                                                                                                                         |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `database.ts`      | The SQLite connection (`@effect/sql-sqlite-bun`, in WAL mode) and the migrations, which write the same journal LogSpace 0.1 (the Remix version) did, so its databases upgrade in place       |
-| `media-storage.ts` | Uploaded files as plain files under `MEDIA_DIR` (`posts/<id>/<file>`, `variants/…`, `site/…`), written atomically with `Bun.write` and served straight from disk; or in memory for the tests |
-| `images.ts`        | Everything Bun.Image does: reading and resizing photos, and making the logo, icons, and banner image                                                                                         |
-| `draft-changes.ts` | Word that the composer's draft changed, and which tab changed it, for every open composer to follow (kept in memory; the draft is in the database)                                           |
+| Service            | Does                                                                                                                                                                                                          |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `database.ts`      | The SQLite connection (`@effect/sql-sqlite-bun`, in WAL mode) and the migrations, which write the same journal LogSpace 0.1 (the Remix version) did, so its databases upgrade in place                        |
+| `media-storage.ts` | Uploaded files as plain files under `MEDIA_DIR` (`posts/<id>/<file>`, `variants/…`, `site/…`, `link-images/…`), written atomically with `Bun.write` and served straight from disk; or in memory for the tests |
+| `images.ts`        | Everything Bun.Image does: reading and resizing photos, and making the logo, icons, and banner image                                                                                                          |
+| `draft-changes.ts` | Word that the composer's draft changed, and which tab changed it, for every open composer to follow (kept in memory; the draft is in the database)                                                            |
 
 ### 4. Writes: `src/commands/`
 
@@ -102,7 +102,8 @@ on the next request.
 
 `post-media.ts` serves a post's files and its resized photos, which are made on first request
 and stored. Concurrent requests for one share a single resize. `link-previews.ts` fetches link
-previews in the background, never on a page's time.
+previews in the background, never on a page's time, and saves each one's image as resized WebP
+copies, so cards load from the site itself, at the size they're shown.
 
 ### 6. HTTP: `src/http/`
 
@@ -164,7 +165,9 @@ are `public.test.ts`, `admin.test.ts`, `config.test.ts`,
 - **Files**: storage keys are built only from checked ids and names, and the fs backend also
   refuses any path outside `MEDIA_DIR`. Uploads are typed by extension, never by what the browser
   claims, and SVG isn't accepted for posts. Site images are re-encoded as PNG or JPEG.
-  Unpublished posts' files aren't served.
+  Unpublished posts' files aren't served. Link previews' images are fetched only over https,
+  refused past 10 MB or 25 megapixels (checked from the header, before decoding), and served
+  only as WebP that the app re-encoded.
 
 Datastar is © Star Federation, MIT licensed (`public/datastar.LICENSE.md`). The composer's and
 navbar's plus, image, video, Markdown file, map pin, and × icons are from Phosphor Icons, © 2023 Phosphor Icons, MIT
