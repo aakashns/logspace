@@ -9,8 +9,7 @@ import {
   LINK_THUMBNAIL_SIZES,
 } from '../domain/constants.ts'
 import { formatPostDate } from '../domain/format.ts'
-import type { ArticlePost, Photo, Post, Video } from '../domain/presentation.ts'
-import type { LinkPreview } from '../queries/link-previews.ts'
+import type { ArticlePost, LinkPreview, Photo, Post, Video } from '../domain/presentation.ts'
 import { routes } from '../routes.ts'
 import { ShareButton } from './controls.tsx'
 

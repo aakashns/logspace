@@ -1,7 +1,7 @@
 import type { Html } from '#jsx/jsx-runtime'
 
 import type { SiteConfig, SiteImage } from '../domain/site.ts'
-import { getSiteImageHref } from '../queries/site-files.ts'
+import { getSiteImageHref } from '../domain/site-images.ts'
 
 // The site's logo for each theme, uploaded at /admin/config, or its title without one; sized by its
 // height. Each theme shows its own logo, or the other theme's if it has none. They're images in the

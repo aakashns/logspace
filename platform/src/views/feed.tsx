@@ -1,7 +1,6 @@
 import type { Html } from '#jsx/jsx-runtime'
 
-import type { Post } from '../domain/presentation.ts'
-import type { LinkPreview } from '../queries/link-previews.ts'
+import type { LinkPreview, Post } from '../domain/presentation.ts'
 import { routes } from '../routes.ts'
 import { Caption, PostMedia, PostMeta } from './post.tsx'
 

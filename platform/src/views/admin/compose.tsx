@@ -7,7 +7,7 @@
 // flicker as you type). Each of those requests saves the draft, which the note by the Post
 // button says. Every tab with the composer open follows the draft: when another tab changes it,
 // the server sends the whole composer again, which Datastar morphs into place. Their Datastar
-// controls are in ../controls.tsx.
+// controls are in composer-controls.tsx.
 import type { Array as Arr } from 'effect'
 
 import type { Html } from '#jsx/jsx-runtime'
@@ -15,9 +15,12 @@ import type { Html } from '#jsx/jsx-runtime'
 import type { ArticleValues, ComposeValues } from '../../domain/compose.ts'
 import { FULL_WIDTH_IMAGE_SIZES, HALF_WIDTH_IMAGE_SIZES } from '../../domain/constants.ts'
 import type { PostIssue } from '../../domain/post.ts'
-import type { Photo, Post, Video } from '../../domain/presentation.ts'
-import type { LinkPreview } from '../../queries/link-previews.ts'
+import type { LinkPreview, Photo, Post, Video } from '../../domain/presentation.ts'
 import { routes } from '../../routes.ts'
+import { Tooltip } from '../controls.tsx'
+import { CloseIcon, ImageIcon, MarkdownIcon, VideoIcon } from '../icons.tsx'
+import { PostPage } from '../post-page.tsx'
+import { Caption, PostMedia, PostMeta } from '../post.tsx'
 import {
   ArticleTextInput,
   CaptionInput,
@@ -32,12 +35,8 @@ import {
   Redirect,
   RemoveMediaButton,
   SavedDefaults,
-  Tooltip,
   UploadingNote,
-} from '../controls.tsx'
-import { CloseIcon, ImageIcon, MarkdownIcon, VideoIcon } from '../icons.tsx'
-import { PostPage } from '../post-page.tsx'
-import { Caption, PostMedia, PostMeta } from '../post.tsx'
+} from './composer-controls.tsx'
 
 export const COMPOSER_IDS = {
   composer: 'composer-page',

@@ -8,7 +8,7 @@ import type {
   SiteImages,
   SiteText,
 } from '../../domain/site.ts'
-import { getIconHref, getSiteImageHref } from '../../queries/site-files.ts'
+import { getIconHref, getSiteImageHref } from '../../domain/site-images.ts'
 import { routes } from '../../routes.ts'
 import { Field, TextareaField, TextField } from './fields.tsx'
 

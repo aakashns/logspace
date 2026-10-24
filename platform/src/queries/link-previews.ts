@@ -26,22 +26,12 @@ import { HttpClient } from 'effect/http'
 import { AppConfig } from '../config.ts'
 import { getResizedSources, type ImageInfo } from '../domain/images.ts'
 import { getDomain, getFirstLink } from '../domain/links.ts'
-import type { Photo, Post } from '../domain/presentation.ts'
+import type { LinkPreview, Photo, Post } from '../domain/presentation.ts'
 import { LinkMetadata, parseLinkMetadata } from '../domain/link-metadata.ts'
 import { routes } from '../routes.ts'
 import { Images } from '../services/images.ts'
 import { MediaStorage, mediaKeys, type StoredFile } from '../services/media-storage.ts'
 import { SiteConfigQueries } from './site-config.ts'
-
-export interface LinkPreview {
-  readonly url: string
-  readonly domain: string
-  readonly title?: string | undefined
-  readonly description?: string | undefined
-  // The saved copy of the link's image.
-  readonly image?: Photo | undefined
-  readonly smallImage?: boolean | undefined
-}
 
 // A link's metadata and its image's saved copy, or that one of them couldn't be fetched, and
 // when. A preview with an image URL but no copy (and not failed) was saved before images were.

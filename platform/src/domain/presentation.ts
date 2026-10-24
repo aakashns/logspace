@@ -70,6 +70,18 @@ export interface Video {
   readonly height?: number | undefined
 }
 
+// The card for the first link in a text post (see ../queries/link-previews.ts), with what the
+// linked page shares about itself.
+export interface LinkPreview {
+  readonly url: string
+  readonly domain: string
+  readonly title?: string | undefined
+  readonly description?: string | undefined
+  // The saved copy of the link's image.
+  readonly image?: Photo | undefined
+  readonly smallImage?: boolean | undefined
+}
+
 // The size and version of one of a post's images, by file name.
 export type ImageLookup = (file: string) => ImageInfo | undefined
 

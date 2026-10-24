@@ -4,10 +4,10 @@
 import { Context, Effect, Layer } from 'effect'
 
 import { FALLBACK_ICON_BACKGROUND } from '../domain/constants.ts'
-import { IMAGE_WIDTHS, getSrcset } from '../domain/images.ts'
-import type { SiteImage, SiteImages } from '../domain/site.ts'
-import { routes } from '../routes.ts'
-import { DEFAULT_ICON_VERSION, ICON_FILES, Images } from '../services/images.ts'
+import { IMAGE_WIDTHS } from '../domain/images.ts'
+import { DEFAULT_ICON_VERSION } from '../domain/site-images.ts'
+import type { SiteImages } from '../domain/site.ts'
+import { ICON_FILES, Images } from '../services/images.ts'
 import { MediaStorage, mediaKeys, type StoredFile } from '../services/media-storage.ts'
 
 export class SiteFiles extends Context.Service<
@@ -82,25 +82,3 @@ export class SiteFiles extends Context.Service<
 }
 
 const STARTED_AT = Date.now()
-
-// The URL of one of the icon's files, with its version, so a new icon gets new URLs.
-export function getIconHref(images: SiteImages, name: string): string {
-  let version = images.icon?.version ?? DEFAULT_ICON_VERSION
-  let path =
-    name === 'favicon.ico'
-      ? routes.favicon()
-      : name === 'apple-touch-icon.png'
-        ? routes.appleTouchIcon()
-        : routes.siteFile(name)
-  return `${path}?v=${version}`
-}
-
-// The URL of a logo or the banner image.
-export function getSiteImageHref(image: SiteImage): string {
-  return `${routes.siteFile(image.file)}?v=${image.version}`
-}
-
-// The banner image's resized copies, for srcset.
-export function getBannerSrcset(image: SiteImage): string {
-  return getSrcset(routes.siteFile(image.file), image.file, image)
-}
