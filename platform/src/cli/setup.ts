@@ -5,10 +5,9 @@
 //
 //   sudo logspace setup example.com www.example.com
 //
-// The domains are saved, so later runs (like the one after `logspace upgrade`) can leave them
-// out. Existing Caddy site blocks for these domains are replaced. The app's port is PORT in the
-// env file (44100 when it isn't set), which Caddy is pointed at, so run it again after changing
-// it.
+// The domains are saved, so later runs can leave them out. Existing Caddy site blocks for these
+// domains are replaced. The app's port is PORT in the env file (44100 when it isn't set), which
+// Caddy is pointed at, so run it again after changing it.
 import { Array as Arr, Console, Effect, FileSystem, Path } from 'effect'
 
 import { promptAdminPassword } from './admin-password.ts'
@@ -110,15 +109,6 @@ export const setup = Effect.fn('setup')(function* (args: readonly string[]) {
     yield* Console.log('Set the password for /admin with: sudo logspace set-admin-password')
   }
 }, reportFailures)
-
-// Whether the service setup installed runs this binary, so a new one there should set it up
-// again.
-export const runsService = Effect.fnUntraced(function* (binary: string) {
-  let fs = yield* FileSystem.FileSystem
-  if (!(yield* fs.exists(DOMAINS_FILE)) || !(yield* fs.exists(SERVICE_FILE))) return false
-  let execStart = `ExecStart=${yield* fs.realPath(binary)} start`
-  return (yield* fs.readFileString(SERVICE_FILE)).split('\n').includes(execStart)
-})
 
 // The domains the last setup was for.
 const savedDomains = Effect.gen(function* () {
