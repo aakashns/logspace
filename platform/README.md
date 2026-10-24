@@ -161,9 +161,8 @@ are `public.test.ts`, `admin.test.ts`, `config.test.ts`,
   fingerprint of the password, so changing it logs everyone out. SQLite records enforce a fixed
   30-day lifetime and logout revocation; changing the signing secret also invalidates cookies.
   At most 100 sessions are retained, with expired/old-credential rows removed on login. Login is
-  checked before an
-  upload's body is read, and the login form itself, which anyone can send, is read only up to
-  16 KB.
+  checked before an upload's body is read, and the login form itself, which anyone can send, is
+  read only up to 16 KB.
 - **Forms from other sites** are refused (`Sec-Fetch-Site`, else `Origin` against the host), as
   Remix's `cop()` did. Behind Caddy, the host is taken from `X-Forwarded-Host`, which
   Caddy overwrites, before the `Forwarded` header, which it passes through from the browser.
