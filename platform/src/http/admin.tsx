@@ -141,20 +141,30 @@ const showLogin = Effect.gen(function* () {
 const logIn = Effect.gen(function* () {
   let auth = yield* AdminAuth
   let form = yield* readForm(LOGIN_FORM_LIMIT)
-  if (!auth.checkPassword(form.get('password'))) {
+  let session = yield* auth.logIn(form.get('password'))
+  if (!session) {
     return yield* loginPage('That password isn’t right.')
   }
-  return auth.saveSession(redirect(routes.admin.index()), auth.logIn())
+  return auth.saveSession(redirect(routes.admin.index()), session)
 }).pipe(
   Effect.catchTags({
     UploadTooLarge: () => message('Upload too large', UPLOAD_TOO_LARGE_MESSAGE, 413),
     MalformedForm: () => loginPage('That password isn’t right.'),
+    LoginThrottled: ({ retryAfter }) =>
+      Effect.succeed(
+        HttpServerResponse.setHeader(
+          textResponse('Too many login attempts. Try again shortly.', 429),
+          'Retry-After',
+          String(retryAfter),
+        ),
+      ),
   }),
   Effect.map(privately),
 )
 
 const logOut = Effect.gen(function* () {
   let auth = yield* AdminAuth
+  yield* auth.logOut
   return privately(auth.saveSession(redirect(routes.admin.login()), undefined))
 })
 

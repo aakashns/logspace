@@ -10,7 +10,17 @@
 // without it if it can't be fetched or read (it's tried again later, like a page that couldn't
 // be fetched).
 import * as path from 'node:path'
-import { Clock, Context, Effect, FileSystem, Layer, Option, Schema, Stream } from 'effect'
+import {
+  Clock,
+  Context,
+  Effect,
+  FileSystem,
+  Layer,
+  Option,
+  Schema,
+  Semaphore,
+  Stream,
+} from 'effect'
 import { HttpClient } from 'effect/http'
 
 import { AppConfig } from '../config.ts'
@@ -79,7 +89,7 @@ export class LinkPreviews extends Context.Service<
   static readonly layer = Layer.effect(
     LinkPreviews,
     Effect.gen(function* () {
-      let { cacheDir, mode } = yield* AppConfig
+      let { cacheDir } = yield* AppConfig
       let siteConfig = yield* SiteConfigQueries
       let storage = yield* MediaStorage
       let images = yield* Images
@@ -102,6 +112,8 @@ export class LinkPreviews extends Context.Service<
         ),
       )
       let inFlight = new Set<string>()
+      let scope = yield* Effect.scope
+      let cacheWrites = yield* Semaphore.make(1)
 
       // Saved whole, written beside the cache file and moved into place.
       let saveCache = Effect.gen(function* () {
@@ -182,20 +194,22 @@ export class LinkPreviews extends Context.Service<
         })
 
       let refresh = Effect.fnUntraced(function* (url: string) {
-        // Tests shouldn't reach out to the network.
-        if (inFlight.has(url) || mode === 'test') return
+        // No unbounded task queue: a later page request retries work skipped while saturated.
+        if (inFlight.has(url) || inFlight.size >= 4) return
         inFlight.add(url)
-        // Names the site, so the sites whose links are previewed can see who's asking.
-        let { siteUrl = '' } = yield* siteConfig.saved
-        let userAgent = `Mozilla/5.0 (compatible; ${URL.parse(siteUrl)?.host ?? 'LogSpace'} link preview; +${siteUrl})`
-        yield* fetchEntry(url, userAgent).pipe(
-          Effect.tap((entry) => Effect.sync(() => entries.set(url, entry))),
-          Effect.andThen(saveCache),
+        yield* Effect.gen(function* () {
+          // Names the site, so the sites whose links are previewed can see who's asking.
+          let { siteUrl = '' } = yield* siteConfig.saved
+          let userAgent = `Mozilla/5.0 (compatible; ${URL.parse(siteUrl)?.host ?? 'LogSpace'} link preview; +${siteUrl})`
+          let entry = yield* fetchEntry(url, userAgent)
+          entries.set(url, entry)
+          yield* cacheWrites.withPermit(saveCache)
+        }).pipe(
           Effect.catchCause((cause) =>
             Effect.logError(`Couldn't save the link preview for ${url}`, cause),
           ),
           Effect.ensuring(Effect.sync(() => inFlight.delete(url))),
-          Effect.forkDetach,
+          Effect.forkIn(scope),
         )
       })
 

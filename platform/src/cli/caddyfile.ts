@@ -16,7 +16,7 @@ export function addSite(caddyfile: string, { domains, port }: CaddySite): Caddyf
   let removed = removeSiteBlocks(caddyfile, new Set(domains.map((domain) => domain.toLowerCase())))
   if (!removed.ok) return removed
   let blocks = [
-    `${siteDomain} {\n\tencode zstd gzip\n\treverse_proxy localhost:${port}\n}\n`,
+    `${siteDomain} {\n\tencode zstd gzip\n\treverse_proxy 127.0.0.1:${port}\n}\n`,
     ...redirectDomains.map(
       (domain) => `${domain} {\n\tredir https://${siteDomain}{uri} permanent\n}\n`,
     ),

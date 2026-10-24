@@ -224,8 +224,9 @@ describe('the site’s images', () => {
     let icon = defined(saved.icon, 'the icon')
     let bannerImage = defined(saved.bannerImage, 'the banner image')
     // Shrunk to a few times its height in the navbar.
-    expect({ ...savedLogo, version: undefined }).toEqual({
+    expect({ ...savedLogo, version: undefined, generation: undefined }).toEqual({
       file: 'logo.webp',
+      generation: undefined,
       width: 256,
       height: 64,
       version: undefined,

@@ -28,6 +28,8 @@ export interface SiteText {
 // can't be transparent, a hex color like "#1a2b3c".
 export const SiteImage = Schema.Struct({
   file: Schema.String,
+  // New uploads live in immutable generations; absent on pre-0.6 images.
+  generation: Schema.optionalKey(Schema.String.check(Schema.isPattern(/^[0-9a-f-]{36}$/))),
   width: Schema.Int.check(Schema.isGreaterThan(0)),
   height: Schema.Int.check(Schema.isGreaterThan(0)),
   version: Schema.String,

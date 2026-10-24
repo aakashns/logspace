@@ -1,17 +1,19 @@
 // The app, for the tests: an in-memory database and media storage, driven through its web
 // handler, as a browser would drive the server. Each test file makes its own, so they don't share
 // data.
-import { Effect, Layer, ManagedRuntime, Redacted } from 'effect'
+import { Clock, Effect, Layer, ManagedRuntime, Redacted } from 'effect'
 import { HttpRouter, HttpServer } from 'effect/http'
 
 import { AppRoutes, AppServices, ROUTER_CONFIG } from '../src/app.ts'
 import { AppConfig } from '../src/config.ts'
+import { PublicNetwork } from '../src/services/public-http.ts'
 import { seedDatabase, seedMedia } from './seed.ts'
 
 export const ADMIN_PASSWORD = 'test-password-1234'
 
 export const TEST_CONFIG = AppConfig.of({
   port: 0,
+  hostname: '127.0.0.1',
   mode: 'test',
   trustProxy: false,
   databasePath: ':memory:',
@@ -24,12 +26,21 @@ export const TEST_CONFIG = AppConfig.of({
 
 export type TestApp = ReturnType<typeof makeTestApp>
 
-export function makeTestApp(config: Partial<AppConfig['Service']> = {}) {
+export function makeTestApp(
+  config: Partial<AppConfig['Service']> = {},
+  overrides: { clock?: Clock.Clock; network?: PublicNetwork['Service'] } = {},
+) {
   let configLayer = Layer.succeed(AppConfig, AppConfig.of({ ...TEST_CONFIG, ...config }))
   // The runtime (for calling services directly) and the handler share one MemoMap, so they share
   // every service, and so the database.
   let memoMap = Layer.makeMemoMapUnsafe()
-  let services = AppServices.pipe(Layer.provide(configLayer))
+  let services = AppServices.pipe(
+    Layer.provide(
+      overrides.network ? Layer.succeed(PublicNetwork, overrides.network) : PublicNetwork.layer,
+    ),
+    Layer.provide(configLayer),
+    Layer.provide(overrides.clock ? Layer.succeed(Clock.Clock, overrides.clock) : Layer.empty),
+  )
   let runtime = ManagedRuntime.make(services, { memoMap })
   let { handler, dispose } = HttpRouter.toWebHandler(
     AppRoutes.pipe(

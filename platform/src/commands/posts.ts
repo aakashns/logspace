@@ -1,6 +1,6 @@
 // Publishing, editing, and deleting posts: the write side for posts. Media storage and the
 // database can't change together, so each command says what's left when one step fails.
-import { Context, DateTime, Effect, Layer, Option, Schema } from 'effect'
+import { Context, DateTime, Effect, Layer, Option, Schema, Semaphore } from 'effect'
 import { SqlClient } from 'effect/sql'
 
 import { composerFiles, ComposeValues, isEmptyComposer } from '../domain/compose.ts'
@@ -70,6 +70,10 @@ export class PostCommands extends Context.Service<
       let files = yield* PostFiles
       let storage = yield* MediaStorage
       let draftChanges = yield* DraftChanges
+      // One owner, one shared draft: serialize all post mutations, including cleanup.
+      let mutations = yield* Semaphore.make(1)
+      let coordinated = <A, E, R>(work: Effect.Effect<A, E, R>) =>
+        mutations.withPermit(Effect.uninterruptible(work))
 
       let findRecord = (id: string) =>
         sql<PostRow>`select ${sql.literal(POST_COLUMNS)} from posts where id = ${id}`.pipe(
@@ -99,25 +103,18 @@ export class PostCommands extends Context.Service<
         return record
       })
 
-      // Uploads are saved before the post is checked, so a rejected submission doesn't need its
-      // files chosen again. A new post's id can only be taken by a form submitted twice (every
-      // new post form has a new id), and then nothing is saved, so its files can't replace the
-      // published post's: a submission waits for any other of the same id to finish, and the
-      // database refuses a second post with an id. If storing the post fails, its files stay
-      // under its id, unserved, for the form to be submitted again.
       let alreadyPublished = new PostRejected({
         issues: [{ message: 'This post was already published.' }],
       })
-      let publishing = new Set<string>()
       let publish = Effect.fn('PostCommands.publish')(function* (
         submission: PostSubmission,
         by?: string,
       ) {
         let { id } = submission.post
-        if (publishing.has(id) || Option.isSome(yield* findRecord(id))) {
+        if (Option.isSome(yield* findRecord(id))) {
           return yield* alreadyPublished
         }
-        publishing.add(id)
+        yield* activeDraft(id)
         return yield* Effect.gen(function* () {
           // An invalid id is one of the post's issues; no files are saved under it.
           if (isPostId(id)) yield* saveUploads(submission, id)
@@ -138,19 +135,20 @@ export class PostCommands extends Context.Service<
           )
           if (drafts.length > 0) yield* draftChanges.changed(by)
           return record
-        }).pipe(Effect.ensuring(Effect.sync(() => publishing.delete(id))))
+        })
       })
 
-      // A new post's id, if it's one that isn't published or being published.
+      // Called under the mutation lock, before any draft's files are changed.
       let unpublished = Effect.fnUntraced(function* (id: string) {
         if (!isPostId(id)) {
           return yield* new PostRejected({
             issues: [{ field: 'id', message: 'Expected a post id' }],
           })
         }
-        if (publishing.has(id) || Option.isSome(yield* findRecord(id))) {
+        if (Option.isSome(yield* findRecord(id))) {
           return yield* alreadyPublished
         }
+        yield* activeDraft(id)
       })
 
       // ---- Drafts
@@ -159,7 +157,7 @@ export class PostCommands extends Context.Service<
       // other follows (see DraftChanges). A tab that hasn't caught up, after its post was
       // discarded or replaced in another (whose files were deleted with it), could otherwise
       // bring back a draft whose media is gone, or upload files for a post nothing names any
-      // more. So a post that isn't the draft can become it only if its files are all there.
+      // more. Retired ids are refused, and every draft save checks its direct media references.
       let lostDraft = new PostRejected({
         issues: [
           {
@@ -167,6 +165,12 @@ export class PostCommands extends Context.Service<
               'This post was discarded or replaced in another tab, and its media deleted. Reload to pick up the current draft.',
           },
         ],
+      })
+
+      // Tombstones survive restarts and reject late uploads (including text-only drafts).
+      let activeDraft = Effect.fnUntraced(function* (id: string) {
+        let retired = yield* sql`select 1 from retired_drafts where id = ${id}`.pipe(Effect.orDie)
+        if (retired.length > 0) return yield* lostDraft
       })
 
       // Whether the composer's values can be saved as the draft, checked before any of their
@@ -178,8 +182,7 @@ export class PostCommands extends Context.Service<
       ) {
         yield* unpublished(values.id)
         let current = yield* sql`select 1 from drafts where id = ${values.id}`.pipe(Effect.orDie)
-        if (current.length > 0) return true
-        if (isEmptyComposer(values)) return false
+        if (current.length === 0 && isEmptyComposer(values)) return false
         for (let file of composerFiles(values)) {
           if (uploading.has(file)) continue
           if (!(yield* storage.has(mediaKeys.postFile(values.id, file)))) return yield* lostDraft
@@ -199,6 +202,9 @@ export class PostCommands extends Context.Service<
           let published = yield* sql`select 1 from posts where id = ${id}`
           if (published.length > 0) return undefined
           let others = yield* sql<{ id: string }>`delete from drafts where id != ${id} returning id`
+          for (let other of others) {
+            yield* sql`insert or ignore into retired_drafts (id) values (${other.id})`
+          }
           yield* sql`insert into drafts ${sql.insert({ id, data, updated_at })}
             on conflict (id) do update set data = excluded.data, updated_at = excluded.updated_at`
           return others.map((row) => row.id)
@@ -206,7 +212,7 @@ export class PostCommands extends Context.Service<
         if (replaced === undefined) return yield* alreadyPublished
         yield* draftChanges.changed(by)
         for (let other of replaced) {
-          if (publishing.has(other) || Option.isSome(yield* findRecord(other))) continue
+          if (Option.isSome(yield* findRecord(other))) continue
           yield* files.removeAll(other)
         }
       })
@@ -231,17 +237,26 @@ export class PostCommands extends Context.Service<
         yield* Effect.forEach(uploads, ({ name, file }) => files.save(id, name, file), {
           discard: true,
         })
-        yield* Effect.forEach(unused, (name) => files.remove(id, name), { discard: true })
         if (save) yield* writeDraft(values, by)
+        let used = new Set(composerFiles(values))
+        yield* Effect.forEach(
+          unused.filter((name) => !used.has(name)),
+          (name) => files.remove(id, name),
+          { discard: true },
+        )
         return save
       })
 
-      // The files go first: if removing them fails, the draft is still there to discard again.
+      // Commit retirement first. Failed cleanup can leave unserved files, never a live draft
+      // that names removed media, and a stale tab cannot resurrect the retired id.
       let discard = Effect.fn('PostCommands.discard')(function* (id: string) {
         yield* unpublished(id)
-        yield* files.removeAll(id)
-        let drafts = yield* sql`delete from drafts where id = ${id} returning id`.pipe(Effect.orDie)
+        let drafts = yield* Effect.gen(function* () {
+          yield* sql`insert or ignore into retired_drafts (id) values (${id})`
+          return yield* sql`delete from drafts where id = ${id} returning id`
+        }).pipe(sql.withTransaction, Effect.orDie)
         if (drafts.length > 0) yield* draftChanges.changed()
+        yield* files.removeAll(id)
       })
 
       // A post's type can't change. Uploads replace the post's files of the same names right
@@ -267,20 +282,22 @@ export class PostCommands extends Context.Service<
       // The post goes first: if removing its files fails, the files left over aren't served,
       // while a post whose files went first would show broken media.
       let remove = Effect.fn('PostCommands.delete')(function* (id: string) {
-        let deleted = yield* sql<{
-          id: string
-        }>`delete from posts where id = ${id} returning id`.pipe(Effect.orDie)
+        let deleted = yield* Effect.gen(function* () {
+          let rows = yield* sql<{ id: string }>`delete from posts where id = ${id} returning id`
+          if (rows.length > 0) yield* sql`insert or ignore into retired_drafts (id) values (${id})`
+          return rows
+        }).pipe(sql.withTransaction, Effect.orDie)
         if (deleted.length === 0) return yield* new PostNotFound({ id })
         yield* files.removeAll(id)
       })
 
       return PostCommands.of({
-        publish,
-        saveDraft,
-        updateFiles,
-        discard,
-        edit,
-        delete: remove,
+        publish: (...args) => coordinated(publish(...args)),
+        saveDraft: (...args) => coordinated(saveDraft(...args)),
+        updateFiles: (...args) => coordinated(updateFiles(...args)),
+        discard: (...args) => coordinated(discard(...args)),
+        edit: (...args) => coordinated(edit(...args)),
+        delete: (...args) => coordinated(remove(...args)),
       })
     }),
   )

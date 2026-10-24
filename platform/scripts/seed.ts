@@ -6,12 +6,15 @@
 import { Effect, Layer } from 'effect'
 
 import { AppServices } from '../src/app.ts'
+import { PublicNetwork } from '../src/services/public-http.ts'
 import { AppConfig } from '../src/config.ts'
 import { seedDatabase, seedMedia } from '../test/seed.ts'
 
 await Effect.runPromise(
   Effect.andThen(seedMedia, seedDatabase).pipe(
-    Effect.provide(AppServices.pipe(Layer.provide(AppConfig.layer))),
+    Effect.provide(
+      AppServices.pipe(Layer.provide(PublicNetwork.layer), Layer.provide(AppConfig.layer)),
+    ),
   ),
 )
 console.log('Seeded the sample posts')

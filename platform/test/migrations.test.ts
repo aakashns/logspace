@@ -41,8 +41,9 @@ describe('migrations', () => {
       '0004_create_config',
       '0005_rename_social_image_to_banner',
       '0006_create_drafts',
+      '0007_protect_content_access',
     ])
-    expect(await migrate(file)).toHaveLength(6)
+    expect(await migrate(file)).toHaveLength(7)
     expect(await migrate(file)).toEqual([])
 
     let db = new Database(file, { readonly: true })
@@ -83,6 +84,12 @@ describe('migrations', () => {
         id: '0006',
         name: 'create_drafts',
         checksum: '6c1bf762e88c5d03c415e75f5388c4d48310786fd840b7b93e66ea5087d083d6',
+        batch: 1,
+      },
+      {
+        id: '0007',
+        name: 'protect_content_access',
+        checksum: '206d3ebf4d747af2d82dfe3179d73551434c47ee7c02048d6a7b9b37137e54fb',
         batch: 1,
       },
     ])
