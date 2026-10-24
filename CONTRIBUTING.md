@@ -190,3 +190,31 @@ Node.js 20 or newer: publishing each kind of post, drafts through reloads and ot
 recovering from failed requests and a restarted server. Each test starts the app with its own
 temporary data and port. Install the browsers once with `bun run test:browser:install`, then run
 `bun run test:browser`. CI doesn't run them.
+
+### Security
+
+- **CSP**: pages allow only scripts with that response's nonce (not even other scripts from the
+  site's own origin), and require Trusted Types.
+  Datastar runs in its [CSP mode](https://data-star.dev/reference/security) with the nonce, so
+  there's no `unsafe-eval` or `unsafe-inline`. Other responses (files, feeds) run no scripts.
+  Pages also send `frame-ancestors 'none'`, `base-uri 'self'`, `object-src 'none'`, and
+  `form-action 'self'`.
+- **User content**: Markdown is rendered with raw HTML escaped, and the containers it goes in
+  carry `data-ignore`, so Datastar never evaluates attributes in it, even if escaping failed.
+- **Admin**: one password, compared in constant time; a session cookie signed with HMAC-SHA256,
+  `HttpOnly`, `SameSite=Lax`, `Secure` in production, sent only to `/admin`, and holding a
+  fingerprint of the password, so changing it logs everyone out. SQLite records enforce a fixed
+  30-day lifetime and logout revocation; changing the signing secret also invalidates cookies.
+  At most 100 sessions are retained, with expired/old-credential rows removed on login. Login is
+  checked before an upload's body is read, and the login form itself, which anyone can send, is
+  read only up to 16 KB.
+- **Forms from other sites** are refused (`Sec-Fetch-Site`, else `Origin` against the host), as
+  Remix's `cop()` did. Behind Caddy, the host is taken from `X-Forwarded-Host`, which
+  Caddy overwrites, before the `Forwarded` header, which it passes through from the browser.
+- **Files**: storage keys are built only from checked ids and names, and the fs backend also
+  refuses any path outside `MEDIA_DIR`. Uploads are typed by extension, never by what the browser
+  claims, and SVG isn't accepted for posts. Site images are re-encoded as PNG or JPEG.
+  Unpublished posts' files aren't served. Link previews' images are fetched only over https,
+  refused past 10 MB or 25 megapixels (checked from the header, before decoding), and served
+  only as WebP that the app re-encoded. Link previews fetch only public addresses on standard
+  ports, checking each redirect.
