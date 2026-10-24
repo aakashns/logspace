@@ -46,9 +46,9 @@ The platform (the app, in `platform/`) is built with:
 
 - **[Bun](https://bun.com)** for the runtime, HTTP server, SQLite, file I/O, and the single-file
   binary.
-- **[Effect v4](https://effect.website)** for structure: every dependency is a service provided by
-  a layer, every expected failure is a typed error, and the database is
-  [`effect/sql`](https://effect.website/docs).
+- **[Effect v4](https://effect.website)** for structure: services share resources and application
+  APIs, stateless operations are Effect functions, every expected failure is a typed error, and
+  the database is [`effect/sql`](https://effect.website/docs).
 - **[Datastar](https://data-star.dev)** as the only JavaScript sent to browsers (13 KB gzipped),
   for the theme toggle, share buttons, and the admin composer.
 - **A tiny JSX runtime** (`src/jsx`, about 110 lines) that renders TSX straight to HTML strings: no
@@ -62,21 +62,19 @@ The app is in `platform/`, and paths here are from there. Read it in this order;
 
 #### 1. The shape: `src/app.ts`
 
-The composition root, and the best map of the app. It wires every service into one layer and
-shows what depends on what:
+The composition root wires each service to its dependencies with `Layer.provide`, then merges
+them into `AppServices`. Reusing the same layer values shares the connection, storage, caches,
+and write locks. `MigratedDatabase` runs migrations before exposing SQL; the migration command
+uses the raw connection so it can do a dry run.
 
-```
-AppConfig ─┬─ Database ── Migrations
-           └─ MediaStorage, Images, AdminAuth, Assets
-
-queries/  (the read side):  SiteConfigQueries, PostQueries, SiteFiles, PostMedia, LinkPreviews
-commands/ (the write side): PostFiles, PostCommands, SiteConfigCommands
-http/     (the routes):     PublicRoutes, AdminRoutes, and AppMiddleware around them all
-```
+`AppServices` takes `AppConfig` and `PublicNetwork`, so tests can control both. `AppLive` supplies
+the normal network implementation for servers and scripts. The routes are `PublicRoutes`,
+`AdminRoutes`, and `AppMiddleware`. `provideMerge` is used only where the dependency must also
+remain available to the caller.
 
 `src/main.ts` is the binary's command line (`start` by default, and `setup`, `migrate`,
-`set-admin-password`, `upgrade`, `version`, `help`); `src/cli/start.ts` serves `app.ts`'s routes
-with Bun's HTTP server.
+`set-admin-password`, `upgrade`, `version`, `help`). `src/server.ts` supplies Bun's HTTP listener
+and closes draft streams before HTTP shutdown. The CLI and browser tests use this same server.
 
 #### 2. What things are: `src/domain/` (pure)
 
@@ -98,7 +96,8 @@ No database, files, or HTTP: lint fails if anything here imports them (`.oxlintr
 
 #### 3. Talking to the world: `src/services/`
 
-Each is an Effect service (`Context.Service`) with a `layer` that builds it.
+Shared resources are Effect services (`Context.Service`) with a `layer` that builds them.
+Database migrations are an Effect function, `runMigrations`, used by startup and the CLI.
 
 | Service            | Does                                                                                                                                                                                                          |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -119,8 +118,8 @@ logged), as they're not something a user can fix.
   files chosen again. The composer's one draft is a row in `drafts`, and the commands that change
   it tell `DraftChanges`. Post changes run one at a time, so run one server process per data
   directory.
-- `post-files.ts`: saving one upload (with its image size and hash in `post_images`) and removing
-  a post's files.
+- `post-files.ts`: `makePostFiles` captures SQL, storage, and images for stateless upload and
+  removal helpers, also used by test seeding. `PostCommands` owns the lock around writes.
 - `site-config.ts`: saving `/admin/config`, turning uploads into the site's image files.
 
 #### 5. Reads: `src/queries/`
@@ -134,6 +133,9 @@ on the next request.
 and stored. Concurrent requests for one share a single resize. `link-previews.ts` fetches link
 previews in the background, never on a page's time, and saves each one's image as resized WebP
 copies, so cards load from the site itself, at the size they're shown.
+
+`site-files.ts` exports stateless Effect functions for the site's image files. Their dependencies
+are storage and `Images`, which owns the cached default icons.
 
 #### 6. HTTP: `src/http/`
 

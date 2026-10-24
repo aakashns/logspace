@@ -3,7 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test'
 import { Effect } from 'effect'
 import { SqlClient } from 'effect/sql'
 
-import { PostFiles } from '../src/commands/post-files.ts'
+import { makePostFiles } from '../src/commands/post-files.ts'
 import { PostCommands } from '../src/commands/posts.ts'
 import type { Post } from '../src/domain/presentation.ts'
 import { PostQueries } from '../src/queries/posts.ts'
@@ -22,7 +22,7 @@ const samplePost = async <T extends Post['type']>(type: T) =>
 const hasPostFile = (id: string, name: string) =>
   app.run(Effect.flatMap(MediaStorage, (storage) => storage.has(mediaKeys.postFile(id, name))))
 const savePostFile = (id: string, name: string, file: Blob) =>
-  app.run(Effect.flatMap(PostFiles, (files) => files.save(id, name, file)))
+  app.run(Effect.flatMap(makePostFiles(), (files) => files.save(id, name, file)))
 
 beforeAll(app.seedMedia)
 beforeEach(app.seedDatabase)

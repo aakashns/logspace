@@ -1,16 +1,8 @@
-// The composition root: every service, and the routes, wired together. Read this file to see
-// what depends on what. Each layer is built once and shared.
-//
-//   AppConfig ─┬─ Database ── Migrations
-//              ├─ MediaStorage, Images, DraftChanges, AdminAuth, Assets
-//              │
-//   queries/ (the read side):  SiteConfigQueries, PostQueries, SiteFiles, PostMedia, LinkPreviews
-//   commands/ (the write side): PostFiles, PostCommands, SiteConfigCommands
-//   http/ (the routes):         PublicRoutes, AdminRoutes, and AppMiddleware around them all
+// The composition root. Each service is wired to its dependencies, then merged into the app.
+// Reusing these layer values shares the database, storage, caches, and write locks.
 import { BunFileSystem } from '@effect/platform-bun'
 import { Effect, Layer } from 'effect'
 
-import { PostFiles } from './commands/post-files.ts'
 import { PostCommands } from './commands/posts.ts'
 import { SiteConfigCommands } from './commands/site-config.ts'
 import { AdminRoutes } from './http/admin.tsx'
@@ -22,46 +14,58 @@ import { LinkPreviews } from './queries/link-previews.ts'
 import { PostMedia } from './queries/post-media.ts'
 import { PostQueries } from './queries/posts.ts'
 import { SiteConfigQueries } from './queries/site-config.ts'
-import { SiteFiles } from './queries/site-files.ts'
-import { DatabaseLive, Migrations } from './services/database.ts'
+import { DatabaseLive, runMigrations } from './services/database.ts'
 import { DraftChanges } from './services/draft-changes.ts'
-import { PublicHttpLive } from './services/public-http.ts'
+import { PublicHttpLive, PublicNetwork } from './services/public-http.ts'
 import { Images } from './services/images.ts'
 import { MediaStorage } from './services/media-storage.ts'
 
-const Infrastructure = Migrations.layer.pipe(
-  Layer.provideMerge(
-    Layer.mergeAll(DatabaseLive, MediaStorage.layer, Images.layer, DraftChanges.layer),
+// No consumer gets the connection until its schema is ready. The migrate CLI uses DatabaseLive
+// directly so a dry run doesn't apply migrations.
+const MigratedDatabase = DatabaseLive.pipe(
+  Layer.tap((context) => runMigrations({}).pipe(Effect.provideContext(context))),
+  Layer.provide(BunFileSystem.layer),
+)
+
+const PostQueriesLive = PostQueries.layer.pipe(
+  Layer.provide([MigratedDatabase, MediaStorage.layer]),
+)
+const SiteConfigQueriesLive = SiteConfigQueries.layer.pipe(Layer.provide(MigratedDatabase))
+
+// Requires AppConfig and PublicNetwork. SQL and media services are exposed for seeding and file
+// queries; the remaining outputs are the APIs used by routes and the server's shutdown hook.
+export const AppServices = Layer.mergeAll(
+  MigratedDatabase,
+  MediaStorage.layer,
+  Images.layer,
+  DraftChanges.layer,
+  PostQueriesLive,
+  SiteConfigQueriesLive,
+  Assets.layer,
+  AdminAuth.layer.pipe(Layer.provide(MigratedDatabase)),
+  PostCommands.layer.pipe(
+    Layer.provide([MigratedDatabase, MediaStorage.layer, Images.layer, DraftChanges.layer]),
   ),
-  Layer.provideMerge(BunFileSystem.layer),
-)
-
-const Queries = Layer.mergeAll(
-  PostMedia.layer,
-  LinkPreviews.layer.pipe(Layer.provide(PublicHttpLive)),
-).pipe(
-  Layer.provideMerge(Layer.mergeAll(SiteConfigQueries.layer, PostQueries.layer, SiteFiles.layer)),
-)
-
-const Commands = Layer.mergeAll(PostCommands.layer, SiteConfigCommands.layer).pipe(
-  Layer.provideMerge(PostFiles.layer),
-)
-
-// Every service the routes use, given AppConfig. The database is migrated before anything else
-// reads it.
-export const AppServices = Layer.mergeAll(AdminAuth.layer, Assets.layer).pipe(
-  Layer.provideMerge(Commands),
-  Layer.provideMerge(Queries),
-  Layer.provideMerge(
-    Layer.effectDiscard(Effect.flatMap(Migrations, (migrations) => migrations.run())).pipe(
-      Layer.provideMerge(Infrastructure),
-    ),
+  SiteConfigCommands.layer.pipe(
+    Layer.provide([MigratedDatabase, MediaStorage.layer, Images.layer, SiteConfigQueriesLive]),
+  ),
+  PostMedia.layer.pipe(Layer.provide([MediaStorage.layer, Images.layer, PostQueriesLive])),
+  LinkPreviews.layer.pipe(
+    Layer.provide([
+      SiteConfigQueriesLive,
+      MediaStorage.layer,
+      Images.layer,
+      BunFileSystem.layer,
+      PublicHttpLive,
+    ]),
   ),
 )
+
+// The normal assembly for servers and scripts. Tests can supply a network to AppServices.
+export const AppLive = AppServices.pipe(Layer.provide(PublicNetwork.layer))
 
 // How routes match: /posts/<id>/ (with a trailing slash) isn't /posts/<id>, as in LogSpace 0.1.
 export const ROUTER_CONFIG = { ignoreTrailingSlash: false }
 
-// The routes, with the middleware around them. The services they use are provided around them
-// (see cli/start.ts, and test/app.ts).
+// ServerLive serves these routes; tests drive them through an in-memory web handler.
 export const AppRoutes = Layer.mergeAll(PublicRoutes, AdminRoutes, AppMiddleware)

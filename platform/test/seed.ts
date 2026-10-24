@@ -6,7 +6,7 @@ import * as path from 'node:path'
 import { Effect, Predicate, Schema } from 'effect'
 import { SqlClient } from 'effect/sql'
 
-import { PostFiles } from '../src/commands/post-files.ts'
+import { makePostFiles } from '../src/commands/post-files.ts'
 import { SiteConfigCommands } from '../src/commands/site-config.ts'
 import { toPostRow } from '../src/domain/post-rows.ts'
 import { isPostFileName, isPostId, parsePostRecord, type PostRecord } from '../src/domain/post.ts'
@@ -43,7 +43,7 @@ export const seedDatabase = Effect.gen(function* () {
 
 // Copies the sample posts' media files into media storage.
 export const seedMedia = Effect.gen(function* () {
-  let files = yield* PostFiles
+  let files = yield* makePostFiles()
   let postsDir = path.join(TEST_CONTENT_DIR, 'posts')
   for (let id of yield* Effect.promise(() => fs.readdir(postsDir))) {
     if (!isPostId(id)) continue

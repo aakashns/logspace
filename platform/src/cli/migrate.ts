@@ -4,7 +4,7 @@
 import { Config, Console, Effect, FileSystem, Layer, Option } from 'effect'
 
 import { AppConfig } from '../config.ts'
-import { DatabaseLive, Migrations } from '../services/database.ts'
+import { DatabaseLive, runMigrations } from '../services/database.ts'
 import { DOMAINS_FILE, SERVER_DATABASE_PATH } from './setup.ts'
 import { fail, reportFailures } from './shell.ts'
 
@@ -18,12 +18,9 @@ export const migrate = Effect.fn('migrate')(function* (dryRun: boolean) {
   if (dryRun && file !== ':memory:' && !(yield* fs.exists(file))) {
     return yield* fail(`There's no database at ${file}`)
   }
-  let names = yield* Effect.flatMap(Migrations, (migrations) => migrations.run({ dryRun })).pipe(
+  let names = yield* runMigrations({ dryRun }).pipe(
     Effect.provide(
-      Migrations.layer.pipe(
-        Layer.provide(DatabaseLive),
-        Layer.provide(Layer.succeed(AppConfig, { ...config, databasePath: file })),
-      ),
+      DatabaseLive.pipe(Layer.provide(Layer.succeed(AppConfig, { ...config, databasePath: file }))),
     ),
     Effect.catchTag('SqlError', (error) =>
       Effect.fail(fail(`Couldn't migrate ${file}: ${error.message}`)),

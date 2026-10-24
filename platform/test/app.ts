@@ -1,6 +1,7 @@
 // The app, for the tests: an in-memory database and media storage, driven through its web
 // handler, as a browser would drive the server. Each test file makes its own, so they don't share
 // data.
+import { BunFileSystem } from '@effect/platform-bun'
 import { Clock, Effect, Layer, ManagedRuntime, Redacted } from 'effect'
 import { HttpRouter, HttpServer } from 'effect/http'
 
@@ -34,7 +35,7 @@ export function makeTestApp(
   // The runtime (for calling services directly) and the handler share one MemoMap, so they share
   // every service, and so the database.
   let memoMap = Layer.makeMemoMapUnsafe()
-  let services = AppServices.pipe(
+  let services = Layer.mergeAll(AppServices, BunFileSystem.layer).pipe(
     Layer.provide(
       overrides.network ? Layer.succeed(PublicNetwork, overrides.network) : PublicNetwork.layer,
     ),

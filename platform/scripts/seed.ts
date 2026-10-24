@@ -5,16 +5,13 @@
 //   DATABASE_PATH=data/app.sqlite MEDIA_DIR=data/media bun scripts/seed.ts
 import { Effect, Layer } from 'effect'
 
-import { AppServices } from '../src/app.ts'
-import { PublicNetwork } from '../src/services/public-http.ts'
+import { AppLive } from '../src/app.ts'
 import { AppConfig } from '../src/config.ts'
 import { seedDatabase, seedMedia } from '../test/seed.ts'
 
 await Effect.runPromise(
   Effect.andThen(seedMedia, seedDatabase).pipe(
-    Effect.provide(
-      AppServices.pipe(Layer.provide(PublicNetwork.layer), Layer.provide(AppConfig.layer)),
-    ),
+    Effect.provide(AppLive.pipe(Layer.provide(AppConfig.layer))),
   ),
 )
 console.log('Seeded the sample posts')

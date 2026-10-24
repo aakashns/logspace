@@ -8,10 +8,9 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 import { Effect, Layer, Redacted } from 'effect'
 
-import { AppServices } from '../src/app.ts'
+import { AppLive } from '../src/app.ts'
 import { SiteConfigCommands } from '../src/commands/site-config.ts'
 import { AppConfig } from '../src/config.ts'
-import { PublicNetwork } from '../src/services/public-http.ts'
 import { seedDatabase, seedMedia, TEST_SITE_CONFIG } from '../test/seed.ts'
 
 const root = path.join(import.meta.dir, '..')
@@ -41,8 +40,7 @@ const seeding = Effect.runPromise(
     yield* (yield* SiteConfigCommands).save({ ...TEST_SITE_CONFIG, siteUrl: origin })
   }).pipe(
     Effect.provide(
-      AppServices.pipe(
-        Layer.provide(PublicNetwork.layer),
+      AppLive.pipe(
         Layer.provide(
           Layer.succeed(
             AppConfig,

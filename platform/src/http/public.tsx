@@ -12,7 +12,7 @@ import { LinkPreviews } from '../queries/link-previews.ts'
 import { PostMedia } from '../queries/post-media.ts'
 import { PostQueries } from '../queries/posts.ts'
 import { SiteConfigQueries } from '../queries/site-config.ts'
-import { SiteFiles } from '../queries/site-files.ts'
+import { getSiteFile, resizedSiteFile, siteIconColor } from '../queries/site-files.ts'
 import { routes } from '../routes.ts'
 import { Document } from '../views/document.tsx'
 import { HomePage } from '../views/home.tsx'
@@ -134,7 +134,7 @@ const robots = Effect.map(siteConfig, (site) => feedResponse(createRobotsTxt(sit
 // Named after the site, for browsers that install it as an app, in its icon's color.
 const manifest = Effect.gen(function* () {
   let site = yield* siteConfig
-  let color = yield* (yield* SiteFiles).iconColor(site)
+  let color = yield* siteIconColor(site)
   let icon = (file: string, size: number) => ({
     src: getIconHref(site, file),
     sizes: `${size}x${size}`,
@@ -162,10 +162,10 @@ const siteFile = (name: string) =>
     let version = searchParams.get('v')
     let width = searchParams.get('w')
     if (version !== null && width !== null) {
-      let variant = yield* (yield* SiteFiles).resized(name, Number(width), version, saved)
+      let variant = yield* resizedSiteFile(name, Number(width), version, saved)
       return variant ? yield* fileResponse(variant, IMMUTABLE) : notFound()
     }
-    let found = yield* (yield* SiteFiles).get(name, saved)
+    let found = yield* getSiteFile(name, saved)
     if (!found) return notFound()
     let current = version === found.version
     return yield* fileResponse(found.file, current ? IMMUTABLE : 'public, max-age=3600')

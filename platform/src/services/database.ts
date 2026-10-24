@@ -49,53 +49,42 @@ export const DatabaseLive = Layer.unwrap(
   }),
 )
 
-export class Migrations extends Context.Service<
-  Migrations,
-  {
-    // Applies the migrations that haven't run yet (or with dryRun, only finds them), and returns
-    // their names, like "0002_add_article_body".
-    readonly run: (options?: { dryRun?: boolean }) => Effect.Effect<string[]>
-  }
->()('logspace/Migrations') {
-  static readonly layer = Layer.effect(
-    Migrations,
-    Effect.gen(function* () {
-      let sql = yield* SqlClient.SqlClient
-
-      let run = Effect.fn('Migrations.run')(function* ({ dryRun = false } = {}) {
-        yield* sql.unsafe(
-          `create table if not exists ${JOURNAL} (id varchar(64) not null primary key, ` +
-            'name varchar(255) not null, checksum varchar(128) not null, ' +
-            'batch integer not null, applied_at timestamp not null default current_timestamp)',
-        )
-        let applied = yield* sql<{
-          id: string
-          batch: number
-        }>`select id, batch from ${sql(JOURNAL)}`
-        let done = new Set(applied.map((row) => row.id))
-        let pending = MIGRATIONS.filter((migration) => !done.has(migration.id))
-        if (dryRun || pending.length === 0) return pending.map(fullName)
-
-        let batch = Math.max(0, ...applied.map((row) => row.batch)) + 1
-        // All of them or none.
-        yield* Effect.forEach(pending, (migration) =>
-          Effect.gen(function* () {
-            for (let statement of splitStatements(migration.sql)) yield* sql.unsafe(statement)
-            yield* sql`insert into ${sql(JOURNAL)} ${sql.insert({
-              id: migration.id,
-              name: migration.name,
-              checksum: sha256(migration.sql),
-              batch,
-            })}`
-          }),
-        ).pipe(sql.withTransaction)
-        return pending.map(fullName)
-      }, Effect.orDie)
-
-      return Migrations.of({ run })
-    }),
+// Applies pending migrations (or only lists them with dryRun), returning their full names.
+// The CLI uses the raw connection for dry runs; the app waits for this before exposing SQL.
+export const runMigrations = Effect.fn('runMigrations')(function* ({
+  dryRun = false,
+}: {
+  dryRun?: boolean
+}) {
+  let sql = yield* SqlClient.SqlClient
+  yield* sql.unsafe(
+    `create table if not exists ${JOURNAL} (id varchar(64) not null primary key, ` +
+      'name varchar(255) not null, checksum varchar(128) not null, ' +
+      'batch integer not null, applied_at timestamp not null default current_timestamp)',
   )
-}
+  let applied = yield* sql<{
+    id: string
+    batch: number
+  }>`select id, batch from ${sql(JOURNAL)}`
+  let done = new Set(applied.map((row) => row.id))
+  let pending = MIGRATIONS.filter((migration) => !done.has(migration.id))
+  if (dryRun || pending.length === 0) return pending.map(fullName)
+
+  let batch = Math.max(0, ...applied.map((row) => row.batch)) + 1
+  // All of them or none.
+  yield* Effect.forEach(pending, (migration) =>
+    Effect.gen(function* () {
+      for (let statement of splitStatements(migration.sql)) yield* sql.unsafe(statement)
+      yield* sql`insert into ${sql(JOURNAL)} ${sql.insert({
+        id: migration.id,
+        name: migration.name,
+        checksum: sha256(migration.sql),
+        batch,
+      })}`
+    }),
+  ).pipe(sql.withTransaction)
+  return pending.map(fullName)
+}, Effect.orDie)
 
 const fullName = (migration: { id: string; name: string }) => `${migration.id}_${migration.name}`
 

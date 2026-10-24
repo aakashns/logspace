@@ -3,6 +3,11 @@ import { fileURLToPath } from 'node:url'
 import { readFile } from 'node:fs/promises'
 import type { Page } from '@playwright/test'
 
+test('shuts down gracefully with a composer stream open', async ({ page, app }) => {
+  await openComposer(page)
+  await app.stop()
+})
+
 test('failed publishing preserves input and permits retry', async ({ page }, info) => {
   await openComposer(page)
   await caption(page, 'Keep this draft after a failure')

@@ -6,7 +6,7 @@ import {
   Effect,
   Layer,
 } from "../../platform/node_modules/effect/dist/index.js";
-import { AppServices } from "../../platform/src/app.ts";
+import { AppLive } from "../../platform/src/app.ts";
 import { PostCommands } from "../../platform/src/commands/posts.ts";
 import { SiteConfigCommands } from "../../platform/src/commands/site-config.ts";
 import { AppConfig } from "../../platform/src/config.ts";
@@ -112,7 +112,7 @@ await Effect.runPromise(
       }));
       yield* commands.publish({ post, uploads, issues: [] });
     }
-  }).pipe(Effect.provide(AppServices.pipe(Layer.provide(AppConfig.layer)))),
+  }).pipe(Effect.provide(AppLive.pipe(Layer.provide(AppConfig.layer)))),
 );
 
 process.argv = [process.argv[0]!, process.argv[1]!, "start"];

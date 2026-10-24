@@ -77,11 +77,15 @@ class Application {
   async stop(signal: NodeJS.Signals = 'SIGTERM') {
     const child = this.child
     if (!child || child.exitCode !== null || child.signalCode !== null) return
-    await new Promise<void>((resolve) => {
+    await new Promise<void>((resolve, reject) => {
       const timeout = setTimeout(() => child.kill('SIGKILL'), 5_000)
-      child.once('exit', () => {
+      child.once('exit', (code, exitSignal) => {
         clearTimeout(timeout)
-        resolve()
+        if (signal !== 'SIGKILL' && (code !== 0 || exitSignal !== null)) {
+          reject(
+            new Error(`Server failed to stop gracefully (${code}, ${exitSignal})\n${this.logs}`),
+          )
+        } else resolve()
       })
       child.kill(signal)
     })
@@ -102,11 +106,14 @@ export const test = base.extend<{ app: Application }>({
       await app.start()
       await use(app)
     } finally {
-      await app.stop()
-      if (info.status !== info.expectedStatus) {
-        await info.attach('server.log', { body: app.logs, contentType: 'text/plain' })
+      try {
+        await app.stop()
+      } finally {
+        if (info.status !== info.expectedStatus) {
+          await info.attach('server.log', { body: app.logs, contentType: 'text/plain' })
+        }
+        await rm(app.directory, { recursive: true, force: true })
       }
-      await rm(app.directory, { recursive: true, force: true })
     }
   },
   baseURL: async ({ app }, use) => {

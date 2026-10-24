@@ -6,15 +6,14 @@ import { BunFileSystem } from '@effect/platform-bun'
 import { Effect, Layer, Redacted, Schema } from 'effect'
 
 import { AppConfig } from '../src/config.ts'
-import { DatabaseLive, Migrations } from '../src/services/database.ts'
+import { DatabaseLive, runMigrations } from '../src/services/database.ts'
 import { TEST_CONFIG } from './app.ts'
 
 const migrate = (databasePath: string, dryRun = false) =>
   Effect.runPromise(
-    Effect.flatMap(Migrations, (migrations) => migrations.run({ dryRun })).pipe(
+    runMigrations({ dryRun }).pipe(
       Effect.provide(
-        Migrations.layer.pipe(
-          Layer.provide(DatabaseLive),
+        DatabaseLive.pipe(
           Layer.provide(BunFileSystem.layer),
           Layer.provide(
             Layer.succeed(
