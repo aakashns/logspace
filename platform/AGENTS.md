@@ -25,8 +25,7 @@ bun run count-lines
   and the middleware around them; `src/views/` the pages, rendered by `src/jsx/` to strings
 - `src/main.ts` is the binary's command line (`start`, `setup`, `set-admin-password`, `migrate`,
   `upgrade`, `version`, `help`), with a module per command in `src/cli/`;
-  `scripts/setup-test.ts` checks `setup` on a throwaway Linux machine with systemd and Caddy, as
-  CI's Linux runners are
+  `scripts/setup-test.ts` checks `setup` on a throwaway Linux machine with systemd and Caddy
 
 ## Rules
 

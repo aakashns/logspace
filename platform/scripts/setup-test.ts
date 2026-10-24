@@ -1,6 +1,6 @@
 // Checks `logspace setup` and `logspace set-admin-password` on a Linux machine with systemd and
-// Caddy (CI installs Caddy on its Linux runners), as a user with passwordless sudo. It sets the
-// machine up for real, replacing Caddy's config, so only run it on a throwaway one.
+// Caddy, as a user with passwordless sudo. It sets the machine up for real, replacing Caddy's
+// config, so only run it on a throwaway one.
 //
 //   bun scripts/setup-test.ts dist/logspace
 import * as fs from 'node:fs'
