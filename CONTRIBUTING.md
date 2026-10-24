@@ -2,7 +2,7 @@
 
 Small, focused pull requests are welcome. Open an [issue](https://github.com/aakashns/logspace/issues) before a large change. Use [Bun](https://bun.com) 1.4.4 or later.
 
-## App
+## Platform
 
 ```sh
 cd platform
@@ -34,25 +34,15 @@ bun run test:browser   # the composer in Chromium and WebKit; CI doesn't run the
 bun run build && bun scripts/smoke-test.ts dist/logspace   # if the build changed
 ```
 
-Tests use temporary data. [platform/AGENTS.md](platform/AGENTS.md) has the conventions and where common changes go, [posts.md](platform/docs/posts.md) the post format, and [the tour below](#the-apps-code) how the app fits together.
-
-## Website
-
-```sh
-cd website
-bun install
-bun run dev     # builds and serves logspace.app locally, rebuilding on change
-bun run check   # typecheck and format check
-bun run test    # Playwright
-```
+Tests use temporary data. [platform/AGENTS.md](platform/AGENTS.md) has the conventions and where common changes go, [posts.md](platform/docs/posts.md) the post format, and [the tour below](#platform-code) how the app fits together.
 
 ## Pull requests
 
 Explain the change, include the checks you ran (and the browser tests' result for app changes), and attach screenshots or recordings for UI changes. Keep evidence out of Git. If the change goes into the binary (`platform/src`, `db`, `public`, `package.json` apart from its version, dependencies, or the build), bump `platform/package.json` one version step: patch for compatible changes, minor for breaking changes before 1.0. Otherwise leave the version alone. CI checks this and publishes binaries when a bump merges to `main`.
 
-## The app's code
+## Platform code
 
-The app, in `platform/`, is built with:
+The platform (the app, in `platform/`) is built with:
 
 - **[Bun](https://bun.com)** for the runtime, HTTP server, SQLite, file I/O, and the single-file
   binary.
@@ -218,3 +208,13 @@ temporary data and port. Install the browsers once with `bun run test:browser:in
   refused past 10 MB or 25 megapixels (checked from the header, before decoding), and served
   only as WebP that the app re-encoded. Link previews fetch only public addresses on standard
   ports, checking each redirect.
+
+## Website
+
+```sh
+cd website
+bun install
+bun run dev     # builds and serves logspace.app locally, rebuilding on change
+bun run check   # typecheck and format check
+bun run test    # Playwright
+```
