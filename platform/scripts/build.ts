@@ -17,7 +17,7 @@ const OUTFILE = path.join(ROOT, 'dist/logspace')
 console.log(`Compiling ${path.relative(ROOT, OUTFILE)} (${packageJson.version})...`)
 let started = performance.now()
 let result = await Bun.build({
-  entrypoints: [path.join(ROOT, 'src/main.ts')],
+  entrypoints: [path.join(ROOT, 'src/entry.ts')],
   compile: {
     outfile: OUTFILE,
     // It's configured with environment variables only, wherever it's run from.

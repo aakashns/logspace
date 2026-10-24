@@ -5,7 +5,7 @@ import { BunFileSystem } from '@effect/platform-bun'
 import { Clock, Effect, Layer, ManagedRuntime, Redacted } from 'effect'
 import { HttpRouter, HttpServer } from 'effect/http'
 
-import { AppRoutes, AppServices, ROUTER_CONFIG } from '../src/app.ts'
+import { AppRoutes, AppServices, ROUTER_CONFIG } from '../src/server.ts'
 import { AppConfig } from '../src/config.ts'
 import { PublicNetwork } from '../src/services/public-http.ts'
 import { seedDatabase, seedMedia } from './seed.ts'

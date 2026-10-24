@@ -60,7 +60,7 @@ The platform (the app, in `platform/`) is built with:
 
 The app is in `platform/`, and paths here are from there. Read it in this order; each file starts with a comment that says what it's for.
 
-#### 1. The shape: `src/app.ts`
+#### 1. The shape: `src/server.ts`
 
 The composition root wires each service to its dependencies with `Layer.provide`, then merges
 them into `AppServices`. Reusing the same layer values shares the connection, storage, caches,
@@ -72,9 +72,9 @@ the normal network implementation for servers and scripts. The routes are `Publi
 `AdminRoutes`, and `AppMiddleware`. `provideMerge` is used only where the dependency must also
 remain available to the caller.
 
-`src/main.ts` is the binary's command line (`start` by default, and `deploy`, `migrate`,
-`set-admin-password`, `upgrade`, `version`, `help`). `src/server.ts` supplies Bun's HTTP listener.
-The CLI and browser tests use this same server.
+`ServerLive` serves the routes on `AppConfig`'s port with Bun's HTTP listener; the CLI and the
+browser tests use it. `src/entry.ts` is the binary's command line (`start` by default, and
+`deploy`, `migrate`, `set-admin-password`, `upgrade`, `version`, `help`).
 
 #### 2. What things are: `src/domain/` (pure)
 

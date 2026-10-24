@@ -8,7 +8,7 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 import { Effect, Layer, Redacted } from 'effect'
 
-import { AppLive } from '../src/app.ts'
+import { AppLive } from '../src/server.ts'
 import { SiteConfigCommands } from '../src/commands/site-config.ts'
 import { AppConfig } from '../src/config.ts'
 import { seedDatabase, seedMedia, TEST_SITE_CONFIG } from '../test/seed.ts'
@@ -72,7 +72,7 @@ console.log(`
   Data            ${directory} (deleted when this stops)
 `)
 
-const server = Bun.spawn(['bun', '--no-env-file', '--watch', 'src/main.ts', 'start'], {
+const server = Bun.spawn(['bun', '--no-env-file', '--watch', 'src/entry.ts', 'start'], {
   cwd: root,
   // Only what's set here, so a developer's .env, proxy, or real data paths can't leak in.
   env: {

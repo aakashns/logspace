@@ -6,7 +6,7 @@ import {
   Effect,
   Layer,
 } from "../../platform/node_modules/effect/dist/index.js";
-import { AppLive } from "../../platform/src/app.ts";
+import { AppLive } from "../../platform/src/server.ts";
 import { PostCommands } from "../../platform/src/commands/posts.ts";
 import { SiteConfigCommands } from "../../platform/src/commands/site-config.ts";
 import { AppConfig } from "../../platform/src/config.ts";
@@ -111,4 +111,4 @@ await Effect.runPromise(
 );
 
 process.argv = [process.argv[0]!, process.argv[1]!, "start"];
-await import("../../platform/src/main.ts");
+await import("../../platform/src/entry.ts");

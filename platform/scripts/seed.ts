@@ -5,7 +5,7 @@
 //   DATABASE_PATH=data/app.sqlite MEDIA_DIR=data/media bun scripts/seed.ts
 import { Effect, Layer } from 'effect'
 
-import { AppLive } from '../src/app.ts'
+import { AppLive } from '../src/server.ts'
 import { AppConfig } from '../src/config.ts'
 import { seedDatabase, seedMedia } from '../test/seed.ts'
 
