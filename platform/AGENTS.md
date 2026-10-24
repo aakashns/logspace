@@ -7,6 +7,7 @@ Datastar's at https://data-star.dev/docs.md.
 ```sh
 bun run dev          # restarts on change; reload the browser
 bun run test         # in-memory database and media storage
+bun run test:browser # Playwright, Chromium and WebKit; not run by CI
 bun run typecheck && bun run lint && bun run format:check
 bun run build && bun scripts/smoke-test.ts dist/logspace
 bun scripts/seed.ts  # the test posts, into DATABASE_PATH and MEDIA_DIR
@@ -65,3 +66,5 @@ bun run count-lines
 - Keep helpers with their one user until a second needs them; comments explain why
 - Use Playwright for browsers. Attach PR screenshots with `gh pr create --attach`; never commit
   them
+- CI doesn't run the browser tests: after creating a PR, run `bun run test:browser` and report
+  the result in the PR

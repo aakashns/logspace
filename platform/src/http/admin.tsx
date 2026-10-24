@@ -448,7 +448,10 @@ const mediaPatch = (props: ComposerProps) =>
     [COMPOSER_IDS.issues, <ComposerIssues issues={props.issues} refresh />],
     [COMPOSER_IDS.media, <ComposerMedia {...props} />],
     [COMPOSER_IDS.tools, <ComposerTools values={props.values} />],
-    [COMPOSER_IDS.draft, <DraftNote state={props.draft} />],
+    [
+      COMPOSER_IDS.draft,
+      <DraftNote state={props.draft} saved={props.draft === 'saved' ? props.values : undefined} />,
+    ],
   )
 
 // Files chosen are saved right away, and the media is shown with them; files taken out are
@@ -503,9 +506,13 @@ const previewComposer = loggedIn(() =>
     for (let name of files) form.delete(name)
     let { values } = readComposeForm(form)
     let result = yield* Effect.result((yield* PostCommands).saveDraft(values, tabOf(form)))
+    let draft = draftState(result)
     return composerPatch(
       [COMPOSER_IDS.preview, <ComposerPreview {...yield* composerProps(values)} />, 'inner'],
-      [COMPOSER_IDS.draft, <DraftNote state={draftState(result)} />],
+      [
+        COMPOSER_IDS.draft,
+        <DraftNote state={draft} saved={draft === 'saved' ? values : undefined} />,
+      ],
     )
   }),
 )
@@ -550,7 +557,8 @@ const publishComposer = loggedIn(() =>
 // one.
 const discardComposer = loggedIn(() =>
   Effect.gen(function* () {
-    let id = (yield* readForm(LOGIN_FORM_LIMIT)).get('id')
+    let form = yield* readForm(LOGIN_FORM_LIMIT)
+    let id = form.get('post_id') ?? form.get('id')
     return yield* (yield* PostCommands).discard(typeof id === 'string' ? id : '').pipe(
       Effect.catchTag('PostRejected', () => Effect.void),
       Effect.as(redirect(routes.admin.newPost(), 303)),

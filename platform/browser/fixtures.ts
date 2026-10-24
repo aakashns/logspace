@@ -1,0 +1,173 @@
+import { test as base, expect, type Page } from '@playwright/test'
+import { spawn, type ChildProcess } from 'node:child_process'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { createInterface } from 'node:readline'
+import { fileURLToPath } from 'node:url'
+
+const entry = fileURLToPath(new URL('./server.ts', import.meta.url))
+export const composePath = '/admin/posts/new'
+
+class Application {
+  origin = ''
+  password = crypto.randomUUID()
+  private secret = crypto.randomUUID()
+  private child?: ChildProcess
+  logs = ''
+  constructor(readonly directory: string) {}
+
+  async start() {
+    const child = spawn(
+      'bun',
+      [
+        '--no-env-file',
+        '--tsconfig-override',
+        fileURLToPath(new URL('../tsconfig.json', import.meta.url)),
+        entry,
+        this.directory,
+        this.password,
+        this.secret,
+        this.origin ? new URL(this.origin).port : '0',
+      ],
+      {
+        cwd: this.directory,
+        // No developer credentials, proxy settings, database paths, or dotenv files.
+        env: { PATH: process.env.PATH, NODE_ENV: 'test' },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      },
+    )
+    this.child = child
+    child.stderr?.on('data', (chunk) => {
+      this.logs += String(chunk)
+    })
+    if (!child.stdout) throw new Error('Missing server stdout')
+    child.stdout.on('data', (chunk) => {
+      this.logs += String(chunk)
+    })
+    const lines = createInterface({ input: child.stdout })
+    try {
+      this.origin = await new Promise<string>((resolve, reject) => {
+        const timeout = setTimeout(
+          () => reject(new Error(`Server startup timed out\n${this.logs}`)),
+          15_000,
+        )
+        const finish = () => clearTimeout(timeout)
+        child.once('error', (error) => {
+          finish()
+          reject(error)
+        })
+        child.once('exit', (code) => {
+          finish()
+          reject(new Error(`Server exited ${code}\n${this.logs}`))
+        })
+        lines.on('line', (line) => {
+          if (line.startsWith('READY ')) {
+            finish()
+            resolve(line.slice(6))
+          }
+        })
+      })
+      await expect.poll(async () => (await fetch(`${this.origin}/admin/login`)).status).toBe(200)
+    } finally {
+      lines.close()
+    }
+  }
+
+  async stop(signal: NodeJS.Signals = 'SIGTERM') {
+    const child = this.child
+    if (!child || child.exitCode !== null || child.signalCode !== null) return
+    await new Promise<void>((resolve) => {
+      const timeout = setTimeout(() => child.kill('SIGKILL'), 5_000)
+      child.once('exit', () => {
+        clearTimeout(timeout)
+        resolve()
+      })
+      child.kill(signal)
+    })
+  }
+
+  async restart() {
+    await this.stop('SIGKILL')
+    await this.start()
+  }
+}
+
+export const test = base.extend<{ app: Application }>({
+  // Playwright requires a destructuring pattern even when this fixture has no dependencies.
+  // oxlint-disable-next-line no-empty-pattern
+  app: async ({}, use, info) => {
+    const app = new Application(await mkdtemp(join(tmpdir(), 'logspace-browser-')))
+    try {
+      await app.start()
+      await use(app)
+    } finally {
+      await app.stop()
+      if (info.status !== info.expectedStatus) {
+        await info.attach('server.log', { body: app.logs, contentType: 'text/plain' })
+      }
+      await rm(app.directory, { recursive: true, force: true })
+    }
+  },
+  baseURL: async ({ app }, use) => {
+    await use(app.origin)
+  },
+  context: async ({ context, app }, use) => {
+    const external: string[] = []
+    const errors: string[] = []
+    context.on('page', (page) => page.on('pageerror', (error) => errors.push(error.message)))
+    await context.route('**/*', (route) => {
+      if (new URL(route.request().url()).origin === app.origin) return route.continue()
+      external.push(route.request().url())
+      return route.abort('blockedbyclient')
+    })
+    await context.addInitScript(() => {
+      document.addEventListener('datastar-fetch', (event) => {
+        if (
+          event instanceof CustomEvent &&
+          event.detail.type === 'datastar-patch-elements' &&
+          event.detail.argsRaw.selector === '#composer-page'
+        ) {
+          document.documentElement.dataset.browserUpdates = String(
+            Number(document.documentElement.dataset.browserUpdates ?? 0) + 1,
+          )
+        }
+      })
+    })
+    await use(context)
+    expect(external, 'No browser request may leave the fixture origin').toEqual([])
+    expect(errors, 'No uncaught browser errors').toEqual([])
+  },
+  page: async ({ page, app }, use) => {
+    await page.goto('/admin/login')
+    await page.getByLabel('Admin Password').fill(app.password)
+    await page.getByRole('button', { name: 'Log in', exact: true }).click()
+    await expect(page).toHaveURL(`${app.origin}/admin/config`)
+    await page.getByLabel('Site title', { exact: true }).fill('Browser Test')
+    await page.getByLabel('Site URL', { exact: true }).fill(app.origin)
+    await page.getByLabel('Site description', { exact: true }).fill('Disposable browser test site')
+    await page.getByRole('button', { name: 'Save', exact: true }).click()
+    await expect(page.getByRole('status')).toContainText('Saved')
+    await use(page)
+  },
+})
+export { expect }
+
+export async function openComposer(page: Page, updates = true) {
+  await page.goto(composePath)
+  // Seeing the initial SSE patch proves the real Datastar asset has initialized.
+  await expect(page.locator('html')).not.toHaveAttribute('data-nonce')
+  if (updates) await expect(page.locator('html')).toHaveAttribute('data-browser-updates', /[1-9]/)
+  await expect(page.getByLabel('Caption', { exact: true })).toBeVisible()
+}
+
+export async function caption(page: Page, text: string) {
+  const response = page.waitForResponse(
+    (response) =>
+      response.url().endsWith('/preview') && response.request().postData()?.includes(text) === true,
+  )
+  await page.getByLabel('Caption', { exact: true }).fill(text)
+  await response
+  await expect(page.locator('#composer-preview')).toContainText(text)
+  await expect(page.locator('#composer-draft')).toHaveText('Saved')
+}

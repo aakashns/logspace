@@ -146,6 +146,14 @@ JavaScript: navigation is links, forms are forms, and the delete dialog uses
 are `public.test.ts`, `admin.test.ts`, `config.test.ts`,
 `domain.test.ts`, `migrations.test.ts`, and `caddyfile.test.ts`.
 
+### Browser tests
+
+`browser/*.pw.ts` drive the composer in Chromium and WebKit with Playwright, which also needs
+Node.js 20 or newer: publishing each kind of post, drafts through reloads and other tabs, and
+recovering from failed requests and a restarted server. Each test starts the app with its own
+temporary data and port. Install the browsers once with `bun run test:browser:install`, then run
+`bun run test:browser`. CI doesn't run them.
+
 ## Security
 
 - **CSP**: pages allow only scripts with that response's nonce (not even other scripts from the

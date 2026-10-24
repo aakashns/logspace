@@ -31,6 +31,7 @@ import {
   PreviewRefresh,
   Redirect,
   RemoveMediaButton,
+  SavedDefaults,
   Tooltip,
   UploadingNote,
 } from '../controls.tsx'
@@ -94,8 +95,15 @@ export function Composer(props: ComposerProps & { tab: string }): Html {
           </button>
         </Tooltip>
       </div>
+      {/* A field named id shadows form.id and makes Datastar rebuild the focused form. */}
       <ComposerForm id="composer">
-        <input type="hidden" name="id" value={values.id} />
+        {/* data-saved: the post is a draft that's saved, not a new one (see ComposerUpdates). */}
+        <input
+          type="hidden"
+          name="post_id"
+          value={values.id}
+          data-saved={props.draft === 'saved'}
+        />
         <input type="hidden" name="tab" value={props.tab} />
         <OffsetInput value={values.offset} />
         <CaptionInput value={values.caption} />
@@ -132,7 +140,7 @@ function DiscardDialog(props: { id: string }): Html {
       data-preserve-attr="open"
     >
       <form method="post" action={routes.admin.discardNewPost()}>
-        <input type="hidden" name="id" value={props.id} />
+        <input type="hidden" name="post_id" value={props.id} />
         <h2 id={`${DISCARD_DIALOG}-title`} class="dialog-title">
           Discard this post?
         </h2>
@@ -186,10 +194,23 @@ export function ComposerIssues(props: {
   )
 }
 
-export function DraftNote(props: { state: DraftState }): Html {
+// `saved` is the draft as a request just saved it, whose text the fields then take as their
+// defaults (see SavedDefaults).
+export function DraftNote(props: { state: DraftState; saved?: ComposeValues | undefined }): Html {
   let text = { saved: 'Saved', refused: 'Not saved' }
+  let { saved } = props
   return (
     <span id={COMPOSER_IDS.draft} role="status" class="muted draft-note">
+      {saved ? (
+        <SavedDefaults
+          values={{
+            caption: saved.caption,
+            city: saved.city,
+            article_title: saved.article?.title ?? '',
+            article_summary: saved.article?.summary ?? '',
+          }}
+        />
+      ) : null}
       {props.state ? text[props.state] : ''}
     </span>
   )
