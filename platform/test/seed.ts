@@ -21,7 +21,7 @@ export const TEST_SITE_CONFIG: SiteText = {
   siteDescription: 'Posts for testing.',
   heroHeading: 'Hi, I’m a test!',
   heroSubheading: 'I check that things work.',
-  socialImageAlt: '',
+  bannerImageAlt: '',
 }
 
 // Saves TEST_SITE_CONFIG and replaces every post with the sample posts, so a beforeEach can run

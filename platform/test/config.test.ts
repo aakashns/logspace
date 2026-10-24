@@ -175,7 +175,7 @@ describe('/admin/config', () => {
 })
 
 describe('the site’s images', () => {
-  it('without uploads, has LogSpace’s icons, the title in the navbar, and no social image', async () => {
+  it('without uploads, has LogSpace’s icons, the title in the navbar, and no banner image', async () => {
     let favicon = await app.fetch('/favicon.ico')
     expect(favicon.status).toBe(200)
     expect(favicon.headers.get('Content-Type')).toBe('image/x-icon')
@@ -208,20 +208,20 @@ describe('the site’s images', () => {
     expect(favicon.headers.get('Cache-Control')).toBe('public, max-age=3600')
   })
 
-  it('uploads a logo, icon, and social image, which pages use, and removes them', async () => {
+  it('uploads a logo, icon, and banner image, which pages use, and removes them', async () => {
     let logo = await png(800, 200)
     let defaultFavicon = await (await app.fetch('/favicon.ico')).bytes()
     let response = await save(
       imageForm(
-        { logo, icon: await png(600, 600), socialImage: await jpeg(1600, 840) },
-        { socialImageAlt: 'A red card' },
+        { logo, icon: await png(600, 600), bannerImage: await jpeg(1800, 600) },
+        { bannerImageAlt: 'A red card' },
       ),
     )
     expect(response.status).toBe(303)
     let saved = await savedConfig()
     let savedLogo = defined(saved.logo, 'the logo')
     let icon = defined(saved.icon, 'the icon')
-    let socialImage = defined(saved.socialImage, 'the social image')
+    let bannerImage = defined(saved.bannerImage, 'the banner image')
     expect({ ...savedLogo, version: undefined }).toEqual({
       file: 'logo.png',
       width: 640,
@@ -229,15 +229,15 @@ describe('the site’s images', () => {
       version: undefined,
     })
     expect(icon.file).toBe('icon-512.png')
-    expect([socialImage.file, socialImage.width]).toEqual(['social.jpg', 1200])
+    expect([bannerImage.file, bannerImage.width]).toEqual(['banner.jpg', 1500])
 
     let logoFile = await app.fetch('/site/logo.png')
     expect(logoFile.headers.get('Content-Type')).toBe('image/png')
     expect(await imageSize(logoFile)).toEqual({ width: 640, height: 160, format: 'png' })
     expect(await (await app.fetch('/favicon.ico')).bytes()).not.toEqual(defaultFavicon)
-    expect(await imageSize(await app.fetch('/site/social.jpg'))).toEqual({
-      width: 1200,
-      height: 630,
+    expect(await imageSize(await app.fetch('/site/banner.jpg'))).toEqual({
+      width: 1500,
+      height: 500,
       format: 'jpeg',
     })
 
@@ -248,24 +248,30 @@ describe('the site’s images', () => {
       ),
     )
     expect(html).toContain(
-      `<meta property="og:image" content="https://example.com/site/social.jpg?v=${socialImage.version}">`,
+      `<meta property="og:image" content="https://example.com/site/banner.jpg?v=${bannerImage.version}">`,
     )
     expect(html).toContain('<meta property="og:image:alt" content="A red card">')
-    expect(html).toContain('<meta property="og:image:width" content="1200">')
+    expect(html).toContain('<meta property="og:image:width" content="1500">')
+    // The banner is at the top of the home page, and fetched first.
+    let banner = `/site/banner.jpg?v=${bannerImage.version}`
+    expect(html).toContain(
+      `<img src="${banner}" alt="A red card" width="1500" height="500" fetchpriority="high" class="banner">`,
+    )
+    expect(html).toContain(`<link rel="preload" as="image" href="${banner}" fetchpriority="high">`)
     expect(html).toContain(`href="/favicon.ico?v=${icon.version}"`)
     expect((await manifest()).icons[0]?.src).toBe(`/site/icon-192.png?v=${icon.version}`)
 
     // A PNG stays a PNG, and the JPEG it replaces goes.
-    await save(imageForm({ socialImage: await png(1200, 630) }, { socialImageAlt: 'Red' }))
-    expect((await savedConfig()).socialImage?.file).toBe('social.png')
-    expect((await app.fetch('/site/social.jpg')).status).toBe(404)
-    expect((await app.fetch('/site/social.png')).status).toBe(200)
+    await save(imageForm({ bannerImage: await png(1200, 630) }, { bannerImageAlt: 'Red' }))
+    expect((await savedConfig()).bannerImage?.file).toBe('banner.png')
+    expect((await app.fetch('/site/banner.jpg')).status).toBe(404)
+    expect((await app.fetch('/site/banner.png')).status).toBe(200)
 
     let removed = imageForm({})
-    for (let kind of ['logo', 'icon', 'socialImage']) removed.set(`${kind}Remove`, 'on')
+    for (let kind of ['logo', 'icon', 'bannerImage']) removed.set(`${kind}Remove`, 'on')
     expect((await save(removed)).status).toBe(303)
     let config = await savedConfig()
-    expect([config.logo, config.icon, config.socialImage]).toEqual([
+    expect([config.logo, config.icon, config.bannerImage]).toEqual([
       undefined,
       undefined,
       undefined,
@@ -301,7 +307,7 @@ describe('the site’s images', () => {
     expect([uploaded.theme_color, uploaded.background_color]).toEqual(['#ffffff', '#ffffff'])
   })
 
-  it('refuses icons that aren’t square or big enough, SVGs, and WebP social images', async () => {
+  it('refuses icons that aren’t square or big enough, SVGs, and WebP banner images', async () => {
     let svg = new File(['<svg xmlns="http://www.w3.org/2000/svg"/>'], 'logo.svg', {
       type: 'image/svg+xml',
     })
@@ -309,25 +315,25 @@ describe('the site’s images', () => {
       ['icon', await png(600, 512), /Icon: The icon must be square, at least 512 × 512 pixels\./],
       ['icon', await png(256, 256), /Icon: The icon must be square, at least 512 × 512 pixels\./],
       ['logo', svg, /Logo: That file isn’t an image\./],
-      ['socialImage', await image('webp', 1200, 630), /Upload a PNG or JPEG image\./],
+      ['bannerImage', await image('webp', 1200, 630), /Upload a PNG or JPEG image\./],
     ] as const) {
-      let response = await save(imageForm({ [field]: file }, { socialImageAlt: 'Alt text' }))
+      let response = await save(imageForm({ [field]: file }, { bannerImageAlt: 'Alt text' }))
       expect([field, response.status]).toEqual([field, 400])
       expect(await response.text()).toMatch(message)
     }
     expect(await savedConfig()).toEqual(TEST_SITE_CONFIG)
   })
 
-  it('rejects an upload that isn’t an image, and a social image without alt text', async () => {
+  it('rejects an upload that isn’t an image, and a banner image without alt text', async () => {
     let notImage = new File(['hello'], 'logo.png', { type: 'image/png' })
-    let response = await save(imageForm({ logo: notImage, socialImage: await jpeg(1200, 630) }))
+    let response = await save(imageForm({ logo: notImage, bannerImage: await jpeg(1200, 630) }))
     let html = await response.text()
     expect(response.status).toBe(400)
     expect(html).toMatch(/Logo: That file isn’t an image\./)
-    expect(html).toMatch(/Social preview image alt text: Describe the social preview image/)
+    expect(html).toMatch(/Banner image alt text: Describe the banner image/)
     expect(html).toMatch(/<input [^>]*name="logo"[^>]*aria-invalid="true"/)
     expect(await savedConfig()).toEqual(TEST_SITE_CONFIG)
-    expect((await app.fetch('/site/social.jpg')).status).toBe(404)
+    expect((await app.fetch('/site/banner.jpg')).status).toBe(404)
   })
 })
 

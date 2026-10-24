@@ -31,12 +31,12 @@ const LABELS: Record<keyof SiteConfig, string> = {
   heroSubheading: 'Home page subheading',
   logo: 'Logo',
   icon: 'Icon',
-  socialImage: 'Social preview image',
-  socialImageAlt: 'Social preview image alt text',
+  bannerImage: 'Banner image',
+  bannerImageAlt: 'Banner image alt text',
 }
 
 const ACCEPT = 'image/png,image/jpeg,image/webp'
-const SOCIAL_ACCEPT = 'image/png,image/jpeg'
+const BANNER_ACCEPT = 'image/png,image/jpeg'
 
 // /admin/config, with the submission's problems if it was rejected.
 export function ConfigPage(props: ConfigPageProps): Html {
@@ -121,25 +121,25 @@ export function ConfigPage(props: ConfigPageProps): Html {
           removable={images.icon !== undefined}
         />
         <ImageField
-          kind="socialImage"
-          label={LABELS.socialImage}
-          invalid={invalid('socialImage')}
-          hint="Shown in link previews of pages without an image of their own. A PNG or JPEG, ideally 1200 × 630 pixels."
+          kind="bannerImage"
+          label={LABELS.bannerImage}
+          invalid={invalid('bannerImage')}
+          hint="Shown at the top of the home page, cropped to a 3:1 strip, and in link previews of pages without an image of their own, which crop its sides. A PNG or JPEG, ideally 1500 × 500 pixels, with what matters in the middle."
           preview={
-            images.socialImage ? (
+            images.bannerImage ? (
               <img
-                src={getSiteImageHref(images.socialImage)}
+                src={getSiteImageHref(images.bannerImage)}
                 alt=""
-                width={images.socialImage.width}
-                height={images.socialImage.height}
-                class="social-preview"
+                width={images.bannerImage.width}
+                height={images.bannerImage.height}
+                class="banner-preview"
               />
             ) : null
           }
         />
         <TextField
-          {...field('socialImageAlt')}
-          hint="Describes the social preview image for people who can’t see it."
+          {...field('bannerImageAlt')}
+          hint="Describes the banner image for people who can’t see it."
         />
         <div class="actions">
           <button type="submit" class="button">
@@ -181,7 +181,7 @@ function ImageField(props: {
         id={id}
         name={kind}
         type="file"
-        accept={kind === 'socialImage' ? SOCIAL_ACCEPT : ACCEPT}
+        accept={kind === 'bannerImage' ? BANNER_ACCEPT : ACCEPT}
         aria-invalid={invalid}
         class="file-input"
       />

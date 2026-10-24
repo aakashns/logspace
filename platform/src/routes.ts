@@ -8,7 +8,7 @@ export const routes = {
   rss: () => '/rss.xml',
   robots: () => '/robots.txt',
   manifest: () => '/site.webmanifest',
-  // The site's icon, logo, and social preview image. Browsers and crawlers look for the first two
+  // The site's icon, logo, and banner image. Browsers and crawlers look for the first two
   // at the root, whatever the page links.
   favicon: () => '/favicon.ico',
   appleTouchIcon: () => '/apple-touch-icon.png',

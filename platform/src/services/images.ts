@@ -1,5 +1,5 @@
 // Everything done with Bun.Image: reading and resizing posts' photos, and turning the site's logo,
-// icon, and social preview image into the files the site serves. Bun.Image does its work on a
+// icon, and banner image into the files the site serves. Bun.Image does its work on a
 // worker thread, so a big photo's resize doesn't hold up other requests.
 import { readFileSync } from 'node:fs'
 import { Context, Effect, Layer, Predicate, Schema } from 'effect'
@@ -98,14 +98,15 @@ export class Images extends Context.Service<
 const LOGO_HEIGHT = 160
 // The icon is at least this many pixels square.
 const ICON_SIZE = 512
-// The social preview image is at most this wide (link previews show it at up to 1200 × 630).
-const SOCIAL_IMAGE_WIDTH = 1200
+// The banner image is at most this wide, an X header's width: twice the home page's column, and
+// more than link previews show.
+const BANNER_WIDTH = 1500
 // What each site image can be uploaded as. Bun.Image reads GIFs too, but not SVGs, which couldn't
 // be served from the site's own origin anyway: they can run scripts.
 const FORMATS: Record<SiteImageKind, readonly string[]> = {
   logo: ['png', 'jpeg', 'webp'],
   icon: ['png', 'jpeg', 'webp'],
-  socialImage: ['png', 'jpeg'],
+  bannerImage: ['png', 'jpeg'],
 }
 // The color behind LogSpace's icon, for the web app manifest.
 const DEFAULT_ICON_COLOR = '#161616'
@@ -130,14 +131,14 @@ const processSiteImage = Effect.fnUntraced(function* (kind: SiteImageKind, bytes
         })
       }
       return yield* decode(() => makeIcons(bytes))
-    case 'socialImage': {
+    case 'bannerImage': {
       // A PNG stays one, so text in it stays sharp, and a JPEG stays a JPEG.
-      let image = new Bun.Image(bytes).resize(SOCIAL_IMAGE_WIDTH, undefined, {
+      let image = new Bun.Image(bytes).resize(BANNER_WIDTH, undefined, {
         withoutEnlargement: true,
       })
       return format === 'png'
-        ? yield* single('social.png', yield* decode(() => image.png().bytes()))
-        : yield* single('social.jpg', yield* decode(() => image.jpeg({ quality: 85 }).bytes()))
+        ? yield* single('banner.png', yield* decode(() => image.png().bytes()))
+        : yield* single('banner.jpg', yield* decode(() => image.jpeg({ quality: 85 }).bytes()))
     }
   }
 })

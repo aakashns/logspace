@@ -19,8 +19,8 @@ export interface SiteText {
   // The introduction at the top of the home page. Either can be empty.
   readonly heroHeading: string
   readonly heroSubheading: string
-  // Describes the social preview image, for people who can't see it. Needed when there's one.
-  readonly socialImageAlt: string
+  // Describes the banner image, for people who can't see it. Needed when there's one.
+  readonly bannerImageAlt: string
 }
 
 // The file pages link to for one of the site's images (in media storage, at /site/<file>), its
@@ -35,7 +35,7 @@ export const SiteImage = Schema.Struct({
 })
 export type SiteImage = typeof SiteImage.Type
 
-export const SITE_IMAGE_KINDS = ['logo', 'icon', 'socialImage'] as const
+export const SITE_IMAGE_KINDS = ['logo', 'icon', 'bannerImage'] as const
 export type SiteImageKind = (typeof SITE_IMAGE_KINDS)[number]
 
 // The images uploaded at /admin/config. Without a logo the navbar shows the site's title, and
@@ -54,14 +54,14 @@ export type SavedSiteConfig = Omit<SiteConfig, RequiredSetting> &
 export const DEFAULT_SITE_CONFIG: SavedSiteConfig = {
   heroHeading: 'Hello, world!',
   heroSubheading: 'Welcome to my LogSpace.',
-  socialImageAlt: '',
+  bannerImageAlt: '',
 }
 
 export const TEXT_SETTINGS = [
   ...REQUIRED_SETTINGS,
   'heroHeading',
   'heroSubheading',
-  'socialImageAlt',
+  'bannerImageAlt',
 ] as const satisfies readonly (keyof SiteText)[]
 
 // Whether every required setting has been saved.
@@ -98,7 +98,7 @@ const decodeSiteText = Schema.decodeUnknownResult(
     siteDescription: required('The site needs a description'),
     heroHeading: Schema.String,
     heroSubheading: Schema.String,
-    socialImageAlt: Schema.String,
+    bannerImageAlt: Schema.String,
   }),
   { errors: 'all' },
 )

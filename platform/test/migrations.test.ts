@@ -39,8 +39,9 @@ describe('migrations', () => {
       '0002_add_article_body',
       '0003_create_post_images',
       '0004_create_config',
+      '0005_rename_social_image_to_banner',
     ])
-    expect(await migrate(file)).toHaveLength(4)
+    expect(await migrate(file)).toHaveLength(5)
     expect(await migrate(file)).toEqual([])
 
     let db = new Database(file, { readonly: true })
@@ -71,11 +72,43 @@ describe('migrations', () => {
         checksum: '12033da6287771f56fc3d4cd7fda53432f76fc8a600beff69739d529ae558a13',
         batch: 1,
       },
+      {
+        id: '0005',
+        name: 'rename_social_image_to_banner',
+        checksum: '825062aee1c7f6119ce0d1132a3ea6658f1446f3432343a40a783225dce81815',
+        batch: 1,
+      },
     ])
     let columns = Schema.decodeUnknownSync(Schema.Array(Schema.Struct({ name: Schema.String })))(
       db.query("select name from pragma_table_info('posts')").all(),
     ).map((row) => row.name)
     expect(columns).toContain('article_body')
+    db.close()
+  })
+
+  it('renames a saved social preview image to the banner image', async () => {
+    let file = `/tmp/logspace2-migrations-banner-${process.pid}.sqlite`
+    for (let suffix of ['', '-wal', '-shm'])
+      await Bun.file(file + suffix)
+        .delete()
+        .catch(() => {})
+    await migrate(file)
+    // A database from before 0005, with a social preview image saved.
+    let db = new Database(file)
+    db.run("delete from data_table_migrations where id = '0005'")
+    let image = '{"file":"social.png","width":1200,"height":630,"version":"abc"}'
+    db.run(
+      "insert into config (key, value) values ('socialImage', ?), ('socialImageAlt', 'A card')",
+      [image],
+    )
+    db.close()
+
+    expect(await migrate(file)).toEqual(['0005_rename_social_image_to_banner'])
+    db = new Database(file, { readonly: true })
+    expect(db.query('select key, value from config order by key').all()).toEqual([
+      { key: 'bannerImage', value: image },
+      { key: 'bannerImageAlt', value: 'A card' },
+    ])
     db.close()
   })
 })

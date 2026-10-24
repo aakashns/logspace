@@ -169,7 +169,7 @@ const showConfig = loggedIn((session) =>
       siteDescription: saved.siteDescription ?? '',
       heroHeading: saved.heroHeading,
       heroSubheading: saved.heroSubheading,
-      socialImageAlt: saved.socialImageAlt,
+      bannerImageAlt: saved.bannerImageAlt,
     }
     let response = yield* configPage({ values, saved: session.flash === 'configSaved' })
     // The note that the settings were saved is shown once.
@@ -220,7 +220,7 @@ function readConfigForm(form: FormData): SiteText {
     siteDescription: text('siteDescription'),
     heroHeading: text('heroHeading'),
     heroSubheading: text('heroSubheading'),
-    socialImageAlt: text('socialImageAlt'),
+    bannerImageAlt: text('bannerImageAlt'),
   }
 }
 
