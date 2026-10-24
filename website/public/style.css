@@ -235,6 +235,10 @@ figcaption {
   html {
     font-size: 16px;
   }
+  /* Text only wide screens show. */
+  .desktop {
+    display: none;
+  }
   header.site {
     column-gap: 1em;
     margin-bottom: 2.5rem;

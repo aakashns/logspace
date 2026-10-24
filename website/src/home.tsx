@@ -72,11 +72,13 @@ export function Home() {
         </div>
         <p id="copy-status" class="sr-only" role="status"></p>
         <p class="note">
-          You’ll need{" "}
-          <a href="https://caddyserver.com/docs/install" target="_blank">
-            Caddy
-          </a>{" "}
-          and a domain pointing to the server.{" "}
+          <span class="desktop">
+            You’ll need{" "}
+            <a href="https://caddyserver.com/docs/install" target="_blank">
+              Caddy
+            </a>{" "}
+            and a domain pointing to the server.{" "}
+          </span>
           <a href={`${github}#deploy`} target="_blank">
             Read the deployment guide
           </a>
