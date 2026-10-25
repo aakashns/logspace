@@ -24,7 +24,16 @@ export const urls = {
     index: () => '/admin',
     login: () => '/admin/login',
     logout: () => '/admin/logout',
-    config: () => '/admin/config',
+    // The four parts of the admin, which /admin links to.
+    posts: () => '/admin/posts',
+    branding: () => '/admin/branding',
+    integrations: () => '/admin/integrations',
+    subscribers: () => '/admin/subscribers',
+    // What Turnstile's section of /admin/integrations posts to: its keys, to disconnect it, and
+    // to check its widget with Cloudflare.
+    saveTurnstile: () => '/admin/integrations/turnstile',
+    removeTurnstile: () => '/admin/integrations/turnstile/remove',
+    verifyTurnstile: () => '/admin/integrations/turnstile/verify',
     // The composer, for a new post or an edit, and what it posts to: to save the post, and as
     // you write, to add or remove media, and for the preview.
     newPost: () => '/admin/posts/new',

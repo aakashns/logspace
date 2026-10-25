@@ -1,12 +1,9 @@
 // Logging in and out.
 import { afterAll, beforeEach, describe, expect, it } from 'bun:test'
-import { Effect } from 'effect'
 
 import { defined, makeTestApp } from '../../../../test/app.ts'
-import { PostQueries } from '../../../data/posts/queries.ts'
 
 const app = makeTestApp()
-const posts = () => app.run(Effect.flatMap(PostQueries, (queries) => queries.all))
 
 // Saving a post removes the files it doesn't name, so each test starts with all of them.
 beforeEach(async () => {
@@ -42,7 +39,7 @@ describe('logging in', () => {
     expect(app.sessionCookie(response)).toBeUndefined()
   })
 
-  it('shows every post once logged in, and logging out ends the session', async () => {
+  it('shows the admin once logged in, and logging out ends the session', async () => {
     let response = await app.logIn()
     expect(response.status).toBe(302)
     expect(response.headers.get('Location')).toBe('/admin')
@@ -56,7 +53,7 @@ describe('logging in', () => {
     let html = await page.text()
     expect(page.status).toBe(200)
     expect(html).toMatch(/<header[^]*aria-label="Log out"[^]*<\/header>/)
-    for (let post of await posts()) expect(html).toContain(`href="/posts/${post.id}"`)
+    expect(html).toContain('href="/admin/posts"')
     // Logged in, the login page leads to /admin.
     expect(
       (await app.fetch('/admin/login', { headers: { Cookie: cookie } })).headers.get('Location'),

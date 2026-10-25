@@ -1,21 +1,28 @@
-// Saving the site's settings from /admin/config: the write side for the `config` table and the
-// site's image files.
+// Saving the site's settings from /admin/branding and /admin/integrations: the write side for the
+// `config` table and the site's image files.
 import { Context, Effect, Layer, Schema, Semaphore } from 'effect'
 import { SqlClient } from 'effect/sql'
 
 import { ICON_FILES, Images, type ProcessedSiteImage } from '../../lib/images.ts'
 import { MediaStorage, mediaKeys } from '../../lib/media-storage.ts'
+import { Secrets } from '../../lib/secrets.ts'
 import { SiteConfigQueries } from './queries.ts'
 import {
+  INTEGRATIONS,
   SITE_CONFIG_FIELDS,
   SITE_IMAGE_KINDS,
   TEXT_SETTINGS,
+  TURNSTILE_SECRET_PURPOSE,
+  checkTurnstileKeys,
   parseSiteText,
+  type Integration,
+  type SavedSecret,
   type SiteConfig,
   type SiteConfigIssue,
   type SiteImage,
   type SiteImageKind,
   type SiteText,
+  type TurnstileKeys,
 } from './site.ts'
 
 // The site's settings weren't saved, for these reasons (shown above the config form). It's
@@ -32,16 +39,37 @@ export class SiteConfigRejected extends Schema.TaggedError<SiteConfigRejected>()
   },
 ) {}
 
+// Turnstile's keys weren't saved, for these reasons (shown in its section of
+// /admin/integrations).
+export class TurnstileKeysRejected extends Schema.TaggedError<TurnstileKeysRejected>()(
+  'TurnstileKeysRejected',
+  {
+    issues: Schema.Array(
+      Schema.Struct({ field: Schema.Literals(['siteKey', 'secretKey']), message: Schema.String }),
+    ),
+  },
+) {}
+
+// The settings /admin/branding saves.
+const BRANDING_SETTINGS = [...TEXT_SETTINGS, ...SITE_IMAGE_KINDS] as const
+
 export class SiteConfigCommands extends Context.Service<
   SiteConfigCommands,
   {
-    // Saves the /admin/config form: its settings, and images to upload or remove.
+    // Saves the /admin/branding form: its settings, and images to upload or remove. The
+    // integrations are left as they are.
     readonly update: (
       text: SiteText,
       uploads: Partial<Record<SiteImageKind, Blob>>,
       removals: readonly SiteImageKind[],
     ) => Effect.Effect<void, SiteConfigRejected>
-    // Saves every setting, replacing the saved ones. An image that's left out is removed.
+    // Saves Turnstile's keys, sealing the secret key. An empty secret key keeps the saved one.
+    readonly saveTurnstile: (keys: TurnstileKeys) => Effect.Effect<void, TurnstileKeysRejected>
+    // Disconnects an integration, forgetting its settings. Removing one that isn't set up does
+    // nothing.
+    readonly removeIntegration: (integration: Integration) => Effect.Effect<void>
+    // Saves every setting, replacing the saved ones. An image or integration that's left out is
+    // removed.
     readonly save: (config: SiteConfig) => Effect.Effect<void>
   }
 >()('logspace/SiteConfigCommands') {
@@ -52,22 +80,56 @@ export class SiteConfigCommands extends Context.Service<
       let storage = yield* MediaStorage
       let images = yield* Images
       let queries = yield* SiteConfigQueries
+      let secrets = yield* Secrets
       let mutations = yield* Semaphore.make(1)
 
-      let save = Effect.fn('SiteConfigCommands.save')(function* (config: SiteConfig) {
-        let rows = [...TEXT_SETTINGS, ...SITE_IMAGE_KINDS].flatMap((key) => {
+      // Replaces these settings with the config's, removing those it leaves out.
+      let write = (keys: readonly (keyof SiteConfig)[], config: Partial<SiteConfig>) => {
+        let rows = keys.flatMap((key) => {
           let value = config[key]
           if (value === undefined) return []
           return [{ key, value: typeof value === 'string' ? value : JSON.stringify(value) }]
         })
-        yield* sql
+        return sql
           .withTransaction(
             Effect.gen(function* () {
-              yield* sql`delete from config where ${sql.in('key', [...TEXT_SETTINGS, ...SITE_IMAGE_KINDS])}`
+              yield* sql`delete from config where ${sql.in('key', keys)}`
               if (rows.length > 0) yield* sql`insert into config ${sql.insert(rows)}`
             }),
           )
           .pipe(Effect.orDie)
+      }
+
+      let save = Effect.fn('SiteConfigCommands.save')(function* (config: SiteConfig) {
+        yield* write([...BRANDING_SETTINGS, ...INTEGRATIONS], config)
+      })
+
+      let saveTurnstile = Effect.fn('SiteConfigCommands.saveTurnstile')(function* (
+        keys: TurnstileKeys,
+      ) {
+        let saved = (yield* queries.saved).turnstile
+        let state: SavedSecret = saved
+          ? yield* secrets.open(saved.secretKey, TURNSTILE_SECRET_PURPOSE).pipe(
+              Effect.match({
+                onSuccess: () => 'readable' as const,
+                onFailure: () => 'unreadable' as const,
+              }),
+            )
+          : 'none'
+        let issues = checkTurnstileKeys(keys, state)
+        if (issues.length > 0) return yield* new TurnstileKeysRejected({ issues })
+        // Without a new secret key, the checks passed only because the saved one opens.
+        let secretKey =
+          keys.secretKey || !saved
+            ? yield* secrets.seal(keys.secretKey, TURNSTILE_SECRET_PURPOSE)
+            : saved.secretKey
+        yield* write(['turnstile'], { turnstile: { siteKey: keys.siteKey, secretKey } })
+      })
+
+      let removeIntegration = Effect.fn('SiteConfigCommands.removeIntegration')(function* (
+        integration: Integration,
+      ) {
+        yield* write([integration], {})
       })
 
       let removeImageFiles = (image: SiteImage) =>
@@ -131,7 +193,7 @@ export class SiteConfigCommands extends Context.Service<
           current[kind] = { ...upload.image, generation }
         }
         for (let kind of removals) delete current[kind]
-        yield* save({ ...parsed.success, ...current })
+        yield* write(BRANDING_SETTINGS, { ...parsed.success, ...current })
         for (let kind of SITE_IMAGE_KINDS) {
           let previous = saved[kind]
           if (!previous || previous === current[kind]) continue
@@ -148,6 +210,9 @@ export class SiteConfigCommands extends Context.Service<
 
       return SiteConfigCommands.of({
         update: (...args) => mutations.withPermit(Effect.uninterruptible(update(...args))),
+        saveTurnstile: (keys) => mutations.withPermit(Effect.uninterruptible(saveTurnstile(keys))),
+        removeIntegration: (integration) =>
+          mutations.withPermit(Effect.uninterruptible(removeIntegration(integration))),
         save: (...args) => mutations.withPermit(Effect.uninterruptible(save(...args))),
       })
     }),

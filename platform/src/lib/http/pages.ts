@@ -35,16 +35,22 @@ export const pageContext = Effect.gen(function* () {
   } satisfies PageContext
 })
 
+// Where Cloudflare's Turnstile widget comes from: its script, and the frame it shows.
+const TURNSTILE_ORIGIN = 'https://challenges.cloudflare.com'
+
 // A page's response. Trusted Types are required too: Datastar makes its own policy, and no other
-// script can write HTML into the page.
+// script can write HTML into the page. A page that shows the Turnstile widget lets its script run
+// and its frame load.
 export function pageResponse(
   page: PageContext,
   html: Html,
-  options?: { status?: number | undefined },
+  options?: { status?: number | undefined; turnstile?: boolean | undefined },
 ) {
+  let turnstile = options?.turnstile ? ` ${TURNSTILE_ORIGIN}` : ''
   let csp =
     "frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'; " +
-    `script-src 'nonce-${page.nonce}'; trusted-types datastar; require-trusted-types-for 'script'`
+    `script-src 'nonce-${page.nonce}'${turnstile}; trusted-types datastar; require-trusted-types-for 'script'` +
+    (turnstile ? `; frame-src${turnstile}` : '')
   return HttpServerResponse.text(html.value, { contentType: 'text/html; charset=utf-8' }).pipe(
     HttpServerResponse.setStatus(options?.status ?? 200),
     HttpServerResponse.setHeader('Content-Security-Policy', csp),

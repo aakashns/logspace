@@ -19,6 +19,8 @@ export const adminPage = (
     styles?: string | undefined
     status?: number | undefined
     loggedIn?: boolean | undefined
+    // Whether it shows Cloudflare's Turnstile widget.
+    turnstile?: boolean | undefined
   },
 ) =>
   Effect.gen(function* () {

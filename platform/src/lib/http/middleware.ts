@@ -110,7 +110,7 @@ const ALWAYS_SERVED = [
 const UNAVAILABLE = [urls.rss(), urls.sitemap(), urls.robots(), urls.manifest()]
 
 // Until the site's required settings are saved, its public pages send visitors to the admin
-// login, which leads to /admin/config.
+// login, which leads to /admin/branding.
 const gate = Effect.fnUntraced(function* (
   request: HttpServerRequest.HttpServerRequest,
   savedConfig: SiteConfigQueries['Service']['saved'],

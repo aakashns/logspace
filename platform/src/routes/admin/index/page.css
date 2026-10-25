@@ -1,21 +1,35 @@
 /*
- * /admin's list of posts (see page.tsx).
+ * /admin's cards (see page.tsx).
  */
 @layer components {
-  .post-list {
+  .admin-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+    gap: 1rem;
     list-style: none;
-    border-top: 1px solid var(--border);
-
-    & li {
-      padding-block: 0.75rem;
-      border-bottom: 1px solid var(--border);
-    }
   }
 
-  .post-summary {
-    margin-top: 0.25rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  /* The whole card is the link. */
+  .admin-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+    height: 100%;
+    padding: 1.25rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+
+    &:hover {
+      background-color: var(--accent);
+    }
+    &:focus-visible {
+      outline: 2px solid var(--ring);
+      outline-offset: 2px;
+    }
+
+    & h2 {
+      font-size: 1.125rem;
+      line-height: 1.4;
+    }
   }
 }

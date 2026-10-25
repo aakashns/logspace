@@ -41,7 +41,7 @@ import {
 const postNotFound = message(
   'Post not found',
   <>
-    There’s no post with this id. <a href={urls.admin.index()}>See all posts</a>
+    There’s no post with this id. <a href={urls.admin.posts()}>See all posts</a>
   </>,
   404,
 )
@@ -195,14 +195,14 @@ const discardComposer = loggedIn(() =>
   Effect.gen(function* () {
     let id = (yield* readForm()).get('post_id')
     yield* (yield* PostCommands).discard(typeof id === 'string' ? id.trim() : '')
-    return redirect(urls.admin.index(), 303)
+    return redirect(urls.admin.posts(), 303)
   }),
 )
 
 const deletePost = loggedIn(() =>
   Effect.gen(function* () {
     return yield* (yield* PostCommands).delete(yield* param('id')).pipe(
-      Effect.as(redirect(urls.admin.index(), 303)),
+      Effect.as(redirect(urls.admin.posts(), 303)),
       Effect.catchTag('PostNotFound', () => postNotFound),
     )
   }),

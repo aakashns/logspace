@@ -1,26 +1,21 @@
-// The list of posts at /admin. Posts are written, edited, and deleted in the composer
-// (../compose/).
+// /admin: a card for each part of the admin.
 import { Effect } from 'effect'
 import { HttpRouter } from 'effect/http'
 
-import { PostQueries } from '../../../data/posts/queries.ts'
 import { SiteConfigQueries } from '../../../data/site/queries.ts'
 import { isSiteConfigured } from '../../../data/site/site.ts'
 import { redirect } from '../../../lib/http/responses.ts'
 import { urls } from '../../../lib/urls.ts'
 import { adminPage, loggedIn } from '../admin.tsx'
-import { POSTS_PAGE_STYLES, PostsPage } from './page.tsx'
+import { ADMIN_INDEX_STYLES, AdminIndexPage } from './page.tsx'
 
 const index = loggedIn(() =>
   Effect.gen(function* () {
     // The site's required settings come first.
     if (!isSiteConfigured(yield* (yield* SiteConfigQueries).saved)) {
-      return redirect(urls.admin.config())
+      return redirect(urls.admin.branding())
     }
-    let posts = yield* (yield* PostQueries).all
-    return yield* adminPage('Manage Site', <PostsPage posts={posts} />, {
-      styles: POSTS_PAGE_STYLES,
-    })
+    return yield* adminPage('Manage Site', <AdminIndexPage />, { styles: ADMIN_INDEX_STYLES })
   }),
 )
 

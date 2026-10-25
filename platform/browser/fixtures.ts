@@ -133,7 +133,7 @@ export const test = base.extend<{ app: Application }>({
     await page.goto('/admin/login')
     await page.getByLabel('Admin Password').fill(app.password)
     await page.getByRole('button', { name: 'Log in', exact: true }).click()
-    await expect(page).toHaveURL(`${app.origin}/admin/config`)
+    await expect(page).toHaveURL(`${app.origin}/admin/branding`)
     await page.getByLabel('Site title', { exact: true }).fill('Browser Test')
     await page.getByLabel('Site URL', { exact: true }).fill(app.origin)
     await page.getByLabel('Site description', { exact: true }).fill('Disposable browser test site')

@@ -11,7 +11,7 @@ import type { ImageInfo } from './image-widths.ts'
 // The same codecs everywhere: otherwise macOS would also read HEIC and AVIF, which Linux can't.
 Bun.Image.backend = 'bun'
 
-// Why an upload can't be used as one of the site's images, for the /admin/config form.
+// Why an upload can't be used as one of the site's images, for the /admin/branding form.
 export class SiteImageRejected extends Schema.TaggedError<SiteImageRejected>()(
   'SiteImageRejected',
   { message: Schema.String },
@@ -93,7 +93,7 @@ export class Images extends Context.Service<
 }
 
 // The logos are made this many pixels high: over three times their height in the navbar (1.2rem),
-// for the sharpest screens, and twice that of their previews at /admin/config (2rem). Any bigger
+// for the sharpest screens, and twice that of their previews at /admin/branding (2rem). Any bigger
 // and the navbar's logo is a download that holds up the page's first full paint.
 const LOGO_HEIGHT = 64
 // The icon is at least this many pixels square.

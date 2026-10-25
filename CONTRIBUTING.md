@@ -97,22 +97,26 @@ folder.
 
 #### 3. Routes: `routes/`
 
-| Folder           | URLs                                                                         |
-| ---------------- | ---------------------------------------------------------------------------- |
-| `index/`         | `/`, the home page                                                           |
-| `post/`          | `/posts/<id>`, and its files at `/posts/<id>/<file>`                         |
-| `feeds/`         | `/sitemap.xml`, `/robots.txt`, `/rss.xml`                                    |
-| `site-files/`    | `/site.webmanifest`, `/favicon.ico`, `/apple-touch-icon.png`, `/site/<file>` |
-| `link-images/`   | `/link-images/<file>`, link previews' images                                 |
-| `assets/`        | `/assets/<file>`, `/fonts/<file>`: Datastar and the fonts                    |
-| `admin/login/`   | `/admin/login`, `/admin/logout`                                              |
-| `admin/index/`   | `/admin`, the list of posts                                                  |
-| `admin/compose/` | `/admin/posts/new`, `/admin/posts/<id>/edit`, and what the composer posts to |
-| `admin/config/`  | `/admin/config`, the site's settings                                         |
+| Folder                | URLs                                                                         |
+| --------------------- | ---------------------------------------------------------------------------- |
+| `index/`              | `/`, the home page                                                           |
+| `post/`               | `/posts/<id>`, and its files at `/posts/<id>/<file>`                         |
+| `feeds/`              | `/sitemap.xml`, `/robots.txt`, `/rss.xml`                                    |
+| `site-files/`         | `/site.webmanifest`, `/favicon.ico`, `/apple-touch-icon.png`, `/site/<file>` |
+| `link-images/`        | `/link-images/<file>`, link previews' images                                 |
+| `assets/`             | `/assets/<file>`, `/fonts/<file>`: Datastar and the fonts                    |
+| `admin/login/`        | `/admin/login`, `/admin/logout`                                              |
+| `admin/index/`        | `/admin`, a card for each of the four below                                  |
+| `admin/posts/`        | `/admin/posts`, the list of posts                                            |
+| `admin/compose/`      | `/admin/posts/new`, `/admin/posts/<id>/edit`, and what the composer posts to |
+| `admin/branding/`     | `/admin/branding`, the site's title, URL, introduction, and images           |
+| `admin/integrations/` | `/admin/integrations`, a section for each service the site connects to       |
+| `admin/subscribers/`  | `/admin/subscribers`, empty for now                                          |
 
 Each has the same files: `handler.tsx`, its handlers with its route table at the bottom;
-`page.tsx` and `page.css`, what it shows; and its tests. `admin/admin.tsx` and `admin/layout.tsx`
-are what every page under `/admin` shares: the login check, and the layout. A handler reads the
+`page.tsx` and `page.css`, what it shows; and its tests. `admin/admin.tsx`, `admin/layout.tsx`,
+and `admin/fields.tsx` are what every page under `/admin` shares: the login check, the layout,
+and labelled inputs. A handler reads the
 request, calls queries or one command, and picks a response.
 
 **Datastar** runs the theme toggle (`data-on:click`) and share buttons (`data-on:click`,
@@ -124,7 +128,9 @@ composer keeps nothing on the server until it's posted, which is a plain form su
 into a post by `form.ts`. Every expression is a one-line constant string. Values like the URL to
 share are passed in `data-*` attributes and read with `el.dataset`, so nothing a user typed can
 end up in an expression. Everything else works without JavaScript: navigation is links, forms are
-forms, and the delete dialog uses `command`/`commandfor`.
+forms, and the delete dialog uses `command`/`commandfor`. The one other script is Cloudflare's
+Turnstile widget, on `/admin/integrations` once it has a site key; it puts its token in a plain
+form.
 
 #### 4. Data: `data/`
 
@@ -144,10 +150,11 @@ the database, and nothing is kept between requests, so an edit made in the datab
 | `posts/commands.ts`     | `PostCommands` (below), `PostRejected` (with the issues to show), and `PostNotFound`                                                                    |
 | `posts/media.ts`        | `PostMedia`: a post's files, and its resized photos, made on first request and stored; concurrent requests for one share a single resize                |
 | `posts/files.ts`        | `makePostFiles`: stateless upload and removal helpers, also used by test seeding                                                                        |
-| `site/site.ts`          | The site's settings, and their checks                                                                                                                   |
+| `site/site.ts`          | The site's settings (branding, and integrations like `TurnstileSettings`, each one setting saved as JSON), and their checks                             |
 | `site/site-images.ts`   | The URLs pages link the site's icon, logos, and banner image with                                                                                       |
 | `site/queries.ts`       | `SiteConfigQueries`, and `configuredSite` for what's only served once the settings are saved                                                            |
-| `site/commands.ts`      | `SiteConfigCommands`: saving `/admin/config`, turning uploads into the site's image files, or `SiteConfigRejected`                                      |
+| `site/commands.ts`      | `SiteConfigCommands`: saving `/admin/branding` (turning uploads into the site's image files, or `SiteConfigRejected`), and Turnstile's keys             |
+| `site/turnstile.ts`     | `Turnstile`: whether it's set up, and checking a widget's token with Cloudflare, with a typed error for each way that fails                             |
 | `site/files.ts`         | The site's image files, from storage, or the default icons that `Images` caches                                                                         |
 | `link-previews/`        | `LinkPreviews` fetches previews in the background, never on a page's time, and saves each one's image as resized WebP copies                            |
 
@@ -181,6 +188,7 @@ Database migrations are an Effect function, `runMigrations`, used by startup and
 | `media-storage.ts`   | Uploaded files as plain files under `MEDIA_DIR` (`posts/<id>/<file>`, `variants/…`, `site/…`, `link-images/…`), written atomically with `Bun.write` and served straight from disk; or in memory for the tests |
 | `images.ts`          | Everything Bun.Image does: reading and resizing photos, and making the logos, icons, and banner image                                                                                                         |
 | `public-http.ts`     | Fetching other sites, only at public addresses on standard ports                                                                                                                                              |
+| `secrets.ts`         | `Secrets`: sealing secrets like an integration's secret key for the database, with AES-256-GCM and a key derived from `AUTH_SESSION_SECRET`                                                                   |
 | `http/pages.ts`      | What a page needs from the request (`PageContext`), and its response with a per-response CSP nonce                                                                                                            |
 | `http/session.ts`    | The admin password check and the signed session cookie (`AdminAuth`)                                                                                                                                          |
 | `http/forms.ts`      | Reading a form within the upload limits (`UploadTooLarge` → the 413 page)                                                                                                                                     |
@@ -210,7 +218,13 @@ and without JavaScript. Each test starts the app with its own temporary data and
   Datastar runs in its [CSP mode](https://data-star.dev/reference/security) with the nonce, so
   there's no `unsafe-eval` or `unsafe-inline`. Other responses (files, feeds) run no scripts.
   Pages also send `frame-ancestors 'none'`, `base-uri 'self'`, `object-src 'none'`, and
-  `form-action 'self'`.
+  `form-action 'self'`. Only a page with the Turnstile widget also allows scripts and frames
+  from `https://challenges.cloudflare.com`, still with Trusted Types required.
+- **Stored secrets**: an integration's secret key is sealed with AES-256-GCM, with a key derived
+  (HKDF) from `AUTH_SESSION_SECRET` and the setting it's for, so a copy of the database alone
+  doesn't give it away, and it's never sent back to the browser (only its last four characters).
+  Changing `AUTH_SESSION_SECRET` makes saved secrets unreadable; the admin is asked to enter them
+  again.
 - **User content**: captions are rendered with HTML escaped, and the containers they go in
   carry `data-ignore`, so Datastar never evaluates attributes in it, even if escaping failed.
 - **Admin**: one password, compared in constant time; a session cookie signed with HMAC-SHA256,

@@ -29,7 +29,8 @@ bun run build && bun scripts/smoke-test.ts dist/logspace
 - Time comes from `Clock` or `DateTime`, files and processes from `FileSystem` and
   `ChildProcessSpawner`, and other sites from `HttpClient`, except where Bun's own APIs are the
   point (media storage serves `BunFile`s with sendfile)
-- The only browser JavaScript is Datastar. Its expressions are short constant strings (an action
+- The only browser JavaScript is Datastar (and Cloudflare's Turnstile widget, on the pages that
+  show it). Its expressions are short constant strings (an action
   like `@post(...)`, a signal); anything more is the server's job, not JavaScript in the markup.
   Pass values in `data-*` attributes, and put `data-ignore` on any HTML made from what someone
   wrote

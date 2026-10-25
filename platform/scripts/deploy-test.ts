@@ -174,8 +174,8 @@ if (!cookie) fail('login did not set a session cookie')
 let auth = ['-H', `Cookie: ${cookie}`, '-H', `Origin: https://${DOMAIN}`]
 let icon = path.resolve(import.meta.dir, '../src/lib/default-icon.png')
 await expectHttps(
-  `https://${DOMAIN}/admin/config`,
-  `303 https://${DOMAIN}/admin/config`,
+  `https://${DOMAIN}/admin/branding`,
+  `303 https://${DOMAIN}/admin/branding`,
   ...auth,
   '-F',
   'siteTitle=Deploy test',

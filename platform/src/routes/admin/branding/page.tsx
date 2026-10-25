@@ -4,6 +4,7 @@ import { stylesheet } from '../../../components/stylesheet.ts'
 import { getIconHref, getSiteImageHref } from '../../../data/site/site-images.ts'
 import type {
   SiteConfig,
+  SiteConfigField,
   SiteConfigIssue,
   SiteImage,
   SiteImageKind,
@@ -11,12 +12,13 @@ import type {
   SiteText,
 } from '../../../data/site/site.ts'
 import { urls } from '../../../lib/urls.ts'
-import { Field, TextareaField, TextField } from './fields.tsx'
+import { Field, TextareaField, TextField } from '../fields.tsx'
+import { BackLink } from '../layout.tsx'
 import css from './page.css' with { type: 'text' }
 
-export const CONFIG_PAGE_STYLES = stylesheet(css)
+export const BRANDING_PAGE_STYLES = stylesheet(css)
 
-export interface ConfigPageProps {
+export interface BrandingPageProps {
   // What was typed, and the images that are saved.
   readonly values: SiteText
   readonly images: SiteImages
@@ -27,7 +29,7 @@ export interface ConfigPageProps {
   readonly unconfigured?: boolean | undefined
 }
 
-const LABELS: Record<keyof SiteConfig, string> = {
+const LABELS: Record<SiteConfigField, string> = {
   siteTitle: 'Site title',
   siteUrl: 'Site URL',
   siteDescription: 'Site description',
@@ -43,11 +45,11 @@ const LABELS: Record<keyof SiteConfig, string> = {
 const ACCEPT = 'image/png,image/jpeg,image/webp'
 const BANNER_ACCEPT = 'image/png,image/jpeg'
 
-// /admin/config, with the submission's problems if it was rejected.
-export function ConfigPage(props: ConfigPageProps): Html {
+// /admin/branding, with the submission's problems if it was rejected.
+export function BrandingPage(props: BrandingPageProps): Html {
   let { values, images, issues = [], saved, unconfigured } = props
   let site: SiteConfig = { ...values, ...images }
-  let invalid = (name: keyof SiteConfig) =>
+  let invalid = (name: SiteConfigField) =>
     issues.some((issue) => issue.field === name) ? ('true' as const) : undefined
   let field = (name: keyof SiteText) => ({
     label: LABELS[name],
@@ -58,7 +60,9 @@ export function ConfigPage(props: ConfigPageProps): Html {
   })
   return (
     <section class="admin-page">
-      <h1 class="page-title">Configure Site</h1>
+      {/* /admin leads back here until the site is configured. */}
+      {unconfigured ? null : <BackLink />}
+      <h1 class="page-title">Branding</h1>
       {unconfigured && issues.length === 0 ? (
         <p role="status" class="notice">
           Set the site’s title, URL, and description to finish setting it up. Until they’re saved,
@@ -83,12 +87,7 @@ export function ConfigPage(props: ConfigPageProps): Html {
           </ul>
         </div>
       ) : null}
-      <form
-        method="post"
-        action={urls.admin.config()}
-        enctype="multipart/form-data"
-        class="form config-form"
-      >
+      <form method="post" action={urls.admin.branding()} enctype="multipart/form-data" class="form">
         <TextField
           {...field('siteTitle')}
           hint="Shown in browser tabs, link previews, and the RSS feed, as the posts’ author, and in the navbar when there’s no logo."

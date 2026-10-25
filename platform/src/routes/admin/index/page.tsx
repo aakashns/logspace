@@ -1,47 +1,49 @@
 import type { Html } from '#jsx/jsx-runtime'
 
 import { stylesheet } from '../../../components/stylesheet.ts'
-import { formatPostDate } from '../../../data/posts/format.ts'
-import { summarizePost, type Post } from '../../../data/posts/presentation.ts'
 import { urls } from '../../../lib/urls.ts'
 import css from './page.css' with { type: 'text' }
 
-export const POSTS_PAGE_STYLES = stylesheet(css)
+export const ADMIN_INDEX_STYLES = stylesheet(css)
 
-// /admin: links to configure the site and write a post, and every post, newest first.
-export function PostsPage(props: { posts: readonly Post[] }): Html {
-  let { posts } = props
+// /admin: a card for each part of the admin.
+export function AdminIndexPage(): Html {
   return (
     <section class="admin-page">
-      <div class="admin-heading">
-        <h1 class="page-title">Manage Site</h1>
-        <div class="actions">
-          <a href={urls.admin.config()} class="secondary-button">
-            Configure
-          </a>
-          <a href={urls.admin.newPost()} class="button">
-            New Post
-          </a>
-        </div>
-      </div>
-      {posts.length === 0 ? (
-        <p class="muted">No posts yet.</p>
-      ) : (
-        <ul class="post-list">
-          {posts.map((post) => (
-            <li>
-              <p class="muted">
-                <a href={urls.post(post.id)}>
-                  <time datetime={post.date}>{formatPostDate(post.date)}</time>
-                </a>
-                {` · ${post.type} · `}
-                <a href={urls.admin.editPost(post.id)}>Edit</a>
-              </p>
-              <p class="post-summary">{summarizePost(post)}</p>
-            </li>
-          ))}
-        </ul>
-      )}
+      <h1 class="page-title">Manage Site</h1>
+      <ul class="admin-cards">
+        <AdminCard
+          href={urls.admin.posts()}
+          title="Manage Posts"
+          text="Write new posts, and edit or delete published ones."
+        />
+        <AdminCard
+          href={urls.admin.branding()}
+          title="Branding"
+          text="The site’s title, URL, home page introduction, logos, icon, and banner image."
+        />
+        <AdminCard
+          href={urls.admin.integrations()}
+          title="Integrations"
+          text="Services the site connects to, like Cloudflare Turnstile."
+        />
+        <AdminCard
+          href={urls.admin.subscribers()}
+          title="Subscribers"
+          text="People who follow the site by email."
+        />
+      </ul>
     </section>
+  )
+}
+
+function AdminCard(props: { href: string; title: string; text: string }): Html {
+  return (
+    <li>
+      <a href={props.href} class="admin-card">
+        <h2>{props.title}</h2>
+        <p class="muted">{props.text}</p>
+      </a>
+    </li>
   )
 }
