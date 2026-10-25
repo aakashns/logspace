@@ -1,12 +1,19 @@
 import type { Html } from '#jsx/jsx-runtime'
 
 import { stylesheet } from '../../../components/stylesheet.ts'
+import {
+  Card,
+  CARD_STYLES,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '../../../components/ui/card.tsx'
 import { urls } from '../../../lib/urls.ts'
 import css from './page.css' with { type: 'text' }
 
-export const ADMIN_INDEX_STYLES = stylesheet(css)
+export const ADMIN_INDEX_STYLES = CARD_STYLES + stylesheet(css)
 
-// /admin: a link to each part of the admin.
+// /admin: a card linking to each part of the admin.
 export function AdminIndexPage(): Html {
   return (
     <section class="admin-page">
@@ -41,8 +48,12 @@ function AdminLink(props: { href: string; title: string; text: string }): Html {
   return (
     <li>
       <a href={props.href} class="admin-link">
-        <h2>{props.title}</h2>
-        <p class="muted">{props.text}</p>
+        <Card>
+          <CardHeader>
+            <CardTitle as="h2">{props.title}</CardTitle>
+            <CardDescription>{props.text}</CardDescription>
+          </CardHeader>
+        </Card>
       </a>
     </li>
   )
