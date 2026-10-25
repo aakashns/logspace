@@ -103,9 +103,11 @@ const EMAIL_STATUSES = {
 
 const EMAIL_FIELDS: Record<EmailIssue['field'], string> = {
   provider: 'Send with',
+  fromName: 'From name',
   from: 'From',
   replyTo: 'Reply-to',
   sesRegion: 'Region',
+  sesEndpoint: 'Endpoint',
   sesAccessKeyId: 'Access key ID',
   sesSecretAccessKey: 'Secret access key',
   resendApiKey: 'API key',
@@ -116,18 +118,25 @@ const EMAIL_FIELDS: Record<EmailIssue['field'], string> = {
 function savedEmailForm(status: EmailStatus): EmailForm {
   let empty = {
     provider: 'ses',
+    fromName: '',
     from: '',
     replyTo: '',
     sesRegion: '',
+    sesEndpoint: '',
     sesAccessKeyId: '',
     sesSecretAccessKey: '',
     resendApiKey: '',
   }
   if (status._tag === 'NotSetUp') return empty
-  let { from, replyTo, provider } = status.settings
-  let form = { ...empty, provider: provider._tag, from, replyTo }
+  let { fromName, from, replyTo, provider } = status.settings
+  let form = { ...empty, provider: provider._tag, fromName, from, replyTo }
   if (provider._tag === 'resend') return form
-  return { ...form, sesRegion: provider.region, sesAccessKeyId: provider.accessKeyId }
+  return {
+    ...form,
+    sesRegion: provider.region,
+    sesEndpoint: provider.endpoint,
+    sesAccessKeyId: provider.accessKeyId,
+  }
 }
 
 function EmailSection(props: EmailSectionProps): Html {
@@ -227,6 +236,14 @@ function EmailSection(props: EmailSectionProps): Html {
               hint="Where your SES account sends from, like us-east-1."
             />
             <TextField
+              label="Endpoint"
+              name="sesEndpoint"
+              id="email-sesEndpoint"
+              value={form.sesEndpoint}
+              invalid={invalid('sesEndpoint')}
+              hint="SES’s address for the region, like https://email.us-east-1.amazonaws.com."
+            />
+            <TextField
               label="Access key ID"
               name="sesAccessKeyId"
               id="email-sesAccessKeyId"
@@ -242,10 +259,18 @@ function EmailSection(props: EmailSectionProps): Html {
               'From Resend’s dashboard, with permission to send. Sent only to Resend.',
             )}
           </div>
+          <TextField
+            label="From name"
+            name="fromName"
+            id="email-fromName"
+            value={form.fromName}
+            invalid={invalid('fromName')}
+            hint="Optional: the name emails come from, like the site’s title."
+          />
           <LabelledField
             label="From"
             for="email-from"
-            hint="The address emails come from, shown with the site’s title. Your email service must let you send from its domain."
+            hint="The address emails come from. Your email service must let you send from its domain."
           >
             <Input
               id="email-from"

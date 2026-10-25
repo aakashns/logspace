@@ -140,9 +140,11 @@ const saveEmail = loggedIn((session) =>
     let form = yield* readForm(FORM_LIMIT)
     let typed: EmailForm = {
       provider: formText(form, 'provider'),
+      fromName: formText(form, 'fromName'),
       from: formText(form, 'from'),
       replyTo: formText(form, 'replyTo'),
       sesRegion: formText(form, 'sesRegion'),
+      sesEndpoint: formText(form, 'sesEndpoint'),
       sesAccessKeyId: formText(form, 'sesAccessKeyId'),
       sesSecretAccessKey: formText(form, 'sesSecretAccessKey'),
       resendApiKey: formText(form, 'resendApiKey'),

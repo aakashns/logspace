@@ -2,16 +2,17 @@
 // for the database and media, fills it with the sample posts the tests use, picks a free port and
 // a new admin password, and runs `bun run dev`'s server on them, restarting on change. Nothing is
 // read from .env or the environment, so it never touches a real site's data, and the folder is
-// deleted when the server stops (Ctrl-C). Its email is set up with AWS's example key, so it goes to
-// the site's fake of Amazon SES, and shows at /dev/emails.
+// deleted when the server stops (Ctrl-C). Its email is set up to send to the site's fake of Amazon
+// SES (its endpoint, with AWS's example key), which shows what it took at /dev/emails.
 import * as fs from 'node:fs/promises'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import { Effect, Layer, Redacted } from 'effect'
 
 import { SiteConfigCommands } from '../src/data/site/commands.ts'
-import { EXAMPLE_AWS_KEY } from '../src/data/site/email.ts'
 import { AppConfig } from '../src/lib/config.ts'
+import { EXAMPLE_AWS_KEY } from '../src/routes/dev/emails/handler.tsx'
+import { urls } from '../src/lib/urls.ts'
 import { AppLive } from '../src/server.ts'
 import { seedDatabase, seedMedia, TEST_SITE_CONFIG } from '../test/seed.ts'
 
@@ -42,9 +43,11 @@ const seeding = Effect.runPromise(
     yield* (yield* SiteConfigCommands).save({ ...TEST_SITE_CONFIG, siteUrl: origin })
     yield* (yield* SiteConfigCommands).saveEmail({
       provider: 'ses',
+      fromName: TEST_SITE_CONFIG.siteTitle,
       from: 'demo@example.com',
       replyTo: 'demo-replies@example.com',
       sesRegion: 'us-east-1',
+      sesEndpoint: new URL(urls.dev.ses(), origin).href,
       sesAccessKeyId: EXAMPLE_AWS_KEY.accessKeyId,
       sesSecretAccessKey: EXAMPLE_AWS_KEY.secretAccessKey,
       resendApiKey: '',

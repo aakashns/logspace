@@ -1,21 +1,22 @@
 // /admin/integrations' email section: saving how the site sends email (its secret sealed),
-// removing it, and sending a test email, with AWS's example key to the site's own fake of Amazon
-// SES (see ../../dev/emails/), or to SES or Resend, which a fake network answers for.
+// removing it, and sending a test email, to the site's own fake of Amazon SES (see
+// ../../dev/emails/), or to SES or Resend, which a fake network answers for.
 import { afterAll, beforeEach, describe, expect, it } from 'bun:test'
 import { Effect, Redacted } from 'effect'
 import { SqlClient } from 'effect/sql'
 
 import { capture, defined, makeTestApp } from '../../../../test/app.ts'
-import { EXAMPLE_AWS_KEY } from '../../../data/site/email.ts'
 import { EMAIL_SECRET_PURPOSES } from '../../../data/site/site.ts'
 import { SealedSecret, Secrets } from '../../../lib/secrets.ts'
+import { EXAMPLE_AWS_KEY } from '../../dev/emails/handler.tsx'
 
 const SECRET_ACCESS_KEY = 'TestSecretAccessKey/NotARealOne+00000000'
 const API_KEY = 're_test_key_abcd1234'
 const RESEND = 'https://api.resend.com/emails'
 const SES = 'https://email.eu-west-1.amazonaws.com/v2/email/outbound-emails'
-// Where the test app's fake of SES is: it listens on no port, so the fake network takes it there.
-const FAKE_SES = 'http://127.0.0.1:0'
+// The test app's fake of SES. It listens on no port, so the fake network takes requests for it
+// there.
+const FAKE_SES = 'http://fake-ses.test'
 
 // What the fake network was asked (but for the fake of SES), and how it answers.
 let requests: { url: string; headers: Headers; body: unknown }[] = []
@@ -27,7 +28,13 @@ const app = makeTestApp(
     network: {
       resolve: () => Promise.reject(new Error('Not expected')),
       fetch: async (url, init) => {
-        if (url.origin === FAKE_SES) return app.fetch(url.pathname, init)
+        // With the Host header a request on the wire has, which the fake checks the signature
+        // against.
+        if (url.origin === FAKE_SES) {
+          let headers = new Headers(init.headers)
+          headers.set('host', url.host)
+          return app.fetch(url.href, { ...init, headers })
+        }
         requests.push({
           url: url.href,
           headers: new Headers(init.headers),
@@ -71,23 +78,31 @@ const post = (path: string, fields: Record<string, string>, cookie: string) =>
 const page = async () =>
   (await app.fetch('/admin/integrations', { headers: { Cookie: await login() } })).text()
 
-// SES with AWS's example key, which sends to the site's fake of SES.
+// SES at the site's fake of it, with the only key it takes.
 const EXAMPLE_FORM = {
   provider: 'ses',
   sesRegion: 'us-east-1',
+  sesEndpoint: `${FAKE_SES}/dev/ses`,
   sesAccessKeyId: EXAMPLE_AWS_KEY.accessKeyId,
   sesSecretAccessKey: EXAMPLE_AWS_KEY.secretAccessKey,
+  fromName: 'Test Site',
   from: 'news@example.com',
   replyTo: 'me@example.com',
 }
-// SES with a key of its own, which sends to SES.
+// SES itself, with a key of its own.
 const SES_FORM = {
   ...EXAMPLE_FORM,
   sesRegion: 'eu-west-1',
+  sesEndpoint: 'https://email.eu-west-1.amazonaws.com',
   sesAccessKeyId: 'TESTACCESSKEYID00001',
   sesSecretAccessKey: SECRET_ACCESS_KEY,
 }
-const RESEND_FORM = { provider: 'resend', resendApiKey: API_KEY, from: 'news@example.com' }
+const RESEND_FORM = {
+  provider: 'resend',
+  resendApiKey: API_KEY,
+  fromName: 'Test Site',
+  from: 'news@example.com',
+}
 const save = async (fields: Record<string, string>) =>
   post('/admin/integrations/email', fields, await login())
 const sendTest = async (to: string) => post('/admin/integrations/email/test', { to }, await login())
@@ -131,7 +146,12 @@ describe('email settings', () => {
     expect(row).toMatchObject({
       from: 'news@example.com',
       replyTo: 'me@example.com',
-      provider: { _tag: 'ses', region: 'eu-west-1', accessKeyId: 'TESTACCESSKEYID00001' },
+      provider: {
+        _tag: 'ses',
+        region: 'eu-west-1',
+        endpoint: 'https://email.eu-west-1.amazonaws.com',
+        accessKeyId: 'TESTACCESSKEYID00001',
+      },
     })
     expect(JSON.stringify(row)).not.toContain(SECRET_ACCESS_KEY)
     expect(await open(row.provider.secretAccessKey, EMAIL_SECRET_PURPOSES.ses)).toBe(
@@ -164,7 +184,9 @@ describe('email settings', () => {
     let response = await save({
       ...SES_FORM,
       sesRegion: 'Ireland',
+      sesEndpoint: 'email.eu-west-1.amazonaws.com',
       sesAccessKeyId: 'not a key',
+      fromName: 'Two\nlines',
       sesSecretAccessKey: 'short',
       from: 'not an address',
       replyTo: 'me@',
@@ -173,6 +195,8 @@ describe('email settings', () => {
     let html = await response.text()
     let issues = alert(html)
     expect(issues).toContain('Region: Expected an AWS region, like us-east-1')
+    expect(issues).toContain('Endpoint: Expected the address of an SES API')
+    expect(issues).toContain('From name: Expected a name on one line')
     expect(issues).toContain('Access key ID: Expected an access key ID')
     expect(issues).toContain('Secret access key: Expected the secret access key')
     expect(issues).toContain('From: Expected an email address')
@@ -245,6 +269,15 @@ describe('a test email', () => {
     expect(received).toContain('https://example.com')
   })
 
+  it('is from the address alone, without a name or reply-to, when there’s neither', async () => {
+    await save({ ...EXAMPLE_FORM, fromName: '', replyTo: '' })
+    expect((await sendTest('alone@example.com')).status).toBe(200)
+    let latest = (await inbox()).split('data-slot="card"')[1] ?? ''
+    expect(latest).toContain('<dt>To</dt><dd>alone@example.com</dd>')
+    expect(latest).toContain('<dt>From</dt><dd>news@example.com</dd>')
+    expect(latest).not.toContain('Reply-To')
+  })
+
   it('is refused by the fake of SES when the secret access key is wrong', async () => {
     await save({ ...EXAMPLE_FORM, sesSecretAccessKey: SECRET_ACCESS_KEY, replyTo: '' })
     let before = await inboxSize()
@@ -257,9 +290,8 @@ describe('a test email', () => {
   })
 
   it('goes to SES, signed, and reports why SES refused it', async () => {
-    await save({ ...SES_FORM, replyTo: '' })
     // A name that isn't ASCII is encoded, as SES needs.
-    await sql((sql) => sql`update config set value = 'Café' where key = 'siteTitle'`)
+    await save({ ...SES_FORM, fromName: 'Café', replyTo: '' })
     answer = () =>
       Promise.resolve(
         Response.json(
@@ -287,8 +319,10 @@ describe('a test email', () => {
       Destination: { ToAddresses: ['reader@example.com'] },
       Content: {
         Simple: {
-          Subject: { Data: 'Test email from Café', Charset: 'UTF-8' },
-          Body: { Text: { Data: expect.stringContaining('Café'), Charset: 'UTF-8' } },
+          Subject: { Data: 'Test email from Test Site', Charset: 'UTF-8' },
+          Body: {
+            Text: { Data: expect.stringContaining('https://example.com'), Charset: 'UTF-8' },
+          },
         },
       },
     })

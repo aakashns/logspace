@@ -9,8 +9,26 @@
 
   .dev-emails-intro {
     color: var(--muted-foreground);
+  }
 
+  /* Each setting, its value, and the button that copies it. */
+  .dev-emails-settings {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 0.5rem 1rem;
+
+    & dt {
+      color: var(--muted-foreground);
+    }
+    & dd {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      min-width: 0;
+    }
     & code {
+      font-size: 0.875rem;
       overflow-wrap: anywhere;
     }
   }

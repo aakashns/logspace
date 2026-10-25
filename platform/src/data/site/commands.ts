@@ -63,9 +63,11 @@ export class EmailSettingsRejected extends Schema.TaggedError<EmailSettingsRejec
       Schema.Struct({
         field: Schema.Literals([
           'provider',
+          'fromName',
           'from',
           'replyTo',
           'sesRegion',
+          'sesEndpoint',
           'sesAccessKeyId',
           'sesSecretAccessKey',
           'resendApiKey',

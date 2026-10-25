@@ -1,9 +1,11 @@
 // The site's fake of Amazon SES: it takes an email signed with AWS's example key, as SES's
-// SendEmail does, refuses one SES would, with SES's errors, and shows what it took at /dev/emails.
+// SendEmail does, refuses one SES would, with SES's errors, and shows what it took at /dev/emails,
+// with the settings that send to it.
 import { afterAll, describe, expect, it } from 'bun:test'
 
 import { makeTestApp } from '../../../../test/app.ts'
-import { EXAMPLE_AWS_KEY, sesUrl, signAwsRequest } from '../../../data/site/email.ts'
+import { sesUrl, signAwsRequest } from '../../../data/site/email.ts'
+import { EXAMPLE_AWS_KEY } from './handler.tsx'
 
 const app = makeTestApp()
 afterAll(() => app.dispose())
@@ -32,7 +34,8 @@ const send = (
   let body = options.body ?? JSON.stringify(EMAIL)
   let headers = signAwsRequest({
     method: 'POST',
-    url: sesUrl('us-east-1'),
+    // The fake checks the signature against the host it's sent to.
+    url: sesUrl('http://site.test/dev/ses'),
     headers: { 'content-type': 'application/json' },
     body,
     region: 'us-east-1',
@@ -42,7 +45,7 @@ const send = (
   })
   return app.fetch('/dev/ses/v2/email/outbound-emails', {
     method: 'POST',
-    headers: options.change ? options.change(headers) : headers,
+    headers: { host: 'site.test', ...(options.change ? options.change(headers) : headers) },
     body,
   })
 }
@@ -55,6 +58,23 @@ const inbox = async () => (await app.fetch('/dev/emails')).text()
 const inboxSize = async () => (await inbox()).split('data-slot="card"').length - 1
 
 describe('the fake of SES', () => {
+  it('shows the settings that send to it, each with a button that copies it', async () => {
+    let html = await (
+      await app.fetch('http://site.test/dev/emails', { headers: { host: 'site.test' } })
+    ).text()
+    let settings = [
+      ...html.matchAll(
+        /<dt>([^<]+)<\/dt><dd><code>([^<]+)<\/code><button[^>]* data-value="([^"]+)"/g,
+      ),
+    ].map(([, label, value, copied]) => [label, value, copied])
+    expect(settings).toEqual([
+      ['Endpoint', 'http://site.test/dev/ses', 'http://site.test/dev/ses'],
+      ['Region', 'us-east-1', 'us-east-1'],
+      ['Access key ID', EXAMPLE_AWS_KEY.accessKeyId, EXAMPLE_AWS_KEY.accessKeyId],
+      ['Secret access key', EXAMPLE_AWS_KEY.secretAccessKey, EXAMPLE_AWS_KEY.secretAccessKey],
+    ])
+  })
+
   it('takes an email signed with the example key, and shows it at /dev/emails', async () => {
     let response = await send()
     expect(response.status).toBe(200)

@@ -61,17 +61,20 @@ export const TurnstileSettings = Schema.Struct({
 export type TurnstileSettings = typeof TurnstileSettings.Type
 export const TURNSTILE_SECRET_PURPOSE = 'turnstile.secretKey'
 
-// Email, which the site sends from `from` (named as the site's title), with replies going to
-// `replyTo` if it's set, through Amazon SES's or Resend's API, over HTTPS. SES is sent to with an
-// IAM user's access key, and Resend with an API key. The secret access key and the API key are
-// sealed (see ../../lib/secrets.ts) for EMAIL_SECRET_PURPOSES.
+// Email, which the site sends from `fromName` (if it's set) and `from`, with replies going to
+// `replyTo` if it's set, through Amazon SES's or Resend's API. SES is sent to at `endpoint`, like
+// https://email.us-east-1.amazonaws.com (or the site's fake of SES, at /dev/ses, in development),
+// with an IAM user's access key. Resend is sent to with an API key. The secret access key and the
+// API key are sealed (see ../../lib/secrets.ts) for EMAIL_SECRET_PURPOSES.
 export const SesProvider = Schema.TaggedStruct('ses', {
   region: Schema.String,
+  endpoint: Schema.String,
   accessKeyId: Schema.String,
   secretAccessKey: SealedSecret,
 })
 export const ResendProvider = Schema.TaggedStruct('resend', { apiKey: SealedSecret })
 export const EmailSettings = Schema.Struct({
+  fromName: Schema.String,
   from: Schema.String,
   replyTo: Schema.String,
   provider: Schema.Union([SesProvider, ResendProvider]),
@@ -209,9 +212,11 @@ export function checkTurnstileKeys(keys: TurnstileKeys, saved: SavedSecret): Tur
 // access key or API key left empty keeps the saved one.
 export interface EmailForm {
   readonly provider: string
+  readonly fromName: string
   readonly from: string
   readonly replyTo: string
   readonly sesRegion: string
+  readonly sesEndpoint: string
   readonly sesAccessKeyId: string
   readonly sesSecretAccessKey: string
   readonly resendApiKey: string
@@ -226,6 +231,7 @@ export interface EmailIssue {
 // The email settings a valid form saves, with the secret typed, which is empty to keep the saved
 // one.
 export type CheckedEmailForm = {
+  readonly fromName: string
   readonly from: string
   readonly replyTo: string
   readonly provider:
@@ -242,6 +248,15 @@ const AWS_ACCESS_KEY_ID = /^[A-Z0-9]{16,128}$/
 const AWS_SECRET_ACCESS_KEY = /^[\w/+=]{20,128}$/
 const RESEND_API_KEY = /^re_[\w-]{8,200}$/
 
+// The address of an SES API, with no trailing slash: an http or https URL, with a path if it
+// needs one, but no query, fragment, or credentials.
+function sesEndpoint(value: string): string | undefined {
+  let url = URL.parse(value)
+  if (!url || !['http:', 'https:'].includes(url.protocol)) return undefined
+  if (url.search || url.hash || url.username || url.password) return undefined
+  return url.href.replace(/\/$/, '')
+}
+
 // Checks the email form. `saved` is whether the provider chosen has a saved secret, which one
 // left empty keeps.
 export function checkEmailForm(
@@ -250,6 +265,13 @@ export function checkEmailForm(
 ): Result.Result<CheckedEmailForm, EmailIssue[]> {
   let issues: EmailIssue[] = []
   let address = 'Expected an email address, like news@example.com'
+  // It goes in a header, so it's one line.
+  if (form.fromName.length > 100 || /\p{Cc}/u.test(form.fromName)) {
+    issues.push({
+      field: 'fromName',
+      message: 'Expected a name on one line, of up to 100 characters',
+    })
+  }
   if (!form.from) issues.push({ field: 'from', message: 'Enter the address to send from' })
   else if (!isEmailAddress(form.from)) issues.push({ field: 'from', message: address })
   if (form.replyTo && !isEmailAddress(form.replyTo)) {
@@ -271,6 +293,13 @@ export function checkEmailForm(
     if (!AWS_REGION.test(form.sesRegion)) {
       issues.push({ field: 'sesRegion', message: 'Expected an AWS region, like us-east-1' })
     }
+    let endpoint = sesEndpoint(form.sesEndpoint)
+    if (endpoint === undefined) {
+      issues.push({
+        field: 'sesEndpoint',
+        message: 'Expected the address of an SES API, like https://email.us-east-1.amazonaws.com',
+      })
+    }
     if (!AWS_ACCESS_KEY_ID.test(form.sesAccessKeyId)) {
       issues.push({
         field: 'sesAccessKeyId',
@@ -278,11 +307,17 @@ export function checkEmailForm(
       })
     }
     let typed = secret('sesSecretAccessKey', 'secret access key', AWS_SECRET_ACCESS_KEY)
-    if (issues.length > 0) return Result.fail(issues)
+    if (issues.length > 0 || endpoint === undefined) return Result.fail(issues)
     return Result.succeed({
+      fromName: form.fromName,
       from: form.from,
       replyTo: form.replyTo,
-      provider: { _tag: 'ses', region: form.sesRegion, accessKeyId: form.sesAccessKeyId },
+      provider: {
+        _tag: 'ses',
+        region: form.sesRegion,
+        endpoint,
+        accessKeyId: form.sesAccessKeyId,
+      },
       secret: typed,
     })
   }
@@ -290,6 +325,7 @@ export function checkEmailForm(
     let typed = secret('resendApiKey', 'API key', RESEND_API_KEY)
     if (issues.length > 0) return Result.fail(issues)
     return Result.succeed({
+      fromName: form.fromName,
       from: form.from,
       replyTo: form.replyTo,
       provider: { _tag: 'resend' },

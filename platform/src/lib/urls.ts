@@ -27,7 +27,8 @@ export const urls = {
     index: () => '/dev',
     design: () => '/dev/design',
     emails: () => '/dev/emails',
-    ses: () => '/dev/ses/v2/email/outbound-emails',
+    // The fake's SES endpoint, which SES's API paths go under.
+    ses: () => '/dev/ses',
   },
   admin: {
     index: () => '/admin',

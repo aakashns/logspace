@@ -1,6 +1,7 @@
 import type { Html } from '#jsx/jsx-runtime'
 
 import { stylesheet } from '../../../components/stylesheet.ts'
+import { Button } from '../../../components/ui/button.tsx'
 import {
   Card,
   CARD_STYLES,
@@ -14,22 +15,47 @@ import css from './page.css' with { type: 'text' }
 
 export const DEV_EMAILS_STYLES = CARD_STYLES + stylesheet(css)
 
-// /dev/emails: how to send to the site's fake of Amazon SES, and what it took, newest first.
+// Copies the button's value, and says so on the button until another is copied. The `_copied`
+// signal (declared on the list) holds the value copied last.
+const COPY =
+  'navigator.clipboard.writeText(el.dataset.value).then(() => ($_copied = el.dataset.value))'
+const COPY_LABEL = "$_copied === el.dataset.value ? 'Copied' : 'Copy'"
+
+// /dev/emails: the settings that send to the site's fake of Amazon SES, each with a button that
+// copies it, and what the fake took, newest first.
 export function DevEmailsPage(props: {
+  settings: readonly { label: string; value: string }[]
   emails: readonly ReceivedEmail[]
-  example: { accessKeyId: string; secretAccessKey: string }
 }): Html {
-  let { emails, example } = props
+  let { settings, emails } = props
   return (
     <section class="dev-emails">
       <h1 class="page-title">Emails</h1>
       <p class="dev-emails-intro">
-        What the site sent with its fake of Amazon SES, which checks each request as SES would. To
+        What the site sent to its fake of Amazon SES, which checks each request as SES would. To
         send to it, set up email at <a href={urls.admin.integrations()}>Integrations</a> with Amazon
-        SES, any region, AWS’s example access key ID <code>{example.accessKeyId}</code>, and its
-        secret access key <code>{example.secretAccessKey}</code>. They’re kept until the server
-        stops.
+        SES and these settings. Emails are kept until the server stops.
       </p>
+      <dl class="dev-emails-settings" data-signals="{_copied: ''}">
+        {settings.map(({ label, value }) => (
+          <>
+            <dt>{label}</dt>
+            <dd>
+              <code>{value}</code>
+              <Button
+                type="button"
+                variant="outline"
+                size="xs"
+                data-value={value}
+                data-on:click={COPY}
+                data-text={COPY_LABEL}
+              >
+                Copy
+              </Button>
+            </dd>
+          </>
+        ))}
+      </dl>
       {emails.length === 0 ? (
         <p class="dev-emails-intro">None yet.</p>
       ) : (

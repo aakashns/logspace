@@ -1,15 +1,23 @@
-// The site's fake of Amazon SES, outside production: /dev/ses/… takes an email as SES's API does,
-// from the Email service set up with AWS's example key (see ../../../data/site/email.ts), checking
-// its signature as SES would and answering with SES's errors, and /dev/emails shows what it took.
+// The site's fake of Amazon SES, outside production: /dev/ses is an SES endpoint, for email set up
+// with it and AWS's example key, which takes an email as SES's API does (SendEmail), checking its
+// signature as SES would and answering with SES's errors. /dev/emails shows what it took, and the
+// settings to send to it.
 // https://docs.aws.amazon.com/ses/latest/APIReference-V2/API_SendEmail.html
 import { DateTime, Effect, Layer, Schema } from 'effect'
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from 'effect/http'
 
-import { EXAMPLE_AWS_KEY, sesUrl, signAwsRequest } from '../../../data/site/email.ts'
+import { sesUrl, signAwsRequest } from '../../../data/site/email.ts'
+import { requestUrl } from '../../../lib/http/pages.ts'
 import { urls } from '../../../lib/urls.ts'
 import { devOnly, devPage } from '../dev.tsx'
 import { DevInbox } from './inbox.ts'
 import { DEV_EMAILS_STYLES, DevEmailsPage } from './page.tsx'
+
+// AWS's example key, from its documentation, which AWS never accepts: the only one the fake takes.
+export const EXAMPLE_AWS_KEY = {
+  accessKeyId: 'AKIAIOSFODNN7EXAMPLE',
+  secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+}
 
 // The parts of SendEmail's request that are kept: a simple email's.
 const SendEmailRequest = Schema.Struct({
@@ -61,11 +69,11 @@ const receive = (inbox: DevInbox['Service']) =>
     if (Number.isNaN(time.getTime()) || Math.abs(now - time.getTime()) > SKEW_MS) {
       return refuse(403, 'InvalidSignatureException', 'Signature expired or not yet valid.')
     }
-    // Signed again with the example secret, as SES would at its own address.
+    // Signed again with the example secret, for the address it was sent to, as SES would.
     let names = signedHeaders.split(';').filter((name) => name !== 'host' && name !== 'x-amz-date')
     let expected = signAwsRequest({
       method: 'POST',
-      url: sesUrl(region),
+      url: sesUrl(new URL(urls.dev.ses(), yield* requestUrl).href),
       headers: Object.fromEntries(names.map((name) => [name, headers[name] ?? ''])),
       body,
       region,
@@ -110,7 +118,15 @@ const emails = (inbox: DevInbox['Service']) =>
       urls.dev.emails(),
       'Emails',
       DEV_EMAILS_STYLES,
-      <DevEmailsPage emails={received} example={EXAMPLE_AWS_KEY} />,
+      <DevEmailsPage
+        settings={[
+          { label: 'Endpoint', value: new URL(urls.dev.ses(), yield* requestUrl).href },
+          { label: 'Region', value: 'us-east-1' },
+          { label: 'Access key ID', value: EXAMPLE_AWS_KEY.accessKeyId },
+          { label: 'Secret access key', value: EXAMPLE_AWS_KEY.secretAccessKey },
+        ]}
+        emails={received}
+      />,
     )
   })
 

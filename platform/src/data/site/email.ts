@@ -6,9 +6,7 @@ import { createHash, createHmac } from 'node:crypto'
 import { Context, DateTime, Duration, Effect, Layer, Schema } from 'effect'
 import { HttpClient, HttpClientRequest } from 'effect/http'
 
-import { AppConfig } from '../../lib/config.ts'
 import { Secrets, SecretUnreadable } from '../../lib/secrets.ts'
-import { urls } from '../../lib/urls.ts'
 import { SiteConfigQueries } from './queries.ts'
 import {
   EMAIL_SECRET_PURPOSES,
@@ -25,17 +23,9 @@ const PROVIDER_NAMES = { ses: 'Amazon SES', resend: 'Resend' } as const satisfie
   string
 >
 
-// Where SES's API takes an email, in a region.
-export const sesUrl = (region: string) =>
-  new URL(`https://email.${region}.amazonaws.com/v2/email/outbound-emails`)
-
-// AWS's example key, from its documentation, which AWS never accepts. Outside production, SES set
-// up with it sends to the site's own fake of SES, which shows what it's sent at /dev/emails (see
-// ../../routes/dev/emails/).
-export const EXAMPLE_AWS_KEY = {
-  accessKeyId: 'AKIAIOSFODNN7EXAMPLE',
-  secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
-}
+// Where SES's API (SendEmail) takes an email, at an endpoint like
+// https://email.us-east-1.amazonaws.com.
+export const sesUrl = (endpoint: string) => new URL(`${endpoint}/v2/email/outbound-emails`)
 
 // Email as /admin/integrations shows it. The secret's last characters say which one is saved,
 // without showing it.
@@ -74,15 +64,14 @@ const RefusalAnswer = Schema.Struct({
 })
 const decodeRefusal = Schema.decodeUnknownEffect(RefusalAnswer)
 
-// The site's name and address, as the From header has them: the name quoted, or for SES, which
-// takes only ASCII there, encoded (RFC 2047) when it isn't.
+// The From header's name and address: the name quoted, or for SES, which takes only ASCII there,
+// encoded (RFC 2047) when it isn't. Without a name, it's the address alone.
 function mailbox(name: string, address: string, provider: EmailProvider): string {
-  let plain = name.replace(/[\r\n]+/g, ' ').trim()
-  if (!plain) return address
-  if (provider === 'ses' && !/^[\x20-\x7e]*$/.test(plain)) {
-    return `=?UTF-8?B?${Buffer.from(plain).toString('base64')}?= <${address}>`
+  if (!name) return address
+  if (provider === 'ses' && !/^[\x20-\x7e]*$/.test(name)) {
+    return `=?UTF-8?B?${Buffer.from(name).toString('base64')}?= <${address}>`
   }
-  return `"${plain.replace(/[\\"]/g, '\\$&')}" <${address}>`
+  return `"${name.replace(/[\\"]/g, '\\$&')}" <${address}>`
 }
 
 // RFC 3986's encoding, as AWS signs with.
@@ -157,14 +146,6 @@ export class Email extends Context.Service<
       let queries = yield* SiteConfigQueries
       let secrets = yield* Secrets
       let client = yield* HttpClient.HttpClient
-      let { mode, hostname, port } = yield* AppConfig
-      // This server, for its fake of SES, at an address it listens on.
-      let host = ['::', '0.0.0.0'].includes(hostname)
-        ? '127.0.0.1'
-        : hostname.includes(':')
-          ? `[${hostname}]`
-          : hostname
-      let fakeSes = new URL(urls.dev.ses(), `http://${host}:${port}`)
 
       let secretOf = (provider: EmailSettings['provider']) =>
         provider._tag === 'ses'
@@ -190,7 +171,7 @@ export class Email extends Context.Service<
           Effect.catchTag('HttpClientError', () =>
             Effect.fail(
               new EmailNotSent({
-                message: `Couldn’t reach ${name}. Check the server’s connection to the internet.`,
+                message: `Couldn’t reach ${name} at ${new URL(request.url).origin}.`,
               }),
             ),
           ),
@@ -216,14 +197,13 @@ export class Email extends Context.Service<
         )
       }
 
-      // Signed for SES, even when it goes to the fake, which checks it as SES would.
       let sesRequest = (
         provider: typeof SesProvider.Type,
         secretAccessKey: string,
         fields: Fields,
         now: Date,
       ) => {
-        let url = sesUrl(provider.region)
+        let url = sesUrl(provider.endpoint)
         let body = JSON.stringify({
           FromEmailAddress: fields.from,
           Destination: { ToAddresses: [fields.message.to] },
@@ -246,8 +226,7 @@ export class Email extends Context.Service<
           secretAccessKey,
           now,
         })
-        let fake = mode !== 'production' && provider.accessKeyId === EXAMPLE_AWS_KEY.accessKeyId
-        return HttpClientRequest.post(fake ? fakeSes : url).pipe(
+        return HttpClientRequest.post(url).pipe(
           HttpClientRequest.bodyText(body, 'application/json'),
           HttpClientRequest.setHeaders(headers),
         )
@@ -266,14 +245,13 @@ export class Email extends Context.Service<
         )
 
       let send = Effect.fn('Email.send')(function* (message: EmailMessage) {
-        let saved = yield* queries.saved
-        let settings = saved.email
+        let settings = (yield* queries.saved).email
         if (!settings) return yield* new EmailNotSetUp()
         if (!isEmailAddress(message.to)) return yield* new EmailAddressInvalid()
         let { provider, replyTo } = settings
         let secret = yield* secretOf(provider)
         let fields = {
-          from: mailbox(saved.siteTitle ?? '', settings.from, provider._tag),
+          from: mailbox(settings.fromName, settings.from, provider._tag),
           replyTo,
           message,
         }

@@ -12,8 +12,8 @@ bun run dev:demo
 
 That starts a throwaway site with the test posts and prints its address and admin password. Its
 data is in a temporary folder, deleted when you stop it (Ctrl-C), and it needs no configuration.
-The server restarts on changes; reload the browser. Its email goes to the site's own fake of
-Amazon SES, and shows at `/dev/emails`.
+The server restarts on changes; reload the browser. Its email is set up to send to the site's own
+fake of Amazon SES, and shows at `/dev/emails`.
 
 To keep a site of your own between runs, create `platform/.env` (ignored by Git), using your own
 secrets and absolute paths outside the checkout:
@@ -117,10 +117,10 @@ folder.
 
 `dev/` has a folder for each of its pages, like `admin/`: `index/` for `/dev`, a card linking to
 the others; `design/` for `/dev/design`, every component in `components/ui/`; and `emails/` for
-`/dev/emails`, what the site sent with its fake of Amazon SES, which takes email at `/dev/ses/…` as
-SES's API does, checking each request's signature. Outside production, email set up with AWS's
-example access key (`AKIAIOSFODNN7EXAMPLE`, and its secret) goes there instead of to SES.
-`dev/dev.tsx` keeps them all out of production.
+`/dev/emails`, what the site sent to its fake of Amazon SES. The fake is an SES endpoint at
+`/dev/ses`, which takes email as SES's API does, checking each request's signature, with AWS's
+example access key (`AKIAIOSFODNN7EXAMPLE`, and its secret); `/dev/emails` lists the settings that
+send to it. `dev/dev.tsx` keeps them all out of production.
 
 Each has the same files: `handler.tsx`, its handlers with its route table at the bottom;
 `page.tsx` and `page.css`, what it shows; and its tests. `admin/admin.tsx`, `admin/layout.tsx`,
