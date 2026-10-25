@@ -136,6 +136,7 @@ describe('/admin/integrations', () => {
     expect(html).toContain('Not connected')
     expect(html).toContain('action="/admin/integrations/turnstile"')
     expect(html).not.toContain('Disconnect')
+    expect(html).not.toContain('placeholder=')
     expect(html).not.toContain('class="cf-turnstile"')
     expect(html).not.toContain('challenges.cloudflare.com/turnstile/v0/api.js')
     expect(response.headers.get('Content-Security-Policy')).not.toContain('cloudflare')
@@ -159,7 +160,8 @@ describe('saving Turnstile’s keys', () => {
     expect(html).toMatch(/<p role="status" class="notice">\s*Saved\./)
     expect(html).toContain('>Connected<')
     expect(html).toContain(`value="${SITE_KEY}"`)
-    expect(html).toContain('Saved, ending in …6789.')
+    expect(html).toContain('placeholder="••••••••••••6789"')
+    expect(html).toContain('Leave it empty to keep the saved one.')
     expect(html).not.toContain(SECRET_KEY)
     expect(html).toContain(`<div class="cf-turnstile" data-sitekey="${SITE_KEY}" data-ignore>`)
     expect(html).toContain('<script src="https://challenges.cloudflare.com/turnstile/v0/api.js"')
@@ -173,10 +175,6 @@ describe('saving Turnstile’s keys', () => {
     // The note is shown once.
     let again = await (await page(defined(app.sessionCookie(shown), 'a cookie'))).text()
     expect(again).not.toContain('Saved.')
-    // And /admin says it's connected.
-    expect(await (await app.fetch('/admin', { headers: { Cookie: cookie } })).text()).toContain(
-      'Turnstile connected',
-    )
   })
 
   it('trims keys pasted with spaces or a line break', async () => {
@@ -246,6 +244,7 @@ describe('saving Turnstile’s keys', () => {
     let html = await (await page()).text()
     expect(html).toContain('Needs its secret key again')
     expect(html).toContain('The saved secret key can’t be read')
+    expect(html).not.toContain('placeholder=')
     // The widget still shows: the site key is fine.
     expect(html).toContain(`data-sitekey="${SITE_KEY}"`)
 

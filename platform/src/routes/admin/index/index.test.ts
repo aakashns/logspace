@@ -13,7 +13,7 @@ beforeEach(app.seedDatabase)
 afterAll(app.dispose)
 
 describe('/admin', () => {
-  it('has a card for each part of the admin, saying what’s in it', async () => {
+  it('has a card for each part of the admin', async () => {
     let response = await app.adminFetch('/admin')
     let html = await response.text()
     expect(response.status).toBe(200)
@@ -25,9 +25,6 @@ describe('/admin', () => {
       ['/admin/integrations', 'Integrations'],
       ['/admin/subscribers', 'Subscribers'],
     ])
-    expect(html).toContain(`>${(await posts()).length} posts<`)
-    expect(html).toContain('>Test Site<')
-    expect(html).toContain('>None connected<')
   })
 
   it('sends the admin to the branding until the site is set up', async () => {

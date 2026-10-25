@@ -103,15 +103,19 @@ function TurnstileSection(props: TurnstileSectionProps): Html {
           for="turnstile-secretKey"
           hint={
             status._tag === 'SetUp'
-              ? `Saved, ending in …${status.secretKeyEnding}. Leave it empty to keep it.`
+              ? 'Leave it empty to keep the saved one.'
               : SECRET_HINTS[status._tag]
           }
         >
+          {/* The saved one, masked: only its last characters are sent to the browser. */}
           <input
             id="turnstile-secretKey"
             name="secretKey"
             type="password"
             autocomplete="off"
+            placeholder={
+              status._tag === 'SetUp' ? `${'•'.repeat(12)}${status.secretKeyEnding}` : undefined
+            }
             aria-invalid={invalid('secretKey')}
             class="input"
           />
