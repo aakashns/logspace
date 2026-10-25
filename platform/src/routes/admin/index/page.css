@@ -1,35 +1,37 @@
 /*
- * /admin's cards (see page.tsx).
+ * /admin's links (see page.tsx).
  */
 @layer components {
-  .admin-cards {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
-    gap: 1rem;
-    list-style: none;
-  }
-
-  /* The whole card is the link. */
-  .admin-card {
+  /* No lines between them: each one's text is set off by the space around it. */
+  .admin-links {
     display: flex;
     flex-direction: column;
-    gap: 0.375rem;
-    height: 100%;
-    padding: 1.25rem;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-xl);
+    gap: 0.25rem;
+    margin-inline: -0.75rem;
+  }
 
-    &:hover {
-      background-color: var(--accent);
+  /* The whole row is the link. */
+  .admin-link {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    padding: 0.75rem;
+    border-radius: var(--radius-xl);
+    outline: none;
+    transition: background-color 150ms;
+
+    @media (hover: hover) {
+      &:hover {
+        background-color: var(--muted);
+      }
     }
     &:focus-visible {
-      outline: 2px solid var(--ring);
-      outline-offset: 2px;
+      box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 50%, transparent);
     }
 
     & h2 {
-      font-size: 1.125rem;
-      line-height: 1.4;
+      font-size: 1rem;
+      line-height: 1.5;
     }
   }
 }

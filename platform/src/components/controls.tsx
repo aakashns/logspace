@@ -17,6 +17,7 @@ import {
   SunIcon,
 } from './icons.tsx'
 import { stylesheet } from './stylesheet.ts'
+import { Button } from './ui/button.tsx'
 
 export const CONTROLS_STYLES = stylesheet(css)
 
@@ -58,15 +59,15 @@ export function ThemeToggle(): Html {
         </>
       }
     >
-      <button
-        type="button"
+      <Button
+        variant="ghost"
+        size="icon-lg"
         aria-label="Toggle dark mode"
-        class="nav-button"
         data-on:click={TOGGLE_THEME}
       >
         <MoonIcon class="in-light-theme" />
         <SunIcon class="in-dark-theme" />
-      </button>
+      </Button>
     </Tooltip>
   )
 }
@@ -75,9 +76,9 @@ export function ThemeToggle(): Html {
 export function RssLink(): Html {
   return (
     <Tooltip label="RSS feed">
-      <a href={urls.rss()} aria-label="RSS feed" class="nav-button">
+      <Button href={urls.rss()} variant="ghost" size="icon-lg" aria-label="RSS feed">
         <RssIcon />
-      </a>
+      </Button>
     </Tooltip>
   )
 }
@@ -86,9 +87,9 @@ export function RssLink(): Html {
 export function ComposeLink(): Html {
   return (
     <Tooltip label="New Post">
-      <a href={urls.admin.newPost()} aria-label="New Post" class="nav-button">
+      <Button href={urls.admin.newPost()} variant="ghost" size="icon-lg" aria-label="New Post">
         <ComposeIcon />
-      </a>
+      </Button>
     </Tooltip>
   )
 }
@@ -98,9 +99,9 @@ export function LogoutButton(): Html {
   return (
     <form method="post" action={urls.admin.logout()}>
       <Tooltip label="Log out">
-        <button type="submit" aria-label="Log out" class="nav-button">
+        <Button type="submit" variant="ghost" size="icon-lg" aria-label="Log out">
           <LogoutIcon />
-        </button>
+        </Button>
       </Tooltip>
     </form>
   )
@@ -122,8 +123,9 @@ const SHARE_LABEL = `${IS_SHARED} ? 'Link copied' : 'Share'`
 
 export function ShareButton(props: { url: string }): Html {
   return (
-    <button
-      type="button"
+    <Button
+      variant="ghost"
+      size="icon-lg"
       aria-label="Share"
       title="Share"
       class="share-button"
@@ -135,6 +137,6 @@ export function ShareButton(props: { url: string }): Html {
     >
       <ShareIcon class="share-icon" />
       <CheckIcon class="check-icon" />
-    </button>
+    </Button>
   )
 }

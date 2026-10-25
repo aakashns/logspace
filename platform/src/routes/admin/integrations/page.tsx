@@ -1,14 +1,20 @@
 import type { Child, Html } from '#jsx/jsx-runtime'
 
 import { stylesheet } from '../../../components/stylesheet.ts'
+import { Alert, ALERT_STYLES, AlertDescription, AlertTitle } from '../../../components/ui/alert.tsx'
+import { Badge, BADGE_STYLES } from '../../../components/ui/badge.tsx'
+import { Button } from '../../../components/ui/button.tsx'
+import { FieldGroup } from '../../../components/ui/field.tsx'
+import { Input } from '../../../components/ui/input.tsx'
 import { UNREADABLE_SECRET_MESSAGE, type TurnstileIssue } from '../../../data/site/site.ts'
 import type { TurnstileFailure, TurnstileStatus } from '../../../data/site/turnstile.ts'
 import { urls } from '../../../lib/urls.ts'
-import { Field, TextField } from '../fields.tsx'
+import { FIELDS_STYLES, hintId, LabelledField, TextField } from '../fields.tsx'
 import { BackLink } from '../layout.tsx'
 import css from './page.css' with { type: 'text' }
 
-export const INTEGRATIONS_PAGE_STYLES = stylesheet(css)
+export const INTEGRATIONS_PAGE_STYLES =
+  FIELDS_STYLES + ALERT_STYLES + BADGE_STYLES + stylesheet(css)
 
 const TURNSTILE_SCRIPT = 'https://challenges.cloudflare.com/turnstile/v0/api.js'
 
@@ -40,11 +46,11 @@ export function IntegrationsPage(props: { turnstile: TurnstileSectionProps }): H
   )
 }
 
-const STATUS_LABELS: Record<TurnstileStatus['_tag'], string> = {
-  NotSetUp: 'Not connected',
-  SetUp: 'Connected',
-  SecretUnreadable: 'Needs its secret key again',
-}
+const STATUSES = {
+  NotSetUp: { label: 'Not connected', variant: 'secondary' },
+  SetUp: { label: 'Connected', variant: 'default' },
+  SecretUnreadable: { label: 'Needs its secret key again', variant: 'destructive' },
+} as const satisfies Record<TurnstileStatus['_tag'], { label: string; variant: string }>
 
 const SECRET_HINTS = {
   NotSetUp: 'Sent only to Cloudflare, to check the widget’s answers.',
@@ -56,13 +62,12 @@ function TurnstileSection(props: TurnstileSectionProps): Html {
   let invalid = (field: TurnstileIssue['field']) =>
     rejected?.issues.some((issue) => issue.field === field) ? ('true' as const) : undefined
   let siteKey = status._tag === 'NotSetUp' ? '' : status.siteKey
+  let badge = STATUSES[status._tag]
   return (
     <section class="integration" aria-labelledby="turnstile-heading">
       <div class="integration-heading">
         <h2 id="turnstile-heading">Cloudflare Turnstile</h2>
-        <p class={status._tag === 'SetUp' ? 'integration-status' : 'integration-status muted'}>
-          {STATUS_LABELS[status._tag]}
-        </p>
+        <Badge variant={badge.variant}>{badge.label}</Badge>
       </div>
       <p class="muted">
         Tells people from bots, without a puzzle, on forms anyone can send. Add a widget in{' '}
@@ -70,70 +75,68 @@ function TurnstileSection(props: TurnstileSectionProps): Html {
         with this site’s domain as a hostname, then copy its keys here.
       </p>
       {notice === 'saved' ? (
-        <p role="status" class="notice">
-          Saved. Try the widget below.
-        </p>
+        <Alert role="status">
+          <AlertTitle>Saved. Try the widget below.</AlertTitle>
+        </Alert>
       ) : null}
       {notice === 'removed' ? (
-        <p role="status" class="notice">
-          Disconnected, and its keys forgotten.
-        </p>
+        <Alert role="status">
+          <AlertTitle>Disconnected, and its keys forgotten.</AlertTitle>
+        </Alert>
       ) : null}
       {rejected ? (
-        <div role="alert" class="alert">
-          <p>The keys weren’t saved.</p>
-          <ul>
-            {rejected.issues.map((issue) => (
-              <li>{`${issue.field === 'siteKey' ? 'Site key' : 'Secret key'}: ${issue.message}`}</li>
-            ))}
-          </ul>
-        </div>
+        <Alert variant="destructive">
+          <AlertTitle>The keys weren’t saved.</AlertTitle>
+          <AlertDescription>
+            <ul>
+              {rejected.issues.map((issue) => (
+                <li>{`${issue.field === 'siteKey' ? 'Site key' : 'Secret key'}: ${issue.message}`}</li>
+              ))}
+            </ul>
+          </AlertDescription>
+        </Alert>
       ) : null}
-      <form method="post" action={urls.admin.saveTurnstile()} class="form">
-        <TextField
-          label="Site key"
-          name="siteKey"
-          id="turnstile-siteKey"
-          value={rejected?.siteKey ?? siteKey}
-          invalid={invalid('siteKey')}
-          hint="Public: pages show it to load the widget."
-        />
-        <Field
-          label="Secret key"
-          for="turnstile-secretKey"
-          hint={
-            status._tag === 'SetUp'
-              ? 'Leave it empty to keep the saved one.'
-              : SECRET_HINTS[status._tag]
-          }
-        >
-          {/* The saved one, masked: only its last characters are sent to the browser. */}
-          <input
-            id="turnstile-secretKey"
-            name="secretKey"
-            type="password"
-            autocomplete="off"
-            placeholder={
-              status._tag === 'SetUp' ? `${'•'.repeat(12)}${status.secretKeyEnding}` : undefined
-            }
-            aria-invalid={invalid('secretKey')}
-            class="input"
+      <form method="post" action={urls.admin.saveTurnstile()}>
+        <FieldGroup>
+          <TextField
+            label="Site key"
+            name="siteKey"
+            id="turnstile-siteKey"
+            value={rejected?.siteKey ?? siteKey}
+            invalid={invalid('siteKey')}
+            hint="Public: pages show it to load the widget."
           />
-        </Field>
-        <div class="actions">
-          <button type="submit" class="button">
-            Save
-          </button>
-          {status._tag === 'NotSetUp' ? null : (
-            <button
-              type="submit"
-              formaction={urls.admin.removeTurnstile()}
-              class="destructive-button"
-            >
-              Disconnect
-            </button>
-          )}
-        </div>
+          <LabelledField
+            label="Secret key"
+            for="turnstile-secretKey"
+            hint={
+              status._tag === 'SetUp'
+                ? 'Leave it empty to keep the saved one.'
+                : SECRET_HINTS[status._tag]
+            }
+          >
+            {/* The saved one, masked: only its last characters are sent to the browser. */}
+            <Input
+              id="turnstile-secretKey"
+              name="secretKey"
+              type="password"
+              autocomplete="off"
+              placeholder={
+                status._tag === 'SetUp' ? `${'•'.repeat(12)}${status.secretKeyEnding}` : undefined
+              }
+              aria-invalid={invalid('secretKey')}
+              aria-describedby={hintId('turnstile-secretKey')}
+            />
+          </LabelledField>
+          <div class="actions">
+            <Button type="submit">Save</Button>
+            {status._tag === 'NotSetUp' ? null : (
+              <Button type="submit" formaction={urls.admin.removeTurnstile()} variant="destructive">
+                Disconnect
+              </Button>
+            )}
+          </div>
+        </FieldGroup>
       </form>
       {status._tag === 'NotSetUp' ? (
         // Disconnected since the page with the widget was shown.
@@ -155,24 +158,22 @@ function TurnstileTry(props: {
 }): Html {
   let { siteKey, verification } = props
   return (
-    <div class="turnstile-try">
-      <h3>Try it</h3>
+    <section class="turnstile-try" aria-labelledby="turnstile-try-heading">
+      <h3 id="turnstile-try-heading">Try it</h3>
       <p class="muted">
         Complete the challenge, then verify its answer with Cloudflare. If the widget shows an error
         instead, check that this site’s domain is one of its hostnames on Cloudflare.
       </p>
       {verification ? <VerificationResult verification={verification} /> : null}
-      <form method="post" action={urls.admin.verifyTurnstile()} class="form">
+      <form method="post" action={urls.admin.verifyTurnstile()} class="turnstile-form">
         {/* The widget fills this in, and adds the token to the form. */}
         <div class="cf-turnstile" data-sitekey={siteKey} data-ignore></div>
-        <div class="actions">
-          <button type="submit" class="secondary-button">
-            Verify
-          </button>
-        </div>
+        <Button type="submit" variant="outline">
+          Verify
+        </Button>
       </form>
       <script src={TURNSTILE_SCRIPT} async defer></script>
-    </div>
+    </section>
   )
 }
 
@@ -180,16 +181,19 @@ function VerificationResult(props: { verification: TurnstileVerification }): Htm
   let { verification } = props
   if (verification._tag === 'Verified') {
     return (
-      <p role="status" class="notice">
-        Verified: Cloudflare accepted the answer
-        {verification.hostname ? `, solved on ${verification.hostname}` : ''}. Turnstile works.
-      </p>
+      <Alert role="status">
+        <AlertTitle>
+          Verified: Cloudflare accepted the answer
+          {verification.hostname ? `, solved on ${verification.hostname}` : ''}. Turnstile works.
+        </AlertTitle>
+      </Alert>
     )
   }
   return (
-    <div role="alert" class="alert">
-      {failureMessage(verification)}
-    </div>
+    <Alert variant="destructive">
+      <AlertTitle>Not verified.</AlertTitle>
+      <AlertDescription>{failureMessage(verification)}</AlertDescription>
+    </Alert>
   )
 }
 

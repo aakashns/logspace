@@ -6,28 +6,28 @@ import css from './page.css' with { type: 'text' }
 
 export const ADMIN_INDEX_STYLES = stylesheet(css)
 
-// /admin: a card for each part of the admin.
+// /admin: a link to each part of the admin.
 export function AdminIndexPage(): Html {
   return (
     <section class="admin-page">
       <h1 class="page-title">Manage Site</h1>
-      <ul class="admin-cards">
-        <AdminCard
+      <ul class="admin-links">
+        <AdminLink
           href={urls.admin.posts()}
           title="Manage Posts"
           text="Write new posts, and edit or delete published ones."
         />
-        <AdminCard
+        <AdminLink
           href={urls.admin.branding()}
           title="Branding"
           text="The site’s title, URL, home page introduction, logos, icon, and banner image."
         />
-        <AdminCard
+        <AdminLink
           href={urls.admin.integrations()}
           title="Integrations"
           text="Services the site connects to, like Cloudflare Turnstile."
         />
-        <AdminCard
+        <AdminLink
           href={urls.admin.subscribers()}
           title="Subscribers"
           text="People who follow the site by email."
@@ -37,10 +37,10 @@ export function AdminIndexPage(): Html {
   )
 }
 
-function AdminCard(props: { href: string; title: string; text: string }): Html {
+function AdminLink(props: { href: string; title: string; text: string }): Html {
   return (
     <li>
-      <a href={props.href} class="admin-card">
+      <a href={props.href} class="admin-link">
         <h2>{props.title}</h2>
         <p class="muted">{props.text}</p>
       </a>

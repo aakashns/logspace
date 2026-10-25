@@ -69,7 +69,7 @@ describe('the home page', () => {
     expect(html).toMatch(
       /<link rel="alternate" type="application\/rss\+xml"[^>]*href="https:\/\/example\.com\/rss\.xml"/,
     )
-    expect(html).toMatch(/<a href="\/rss\.xml" aria-label="RSS feed"/)
+    expect(html).toMatch(/<a [^>]*href="\/rss\.xml" aria-label="RSS feed"/)
   })
 
   it('inlines every page’s styles, with the heading font embedded, and its own', async () => {

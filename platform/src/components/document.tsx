@@ -12,10 +12,13 @@ import resetCss from './reset.css' with { type: 'text' }
 import { SiteLogo } from './site-logo.tsx'
 import { stylesheet } from './stylesheet.ts'
 import themeCss from './theme.css' with { type: 'text' }
+import { BUTTON_STYLES } from './ui/button.tsx'
 
-// What every page inlines before its own styles: the reset, the theme, and the navbar's. The
-// page gets it from Assets, which embeds the heading font (see ../lib/http/assets.ts).
-export const DOCUMENT_STYLES = stylesheet(resetCss, themeCss, layoutCss) + CONTROLS_STYLES
+// What every page inlines before its own styles: the reset, the theme, and the navbar's, with
+// its buttons. The page gets it from Assets, which embeds the heading font (see
+// ../lib/http/assets.ts).
+export const DOCUMENT_STYLES =
+  stylesheet(resetCss, themeCss, layoutCss) + BUTTON_STYLES + CONTROLS_STYLES
 
 // The app's name, which pages show as the site's title until the site has one.
 const APP_NAME = 'LogSpace'

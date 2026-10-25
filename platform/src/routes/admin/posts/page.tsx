@@ -1,6 +1,7 @@
 import type { Html } from '#jsx/jsx-runtime'
 
 import { stylesheet } from '../../../components/stylesheet.ts'
+import { Button } from '../../../components/ui/button.tsx'
 import { formatPostDate } from '../../../data/posts/format.ts'
 import { summarizePost, type Post } from '../../../data/posts/presentation.ts'
 import { urls } from '../../../lib/urls.ts'
@@ -17,9 +18,7 @@ export function PostsPage(props: { posts: readonly Post[] }): Html {
       <BackLink />
       <div class="admin-heading">
         <h1 class="page-title">Manage Posts</h1>
-        <a href={urls.admin.newPost()} class="button">
-          New Post
-        </a>
+        <Button href={urls.admin.newPost()}>New Post</Button>
       </div>
       {posts.length === 0 ? (
         <p class="muted">No posts yet.</p>

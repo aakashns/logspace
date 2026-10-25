@@ -1,38 +1,16 @@
 /*
- * The navbar's and posts' buttons (see controls.tsx).
+ * The posts' share button (see controls.tsx).
  */
 @layer components {
   /*
-   * Same size and right-edge position as the theme toggle, so the two line up. The button is
-   * taller than the line it sits on, so negative block margins keep it from adding height. Its
-   * check mark shows for a moment after the link is copied.
+   * The theme toggle's size, so their right edges line up. The button is taller than the line it
+   * sits on, so negative block margins keep it from adding height. Its check mark shows for a
+   * moment after the link is copied.
    */
   .share-button {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    width: 2.25rem;
-    height: 2.25rem;
     margin-block: -0.375rem;
-    border-radius: 9999px;
     color: var(--muted-foreground);
-    transition: background-color 150ms;
 
-    &:hover {
-      background-color: var(--control-hover);
-    }
-    &:active {
-      background-color: var(--control-active);
-    }
-    &:focus-visible {
-      outline: 2px solid var(--ring);
-      outline-offset: 2px;
-    }
-    & svg {
-      width: 1.25rem;
-      height: 1.25rem;
-    }
     & .check-icon,
     &.copied .share-icon {
       display: none;

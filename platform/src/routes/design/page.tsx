@@ -4,7 +4,7 @@ import { PhosphorIcon } from '../../components/icons.tsx'
 import { stylesheet } from '../../components/stylesheet.ts'
 import { Alert, ALERT_STYLES, AlertDescription, AlertTitle } from '../../components/ui/alert.tsx'
 import { Badge, BADGE_STYLES } from '../../components/ui/badge.tsx'
-import { Button, BUTTON_STYLES } from '../../components/ui/button.tsx'
+import { Button } from '../../components/ui/button.tsx'
 import {
   Card,
   CardAction,
@@ -54,8 +54,8 @@ import { Switch, SWITCH_STYLES } from '../../components/ui/switch.tsx'
 import { Textarea, TEXTAREA_STYLES } from '../../components/ui/textarea.tsx'
 import css from './page.css' with { type: 'text' }
 
+// Every page has Button's (see document.tsx).
 export const DESIGN_PAGE_STYLES =
-  BUTTON_STYLES +
   BADGE_STYLES +
   INPUT_STYLES +
   TEXTAREA_STYLES +

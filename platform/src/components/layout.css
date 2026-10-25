@@ -62,32 +62,6 @@
     white-space: nowrap;
   }
 
-  /* A round icon button in the navbar, like the theme toggle and the admin logout button. */
-  .nav-button {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 2.25rem;
-    height: 2.25rem;
-    border-radius: 9999px;
-    transition: background-color 150ms;
-
-    &:hover {
-      background-color: var(--control-hover);
-    }
-    &:active {
-      background-color: var(--control-active);
-    }
-    &:focus-visible {
-      outline: 2px solid var(--ring);
-      outline-offset: 2px;
-    }
-    & svg {
-      width: 1.25rem;
-      height: 1.25rem;
-    }
-  }
-
   /*
    * A small label below a button, shown on mouse hover and keyboard focus, with CSS alone. It's
    * right-aligned with the button so it stays on screen at the right edge of the navbar.
