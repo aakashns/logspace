@@ -18,7 +18,7 @@ import { AppConfig } from './lib/config.ts'
 import { DatabaseLive, runMigrations } from './lib/database.ts'
 import { Assets } from './lib/http/assets.ts'
 import { AppMiddleware } from './lib/http/middleware.ts'
-import { AdminAuth } from './lib/http/session.ts'
+import { AdminAuth } from './lib/http/admin-session.ts'
 import { Images } from './lib/images.ts'
 import { MediaStorage } from './lib/media-storage.ts'
 import { PublicHttpLive, PublicNetwork } from './lib/public-http.ts'
@@ -27,7 +27,7 @@ import { ComposeRoutes } from './routes/admin/compose/handler.tsx'
 import { BrandingRoutes } from './routes/admin/branding/handler.tsx'
 import { AdminIndexRoutes } from './routes/admin/index/handler.tsx'
 import { IntegrationRoutes } from './routes/admin/integrations/handler.tsx'
-import { LoginRoutes } from './routes/admin/login/handler.tsx'
+import { AdminLoginRoutes } from './routes/admin/login/handler.tsx'
 import { PostListRoutes } from './routes/admin/posts/handler.tsx'
 import { SubscriberRoutes } from './routes/admin/subscribers/handler.tsx'
 import { AssetRoutes } from './routes/assets/handler.ts'
@@ -120,7 +120,7 @@ export const AppRoutes = Layer.mergeAll(
   SiteFileRoutes,
   LinkImageRoutes,
   AssetRoutes,
-  LoginRoutes,
+  AdminLoginRoutes,
   AdminIndexRoutes,
   PostListRoutes,
   ComposeRoutes,

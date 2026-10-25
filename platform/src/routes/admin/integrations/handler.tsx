@@ -9,11 +9,11 @@ import { Email } from '../../../data/site/email.ts'
 import { SiteConfigQueries } from '../../../data/site/queries.ts'
 import type { EmailForm } from '../../../data/site/site.ts'
 import { Turnstile } from '../../../data/site/turnstile.ts'
-import { formText, LOGIN_FORM_LIMIT, readForm } from '../../../lib/http/forms.ts'
+import { formText, SMALL_FORM_LIMIT, readForm } from '../../../lib/http/forms.ts'
 import { redirect } from '../../../lib/http/responses.ts'
-import { AdminAuth, type Session } from '../../../lib/http/session.ts'
+import { AdminAuth, type AdminSession } from '../../../lib/http/admin-session.ts'
 import { urls } from '../../../lib/urls.ts'
-import { adminPage, loggedIn } from '../admin.tsx'
+import { adminOnly, adminPage } from '../admin.tsx'
 import {
   type EmailSectionProps,
   type EmailTest,
@@ -24,7 +24,7 @@ import {
 } from './page.tsx'
 
 // Its forms are a few short keys, or the widget's token (at most 2 KB).
-const FORM_LIMIT = LOGIN_FORM_LIMIT
+const FORM_LIMIT = SMALL_FORM_LIMIT
 
 // The page, with what's to be shown in each section: what was just done in it, if anything.
 const integrationsPage = (
@@ -63,12 +63,12 @@ type Flash = keyof typeof FLASHES
 const isFlash = (flash: string | undefined): flash is Flash =>
   flash !== undefined && Object.hasOwn(FLASHES, flash)
 
-const doneRedirect = (session: Session, flash: Flash) =>
+const doneRedirect = (session: AdminSession, flash: Flash) =>
   Effect.map(AdminAuth, (auth) =>
     auth.saveSession(redirect(urls.admin.integrations(), 303), { ...session, flash }),
   )
 
-const showIntegrations = loggedIn((session) =>
+const showIntegrations = adminOnly((session) =>
   Effect.gen(function* () {
     let auth = yield* AdminAuth
     let { flash, ...read } = session
@@ -77,7 +77,7 @@ const showIntegrations = loggedIn((session) =>
   }),
 )
 
-const saveTurnstile = loggedIn((session) =>
+const saveTurnstile = adminOnly((session) =>
   Effect.gen(function* () {
     let form = yield* readForm(FORM_LIMIT)
     let keys = { siteKey: formText(form, 'siteKey'), secretKey: formText(form, 'secretKey') }
@@ -95,7 +95,7 @@ const saveTurnstile = loggedIn((session) =>
   }),
 )
 
-const removeTurnstile = loggedIn((session) =>
+const removeTurnstile = adminOnly((session) =>
   Effect.gen(function* () {
     yield* (yield* SiteConfigCommands).removeIntegration('turnstile')
     return yield* doneRedirect(session, 'turnstileRemoved')
@@ -104,7 +104,7 @@ const removeTurnstile = loggedIn((session) =>
 
 // Checks the widget's answer with Cloudflare, and shows how that went. The widget puts its token
 // in the form as cf-turnstile-response.
-const verifyTurnstile = loggedIn(() =>
+const verifyTurnstile = adminOnly(() =>
   Effect.gen(function* () {
     let form = yield* readForm(FORM_LIMIT)
     let verification: TurnstileVerification = yield* (yield* Turnstile)
@@ -135,7 +135,7 @@ function verificationStatus(verification: TurnstileVerification): number {
   }
 }
 
-const saveEmail = loggedIn((session) =>
+const saveEmail = adminOnly((session) =>
   Effect.gen(function* () {
     let form = yield* readForm(FORM_LIMIT)
     let typed: EmailForm = {
@@ -169,7 +169,7 @@ const saveEmail = loggedIn((session) =>
   }),
 )
 
-const removeEmail = loggedIn((session) =>
+const removeEmail = adminOnly((session) =>
   Effect.gen(function* () {
     yield* (yield* SiteConfigCommands).removeIntegration('email')
     return yield* doneRedirect(session, 'emailRemoved')
@@ -177,7 +177,7 @@ const removeEmail = loggedIn((session) =>
 )
 
 // Sends a test email, with the saved settings, to the address typed, and shows how that went.
-const testEmail = loggedIn(() =>
+const testEmail = adminOnly(() =>
   Effect.gen(function* () {
     let to = formText(yield* readForm(FORM_LIMIT), 'to')
     let { siteTitle, siteUrl } = yield* (yield* SiteConfigQueries).saved

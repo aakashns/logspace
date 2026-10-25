@@ -8,9 +8,10 @@ import { Input, INPUT_STYLES } from '../../../components/ui/input.tsx'
 import { urls } from '../../../lib/urls.ts'
 import css from './page.css' with { type: 'text' }
 
-export const LOGIN_PAGE_STYLES = FIELD_STYLES + INPUT_STYLES + TURNSTILE_STYLES + stylesheet(css)
+export const ADMIN_LOGIN_PAGE_STYLES =
+  FIELD_STYLES + INPUT_STYLES + TURNSTILE_STYLES + stylesheet(css)
 
-export function LoginPage(props: {
+export function AdminLoginPage(props: {
   error?: string | undefined
   enabled: boolean
   // Turnstile's widget, while it's enabled, and why the form was refused if it didn't pass.
@@ -21,7 +22,7 @@ export function LoginPage(props: {
     <section class="admin-page">
       <h1 class="page-title">Manage Site</h1>
       {enabled ? (
-        <form method="post" action={urls.admin.login()} class="login-form">
+        <form method="post" action={urls.admin.login()} class="admin-login-form">
           <Field invalid={error !== undefined}>
             <FieldLabel for="password">Admin Password</FieldLabel>
             <Input

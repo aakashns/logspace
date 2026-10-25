@@ -1,6 +1,6 @@
 // Cloudflare Turnstile, set up at /admin/integrations: whether it's set up, checking a widget's
 // answer (its token) with Cloudflare, which is the only way to know a token is real, and whether
-// a login may go ahead.
+// an admin login may go ahead.
 // https://developers.cloudflare.com/turnstile/get-started/server-side-validation/
 import { Context, Duration, Effect, Layer, Schema } from 'effect'
 import { HttpClient, HttpClientRequest } from 'effect/http'
@@ -76,10 +76,10 @@ export class Turnstile extends Context.Service<
     readonly status: Effect.Effect<TurnstileStatus>
     // Checks a widget's token with Cloudflare, returning the site it was solved on.
     readonly verify: (token: string) => Effect.Effect<{ hostname: string }, TurnstileFailure>
-    // Whether a login form may go ahead: once Turnstile is enabled, only with a token Cloudflare
+    // Whether an admin login may go ahead: once Turnstile is enabled, only with a token Cloudflare
     // accepts. Nothing gets around it, not even Cloudflare being out of reach; the way back in is
     // `logspace turnstile off`.
-    readonly checkLogin: (token: string) => Effect.Effect<void, TurnstileFailure>
+    readonly checkAdminLogin: (token: string) => Effect.Effect<void, TurnstileFailure>
   }
 >()('logspace/Turnstile') {
   static readonly layer = Layer.effect(
@@ -156,11 +156,11 @@ export class Turnstile extends Context.Service<
         return { hostname: answer.hostname ?? '' }
       })
 
-      let checkLogin = Effect.fn('Turnstile.checkLogin')(function* (token: string) {
+      let checkAdminLogin = Effect.fn('Turnstile.checkAdminLogin')(function* (token: string) {
         if ((yield* queries.saved).turnstile?.enabled) yield* verify(token)
       })
 
-      return Turnstile.of({ status, verify, checkLogin })
+      return Turnstile.of({ status, verify, checkAdminLogin })
     }),
   )
 }

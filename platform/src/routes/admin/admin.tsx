@@ -7,7 +7,7 @@ import type { Child } from '#jsx/jsx-runtime'
 import { MalformedForm, UPLOAD_TOO_LARGE_MESSAGE, UploadTooLarge } from '../../lib/http/forms.ts'
 import { pageContext, pageResponse, requestUrl } from '../../lib/http/pages.ts'
 import { redirect, textResponse } from '../../lib/http/responses.ts'
-import { AdminAuth, type Session } from '../../lib/http/session.ts'
+import { AdminAuth, type AdminSession } from '../../lib/http/admin-session.ts'
 import { urls } from '../../lib/urls.ts'
 import { AdminMessage, AdminPage } from './layout.tsx'
 
@@ -51,11 +51,11 @@ export const privately = (response: HttpServerResponse.HttpServerResponse) =>
     'X-Robots-Tag': 'noindex',
   })
 
-// An admin page that needs a login: anyone else is sent to the login page, before a byte of what
+// An admin page that needs the admin login: anyone else is sent to the admin login page, before a byte of what
 // they sent is read. A form over the upload limits gets a page saying so.
-export const loggedIn = <R,>(
+export const adminOnly = <R,>(
   handler: (
-    session: Session,
+    session: AdminSession,
   ) => Effect.Effect<HttpServerResponse.HttpServerResponse, UploadTooLarge | MalformedForm, R>,
 ) =>
   Effect.gen(function* () {
@@ -64,7 +64,7 @@ export const loggedIn = <R,>(
   }).pipe(
     Effect.catchTags({
       // An old session's cookies go, so pages stop showing the link to the composer.
-      NotLoggedIn: () =>
+      NotLoggedInAsAdmin: () =>
         Effect.map(AdminAuth, (auth) => auth.saveSession(redirect(urls.admin.login()), undefined)),
       UploadTooLarge: () => message('Upload too large', UPLOAD_TOO_LARGE_MESSAGE, 413),
       MalformedForm: () => Effect.succeed(textResponse('Bad Request', 400)),

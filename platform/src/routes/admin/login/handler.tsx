@@ -6,15 +6,15 @@ import { SiteConfigQueries } from '../../../data/site/queries.ts'
 import { Turnstile } from '../../../data/site/turnstile.ts'
 import {
   formText,
-  LOGIN_FORM_LIMIT,
+  SMALL_FORM_LIMIT,
   readForm,
   UPLOAD_TOO_LARGE_MESSAGE,
 } from '../../../lib/http/forms.ts'
 import { redirect } from '../../../lib/http/responses.ts'
-import { AdminAuth } from '../../../lib/http/session.ts'
+import { AdminAuth } from '../../../lib/http/admin-session.ts'
 import { urls } from '../../../lib/urls.ts'
 import { adminPage, message, privately } from '../admin.tsx'
-import { LOGIN_PAGE_STYLES, LoginPage } from './page.tsx'
+import { ADMIN_LOGIN_PAGE_STYLES, AdminLoginPage } from './page.tsx'
 
 const WRONG_PASSWORD = 'That password isn’t right.'
 
@@ -27,9 +27,9 @@ const loginPage = (errors?: { password?: string; turnstile?: string }) =>
       enabled && saved?.enabled ? { siteKey: saved.siteKey, error: errors?.turnstile } : undefined
     return yield* adminPage(
       'Log in',
-      <LoginPage enabled={enabled} error={errors?.password} turnstile={turnstile} />,
+      <AdminLoginPage enabled={enabled} error={errors?.password} turnstile={turnstile} />,
       {
-        styles: LOGIN_PAGE_STYLES,
+        styles: ADMIN_LOGIN_PAGE_STYLES,
         status: errors ? 401 : 200,
         loggedIn: false,
         turnstile: turnstile !== undefined,
@@ -47,9 +47,9 @@ const showLogin = Effect.gen(function* () {
 // the password, so guessing it takes passing Turnstile each time.
 const logIn = Effect.gen(function* () {
   let auth = yield* AdminAuth
-  let form = yield* readForm(LOGIN_FORM_LIMIT)
+  let form = yield* readForm(SMALL_FORM_LIMIT)
   let checked = yield* Effect.result(
-    (yield* Turnstile).checkLogin(formText(form, 'cf-turnstile-response')),
+    (yield* Turnstile).checkAdminLogin(formText(form, 'cf-turnstile-response')),
   )
   if (Result.isFailure(checked)) {
     return yield* loginPage({
@@ -78,7 +78,7 @@ const logOut = Effect.gen(function* () {
   return privately(auth.saveSession(redirect(urls.admin.login()), undefined))
 })
 
-export const LoginRoutes = HttpRouter.addAll([
+export const AdminLoginRoutes = HttpRouter.addAll([
   HttpRouter.route('GET', '/admin/login', showLogin),
   HttpRouter.route('POST', '/admin/login', logIn),
   HttpRouter.route('POST', '/admin/logout', logOut),
