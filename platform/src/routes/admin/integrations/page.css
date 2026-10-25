@@ -1,6 +1,6 @@
 /*
  * /admin/integrations: a section for each service (see page.tsx), closed to its name and status
- * until opened, with a line below it.
+ * until opened, with a line above and below.
  */
 @layer components {
   .integration-summary {

@@ -58,6 +58,7 @@ export function IntegrationsPage(props: { turnstile: TurnstileSectionProps }): H
         AUTH_SESSION_SECRET, and never shown again once saved.
       </p>
       <TurnstileSection {...props.turnstile} />
+      <Separator />
     </section>
   )
 }
@@ -184,8 +185,8 @@ function TurnstileSection(props: TurnstileSectionProps): Html {
   )
 }
 
-// A service's name and status, which open to its settings, with a line below to set it apart from
-// the next one.
+// A service's name and status, which open to its settings, with a line above to set it apart from
+// the one before (the page closes the last with another).
 function Integration(props: {
   id: string
   title: string
@@ -196,6 +197,7 @@ function Integration(props: {
   let { id, title, badge, open, children } = props
   return (
     <>
+      <Separator />
       <details open={open}>
         <summary class="integration-summary">
           <h2 id={`${id}-heading`}>{title}</h2>
@@ -206,7 +208,6 @@ function Integration(props: {
           {children}
         </section>
       </details>
-      <Separator />
     </>
   )
 }
