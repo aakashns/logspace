@@ -97,7 +97,11 @@ const verify = async (token: string | undefined) =>
     token === undefined ? {} : { 'cf-turnstile-response': token },
     await login(),
   )
-const alert = (html: string) => capture(html, /<div role="alert" class="alert">([^]*?)<\/div>/)
+const alert = (html: string) =>
+  capture(
+    html,
+    /<div data-slot="alert" data-variant="destructive" role="alert">([^]*?)<\/div><\/div>/,
+  )
 
 describe('/admin/integrations', () => {
   it('is only for the admin, and nothing is saved or checked without a login', async () => {
@@ -157,7 +161,7 @@ describe('saving Turnstile’s keys', () => {
 
     let shown = await page(cookie)
     let html = await shown.text()
-    expect(html).toMatch(/<p role="status" class="notice">\s*Saved\./)
+    expect(html).toMatch(/role="status"><div data-slot="alert-title">\s*Saved\./)
     expect(html).toContain('>Connected<')
     expect(html).toContain(`value="${SITE_KEY}"`)
     expect(html).toContain('placeholder="••••••••••••6789"')
@@ -361,7 +365,7 @@ describe('verifying the widget’s answer', () => {
     let html = await response.text()
     expect(response.status).toBe(200)
     expect(html).toMatch(
-      /<p role="status" class="notice">\s*Verified: Cloudflare accepted the answer, solved on example\.com\. Turnstile works\.\s*<\/p>/,
+      /role="status"><div data-slot="alert-title">\s*Verified: Cloudflare accepted the answer, solved on example\.com\. Turnstile works\.\s*<\/div>/,
     )
     expect(requests).toHaveLength(1)
     let [request] = requests

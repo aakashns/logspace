@@ -1,10 +1,13 @@
 import type { Html } from '#jsx/jsx-runtime'
 
 import { stylesheet } from '../../../components/stylesheet.ts'
+import { Button } from '../../../components/ui/button.tsx'
+import { Field, FIELD_STYLES, FieldError, FieldLabel } from '../../../components/ui/field.tsx'
+import { Input, INPUT_STYLES } from '../../../components/ui/input.tsx'
 import { urls } from '../../../lib/urls.ts'
 import css from './page.css' with { type: 'text' }
 
-export const LOGIN_PAGE_STYLES = stylesheet(css)
+export const LOGIN_PAGE_STYLES = FIELD_STYLES + INPUT_STYLES + stylesheet(css)
 
 export function LoginPage(props: { error?: string | undefined; enabled: boolean }): Html {
   let { error, enabled } = props
@@ -13,26 +16,21 @@ export function LoginPage(props: { error?: string | undefined; enabled: boolean 
       <h1 class="page-title">Manage Site</h1>
       {enabled ? (
         <form method="post" action={urls.admin.login()} class="login-form">
-          <label for="password">Admin Password</label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            autocomplete="current-password"
-            required
-            autofocus
-            aria-invalid={error ? 'true' : undefined}
-            aria-describedby={error ? 'password-error' : undefined}
-            class="input"
-          />
-          {error ? (
-            <p id="password-error" role="alert" class="error">
-              {error}
-            </p>
-          ) : null}
-          <button type="submit" class="button">
-            Log in
-          </button>
+          <Field invalid={error !== undefined}>
+            <FieldLabel for="password">Admin Password</FieldLabel>
+            <Input
+              id="password"
+              name="password"
+              type="password"
+              autocomplete="current-password"
+              required
+              autofocus
+              aria-invalid={error ? 'true' : undefined}
+              aria-describedby={error ? 'password-error' : undefined}
+            />
+            {error ? <FieldError id="password-error">{error}</FieldError> : null}
+          </Field>
+          <Button type="submit">Log in</Button>
         </form>
       ) : (
         <p>

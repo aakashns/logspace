@@ -1,21 +1,31 @@
-// Labelled inputs for the admin forms. `invalid` is the input's aria-invalid.
+// Labelled inputs for the admin forms, made of the Field components in components/ui. `invalid`
+// is the input's aria-invalid.
 import type { Child, Html } from '#jsx/jsx-runtime'
 
-// A label and hint around any input.
-export function Field(props: {
+import { Field, FIELD_STYLES, FieldDescription, FieldLabel } from '../../components/ui/field.tsx'
+import { Input, INPUT_STYLES } from '../../components/ui/input.tsx'
+import { Textarea, TEXTAREA_STYLES } from '../../components/ui/textarea.tsx'
+
+// For the pages that use these.
+export const FIELDS_STYLES = FIELD_STYLES + INPUT_STYLES + TEXTAREA_STYLES
+
+// A label and hint around any input. The input names the hint with `hintId(id)`.
+export function LabelledField(props: {
   label: string
   for: string
   hint?: string | undefined
   children: Child
 }): Html {
   return (
-    <div class="field">
-      <label for={props.for}>{props.label}</label>
+    <Field>
+      <FieldLabel for={props.for}>{props.label}</FieldLabel>
       {props.children}
-      {props.hint ? <p class="muted">{props.hint}</p> : null}
-    </div>
+      {props.hint ? <FieldDescription id={hintId(props.for)}>{props.hint}</FieldDescription> : null}
+    </Field>
   )
 }
+
+export const hintId = (id: string) => `${id}-hint`
 
 export interface InputProps {
   label: string
@@ -29,21 +39,30 @@ export interface InputProps {
 export function TextField(props: InputProps): Html {
   let { label, name, id, value, invalid, hint } = props
   return (
-    <Field label={label} for={id} hint={hint}>
-      <input id={id} name={name} value={value ?? ''} aria-invalid={invalid} class="input" />
-    </Field>
+    <LabelledField label={label} for={id} hint={hint}>
+      <Input
+        id={id}
+        name={name}
+        value={value ?? ''}
+        aria-invalid={invalid}
+        aria-describedby={hint ? hintId(id) : undefined}
+      />
+    </LabelledField>
   )
 }
 
 export function TextareaField(props: InputProps & { rows: number }): Html {
   let { label, name, id, value, invalid, hint, rows } = props
   return (
-    <Field label={label} for={id} hint={hint}>
-      {/* A textarea drops a newline right after its start tag, so one goes there, and a value
-          that starts with a newline keeps it. */}
-      <textarea id={id} name={name} rows={rows} aria-invalid={invalid} class="input">
-        {`\n${value ?? ''}`}
-      </textarea>
-    </Field>
+    <LabelledField label={label} for={id} hint={hint}>
+      <Textarea
+        id={id}
+        name={name}
+        rows={rows}
+        value={value}
+        aria-invalid={invalid}
+        aria-describedby={hint ? hintId(id) : undefined}
+      />
+    </LabelledField>
   )
 }

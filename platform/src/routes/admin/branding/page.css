@@ -2,27 +2,23 @@
  * The site's branding, at /admin/branding (see page.tsx).
  */
 @layer components {
-  .file-input {
-    max-width: 100%;
-    font-size: 0.875rem;
-  }
-
-  .checkbox {
-    display: flex;
-    align-items: center;
-    gap: 0.375rem;
-  }
-
-  /* One of the site's images, as it is now. */
+  /* One of the site's images, as it is now: on a checkerboard, or for the banner, by itself. */
   .image-preview {
-    align-self: flex-start;
+    width: auto;
     max-width: 100%;
-    padding: 0.75rem;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
+    align-self: flex-start;
+    border-radius: var(--radius-xl);
 
     & img {
       display: block;
+      border-radius: var(--radius-xl);
+    }
+    &.checkered {
+      padding: 0.75rem;
+
+      & img {
+        border-radius: 0;
+      }
     }
   }
 

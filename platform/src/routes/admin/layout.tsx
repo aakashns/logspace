@@ -3,6 +3,7 @@ import type { Child, Html } from '#jsx/jsx-runtime'
 import { LogoutButton } from '../../components/controls.tsx'
 import { Document, type PageContext } from '../../components/document.tsx'
 import { stylesheet } from '../../components/stylesheet.ts'
+import { Button } from '../../components/ui/button.tsx'
 import { urls } from '../../lib/urls.ts'
 import css from './layout.css' with { type: 'text' }
 
@@ -44,8 +45,8 @@ export function AdminMessage(props: { title: string; children: Child }): Html {
 // The link back to /admin, above the title of the page of one of its parts.
 export function BackLink(): Html {
   return (
-    <a href={urls.admin.index()} class="muted back-link">
+    <Button href={urls.admin.index()} variant="ghost" size="sm" class="back-link">
       ← Manage Site
-    </a>
+    </Button>
   )
 }

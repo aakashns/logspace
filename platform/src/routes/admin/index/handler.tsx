@@ -1,4 +1,4 @@
-// /admin: a card for each part of the admin.
+// /admin: a link to each part of the admin.
 import { Effect } from 'effect'
 import { HttpRouter } from 'effect/http'
 

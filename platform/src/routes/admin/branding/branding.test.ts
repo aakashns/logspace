@@ -100,7 +100,7 @@ describe('/admin/branding', () => {
     // The next page says it was saved, once.
     let flashed = defined(app.sessionCookie(response), 'a session cookie')
     let saved = await app.fetch('/admin/branding', { headers: { Cookie: flashed } })
-    expect(await saved.text()).toMatch(/role="status"[^>]*>Saved\./)
+    expect(await saved.text()).toMatch(/role="status"><div data-slot="alert-title">Saved\./)
     let afterwards = await app.fetch('/admin/branding', {
       headers: { Cookie: defined(app.sessionCookie(saved), 'a session cookie') },
     })
