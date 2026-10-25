@@ -1,0 +1,9 @@
+/*
+ * Turnstile's widget (see turnstile.tsx).
+ */
+@layer components {
+  /* Its frame, 65 pixels high, held open so what's below doesn't move when it loads. */
+  .cf-turnstile {
+    min-height: 65px;
+  }
+}

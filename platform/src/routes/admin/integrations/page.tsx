@@ -1,6 +1,7 @@
 import type { Child, Html } from '#jsx/jsx-runtime'
 
 import { stylesheet } from '../../../components/stylesheet.ts'
+import { TURNSTILE_STYLES, TurnstileWidget } from '../../../components/turnstile.tsx'
 import { Alert, ALERT_STYLES, AlertDescription, AlertTitle } from '../../../components/ui/alert.tsx'
 import { Badge, BADGE_STYLES } from '../../../components/ui/badge.tsx'
 import { Button } from '../../../components/ui/button.tsx'
@@ -14,9 +15,7 @@ import { BackLink } from '../layout.tsx'
 import css from './page.css' with { type: 'text' }
 
 export const INTEGRATIONS_PAGE_STYLES =
-  FIELDS_STYLES + ALERT_STYLES + BADGE_STYLES + stylesheet(css)
-
-const TURNSTILE_SCRIPT = 'https://challenges.cloudflare.com/turnstile/v0/api.js'
+  FIELDS_STYLES + ALERT_STYLES + BADGE_STYLES + TURNSTILE_STYLES + stylesheet(css)
 
 // How checking the widget's answer with Cloudflare went.
 export type TurnstileVerification =
@@ -144,7 +143,11 @@ function TurnstileSection(props: TurnstileSectionProps): Html {
           <VerificationResult verification={verification} />
         ) : null
       ) : (
-        <TurnstileTry siteKey={status.siteKey} verification={verification} />
+        <TurnstileTry
+          siteKey={status.siteKey}
+          verifiedHostname={status._tag === 'SetUp' ? status.verifiedHostname : undefined}
+          verification={verification}
+        />
       )}
     </section>
   )
@@ -154,9 +157,10 @@ function TurnstileSection(props: TurnstileSectionProps): Html {
 // using the secret key, which shows both keys work together.
 function TurnstileTry(props: {
   siteKey: string
+  verifiedHostname: string | undefined
   verification: TurnstileVerification | undefined
 }): Html {
-  let { siteKey, verification } = props
+  let { siteKey, verifiedHostname, verification } = props
   return (
     <section class="turnstile-try" aria-labelledby="turnstile-try-heading">
       <h3 id="turnstile-try-heading">Try it</h3>
@@ -164,15 +168,18 @@ function TurnstileTry(props: {
         Complete the challenge, then verify its answer with Cloudflare. If the widget shows an error
         instead, check that this site’s domain is one of its hostnames on Cloudflare.
       </p>
+      <p class="muted">
+        {verifiedHostname
+          ? `Logging in on ${verifiedHostname} requires it, as it works there. Anywhere else, or if Cloudflare stops accepting these keys, logging in goes ahead without it.`
+          : 'Logging in shows it, and requires it once an answer from this site is verified, here or by logging in. Until then, logging in goes ahead without it.'}
+      </p>
       {verification ? <VerificationResult verification={verification} /> : null}
       <form method="post" action={urls.admin.verifyTurnstile()} class="turnstile-form">
-        {/* The widget fills this in, and adds the token to the form. */}
-        <div class="cf-turnstile" data-sitekey={siteKey} data-ignore></div>
+        <TurnstileWidget siteKey={siteKey} />
         <Button type="submit" variant="outline">
           Verify
         </Button>
       </form>
-      <script src={TURNSTILE_SCRIPT} async defer></script>
     </section>
   )
 }

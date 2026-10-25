@@ -162,6 +162,7 @@ describe('saving Turnstile’s keys', () => {
     let shown = await page(cookie)
     let html = await shown.text()
     expect(html).toMatch(/role="status"><div data-slot="alert-title">\s*Saved\./)
+    expect(html).toContain('Until then, logging in goes ahead without it.')
     expect(html).toContain('>Connected<')
     expect(html).toContain(`value="${SITE_KEY}"`)
     expect(html).toContain('placeholder="••••••••••••6789"')
@@ -376,6 +377,11 @@ describe('verifying the widget’s answer', () => {
     // The page shows the widget again, for another try.
     expect(html).toContain(`data-sitekey="${SITE_KEY}"`)
     expect(html).not.toContain(SECRET_KEY)
+    // Logging in on the site it was solved on now requires it.
+    expect(JSON.parse(defined(await savedRow(), 'a saved row')).verifiedHostname).toBe(
+      'example.com',
+    )
+    expect(html).toContain('Logging in on example.com requires it')
   })
 
   it('explains each reason Cloudflare refuses an answer', async () => {

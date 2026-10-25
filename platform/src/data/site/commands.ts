@@ -23,6 +23,7 @@ import {
   type SiteImageKind,
   type SiteText,
   type TurnstileKeys,
+  type TurnstileSettings,
 } from './site.ts'
 
 // The site's settings weren't saved, for these reasons (shown above the config form). It's
@@ -64,7 +65,14 @@ export class SiteConfigCommands extends Context.Service<
       removals: readonly SiteImageKind[],
     ) => Effect.Effect<void, SiteConfigRejected>
     // Saves Turnstile's keys, sealing the secret key. An empty secret key keeps the saved one.
+    // Where the old keys worked is forgotten.
     readonly saveTurnstile: (keys: TurnstileKeys) => Effect.Effect<void, TurnstileKeysRejected>
+    // Keeps the site Cloudflare accepted an answer from, made with these keys, unless they've
+    // been replaced since.
+    readonly saveTurnstileHostname: (
+      keys: TurnstileSettings,
+      hostname: string,
+    ) => Effect.Effect<void>
     // Disconnects an integration, forgetting its settings. Removing one that isn't set up does
     // nothing.
     readonly removeIntegration: (integration: Integration) => Effect.Effect<void>
@@ -124,6 +132,15 @@ export class SiteConfigCommands extends Context.Service<
             ? yield* secrets.seal(keys.secretKey, TURNSTILE_SECRET_PURPOSE)
             : saved.secretKey
         yield* write(['turnstile'], { turnstile: { siteKey: keys.siteKey, secretKey } })
+      })
+
+      let saveTurnstileHostname = Effect.fn('SiteConfigCommands.saveTurnstileHostname')(function* (
+        keys: TurnstileSettings,
+        hostname: string,
+      ) {
+        let saved = (yield* queries.saved).turnstile
+        if (saved?.siteKey !== keys.siteKey || saved.secretKey !== keys.secretKey) return
+        yield* write(['turnstile'], { turnstile: { ...saved, verifiedHostname: hostname } })
       })
 
       let removeIntegration = Effect.fn('SiteConfigCommands.removeIntegration')(function* (
@@ -211,6 +228,8 @@ export class SiteConfigCommands extends Context.Service<
       return SiteConfigCommands.of({
         update: (...args) => mutations.withPermit(Effect.uninterruptible(update(...args))),
         saveTurnstile: (keys) => mutations.withPermit(Effect.uninterruptible(saveTurnstile(keys))),
+        saveTurnstileHostname: (keys, hostname) =>
+          mutations.withPermit(Effect.uninterruptible(saveTurnstileHostname(keys, hostname))),
         removeIntegration: (integration) =>
           mutations.withPermit(Effect.uninterruptible(removeIntegration(integration))),
         save: (...args) => mutations.withPermit(Effect.uninterruptible(save(...args))),

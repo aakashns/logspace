@@ -50,11 +50,13 @@ export type SiteImages = { readonly [K in SiteImageKind]?: SiteImage }
 
 // Cloudflare Turnstile, which tells people from bots: the widget's site key, which pages show,
 // and its secret key, which checks the widget's answers with Cloudflare, sealed (see
-// ../../lib/secrets.ts) for TURNSTILE_SECRET_PURPOSE.
+// ../../lib/secrets.ts) for TURNSTILE_SECRET_PURPOSE. Once Cloudflare accepts an answer with these
+// keys, the site it was solved on is kept, where logging in then requires it.
 const TURNSTILE_KEY = /^[\w-]{10,200}$/
 export const TurnstileSettings = Schema.Struct({
   siteKey: Schema.String.check(Schema.isPattern(TURNSTILE_KEY)),
   secretKey: SealedSecret,
+  verifiedHostname: Schema.optionalKey(Schema.String),
 })
 export type TurnstileSettings = typeof TurnstileSettings.Type
 export const TURNSTILE_SECRET_PURPOSE = 'turnstile.secretKey'

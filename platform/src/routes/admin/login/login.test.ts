@@ -1,14 +1,43 @@
-// Logging in and out.
+// Logging in and out, and Turnstile on the login form, which a fake network answers for.
 import { afterAll, beforeEach, describe, expect, it } from 'bun:test'
+import { Effect, Redacted } from 'effect'
 
-import { defined, makeTestApp } from '../../../../test/app.ts'
+import { ADMIN_PASSWORD, defined, makeTestApp } from '../../../../test/app.ts'
+import { TEST_SITE_CONFIG } from '../../../../test/seed.ts'
+import { SiteConfigCommands } from '../../../data/site/commands.ts'
+import { SiteConfigQueries } from '../../../data/site/queries.ts'
+import { TURNSTILE_SECRET_PURPOSE } from '../../../data/site/site.ts'
+import { Secrets } from '../../../lib/secrets.ts'
 
-const app = makeTestApp()
+const SITE_KEY = '0x4AAAAAAAsiteKey123'
+const SECRET_KEY = '0x4AAAAAAAsecretKey456789'
+
+// The tokens Cloudflare was asked about, and how it answers.
+let asked: (string | null)[] = []
+let answer: () => Promise<Response> = () => Promise.reject(new Error('No answer set'))
+const answerJson = (body: unknown, status = 200) => {
+  answer = () => Promise.resolve(Response.json(body, { status }))
+}
+
+const app = makeTestApp(
+  {},
+  {
+    network: {
+      resolve: () => Promise.reject(new Error('Not expected')),
+      fetch: async (_url, init) => {
+        asked.push(new URLSearchParams(await new Response(init.body).text()).get('response'))
+        return answer()
+      },
+    },
+  },
+)
 
 // Saving a post removes the files it doesn't name, so each test starts with all of them.
 beforeEach(async () => {
   await app.seedDatabase()
   await app.seedMedia()
+  asked = []
+  answer = () => Promise.reject(new Error('No answer set'))
 })
 afterAll(app.dispose)
 
@@ -99,5 +128,149 @@ describe('logging in', () => {
     expect(html).toMatch(/Managing the site is switched off/)
     expect((await off.logIn('short')).status).toBe(401)
     await off.dispose()
+  })
+})
+
+describe('Turnstile on the login form', () => {
+  const connect = () =>
+    app.run(
+      Effect.flatMap(SiteConfigCommands, (commands) =>
+        commands.saveTurnstile({ siteKey: SITE_KEY, secretKey: SECRET_KEY }),
+      ),
+    )
+  // As after Cloudflare accepted an answer solved on this hostname.
+  const verifiedOn = (hostname: string) =>
+    app.run(
+      Effect.gen(function* () {
+        let saved = defined((yield* (yield* SiteConfigQueries).saved).turnstile, 'Turnstile')
+        yield* (yield* SiteConfigCommands).saveTurnstileHostname(saved, hostname)
+      }),
+    )
+  const verifiedHostname = () =>
+    app.run(
+      Effect.map(SiteConfigQueries, (queries) => queries.saved).pipe(
+        Effect.flatten,
+        Effect.map((saved) => saved.turnstile?.verifiedHostname),
+      ),
+    )
+  const logIn = (fields: Record<string, string> = {}) =>
+    app.fetch('/admin/login', {
+      method: 'POST',
+      body: new URLSearchParams({ password: ADMIN_PASSWORD, ...fields }),
+    })
+  const loggedIn = (response: Response) =>
+    response.status === 302 && app.sessionCookie(response) !== undefined
+  const refusal = /<div role="alert" data-slot="field-error">([^<]*)<\/div>/
+
+  it('isn’t shown or asked about until it’s connected', async () => {
+    let response = await app.fetch('/admin/login')
+    expect(await response.text()).not.toContain('class="cf-turnstile"')
+    expect(response.headers.get('Content-Security-Policy')).not.toContain('cloudflare')
+    expect(loggedIn(await logIn({ 'cf-turnstile-response': 'token' }))).toBe(true)
+    expect(asked).toEqual([])
+  })
+
+  it('shows the widget at full width once connected, without waiting for it to log in', async () => {
+    await connect()
+    let response = await app.fetch('/admin/login')
+    let html = await response.text()
+    expect(html).toContain(
+      `<div class="cf-turnstile" data-sitekey="${SITE_KEY}" data-size="flexible" data-ignore>`,
+    )
+    expect(html).toContain('<script src="https://challenges.cloudflare.com/turnstile/v0/api.js"')
+    expect(html).toMatch(/<button[^>]*type="submit"(?![^>]*disabled)[^>]*>\s*Log in/)
+    expect(response.headers.get('Content-Security-Policy')).toContain(
+      'frame-src https://challenges.cloudflare.com',
+    )
+    // Until an answer from this site is accepted, it isn't needed, nor Cloudflare asked.
+    expect(loggedIn(await logIn())).toBe(true)
+    expect(asked).toEqual([])
+  })
+
+  it('is required once Cloudflare accepts an answer solved on this site', async () => {
+    await connect()
+    answerJson({ success: true, hostname: 'localhost', 'error-codes': [] })
+    expect(loggedIn(await logIn({ 'cf-turnstile-response': 'good-token' }))).toBe(true)
+    expect(asked).toEqual(['good-token'])
+    expect(await verifiedHostname()).toBe('localhost')
+
+    // Cloudflare is asked, with a token it can't accept, whether the keys still work.
+    answerJson({ success: false, 'error-codes': ['invalid-input-response'] })
+    let missing = await logIn()
+    expect(missing.status).toBe(401)
+    expect(app.sessionCookie(missing)).toBeUndefined()
+    let html = await missing.text()
+    expect(html.match(refusal)?.[1]).toBe(
+      'Complete the check that you’re human, then log in again.',
+    )
+    expect(html).toContain(`data-sitekey="${SITE_KEY}"`)
+    expect(asked.at(-1)).toBe('none')
+
+    for (let codes of [['invalid-input-response'], ['timeout-or-duplicate']]) {
+      answerJson({ success: false, 'error-codes': codes })
+      let denied = await logIn({ 'cf-turnstile-response': 'bad-token' })
+      expect(denied.status).toBe(401)
+      expect((await denied.text()).match(refusal)?.[1]).toBe(
+        'That check didn’t pass, or expired. Complete it again, then log in.',
+      )
+    }
+    // A wrong password is still wrong, once the check passes.
+    answerJson({ success: true, hostname: 'localhost' })
+    let wrong = await logIn({ password: 'not-the-password', 'cf-turnstile-response': 'token' })
+    expect(wrong.status).toBe(401)
+    expect(await wrong.text()).toContain('That password isn’t right.')
+  })
+
+  it('lets the admin in when the keys stop working or Cloudflare can’t be asked', async () => {
+    await connect()
+    await verifiedOn('localhost')
+    for (let codes of [['invalid-input-secret'], ['missing-input-secret'], ['bad-request'], []]) {
+      answerJson({ success: false, 'error-codes': codes })
+      expect(loggedIn(await logIn())).toBe(true)
+      expect(loggedIn(await logIn({ 'cf-turnstile-response': 'token' }))).toBe(true)
+    }
+    answerJson({ error: 'down' }, 503)
+    expect(loggedIn(await logIn())).toBe(true)
+    answer = () => Promise.reject(new Error('Offline'))
+    expect(loggedIn(await logIn())).toBe(true)
+  })
+
+  it('isn’t required on another hostname, as after the site moves', async () => {
+    await connect()
+    await verifiedOn('old.example.com')
+    expect(loggedIn(await logIn())).toBe(true)
+    expect(asked).toEqual([])
+    // Nor when it's refused there, since it was never known to work here.
+    answerJson({ success: false, 'error-codes': ['invalid-input-response'] })
+    expect(loggedIn(await logIn({ 'cf-turnstile-response': 'token' }))).toBe(true)
+  })
+
+  it('isn’t shown or required when the secret key can’t be read', async () => {
+    await connect()
+    await verifiedOn('localhost')
+    let other = makeTestApp({ sessionSecret: Redacted.make('another-session-secret') })
+    let sealed = await other.run(
+      Effect.flatMap(Secrets, (secrets) => secrets.seal(SECRET_KEY, TURNSTILE_SECRET_PURPOSE)),
+    )
+    await other.dispose()
+    await app.run(
+      Effect.flatMap(SiteConfigCommands, (commands) =>
+        commands.save({
+          ...TEST_SITE_CONFIG,
+          turnstile: { siteKey: SITE_KEY, secretKey: sealed, verifiedHostname: 'localhost' },
+        }),
+      ),
+    )
+    expect(await (await app.fetch('/admin/login')).text()).not.toContain('class="cf-turnstile"')
+    expect(loggedIn(await logIn())).toBe(true)
+    expect(asked).toEqual([])
+  })
+
+  it('isn’t required after its keys are saved again, until an answer is accepted', async () => {
+    await connect()
+    await verifiedOn('localhost')
+    await connect()
+    expect(await verifiedHostname()).toBeUndefined()
+    expect(loggedIn(await logIn())).toBe(true)
   })
 })
