@@ -184,7 +184,8 @@ styles for the pages that use it (like `BUTTON_STYLES`). Form controls are nativ
 dialog is a `<dialog>` opened with `command`/`commandfor`, and the dropdown menu is a popover
 placed with CSS anchor positioning; Datastar only adds the menu's arrow keys and focus, and its
 checkbox and radio items' signals. `bun run dev` serves them all, in both themes, at `/design`.
-Every page's buttons, inputs, and messages are these; a page's own CSS only places them. Lines and
+Every page's buttons, inputs, and messages are these, except the composer's, which has its own;
+a page's own CSS only places them. Lines and
 boxes are kept to what's needed: the admin pages' lists and sections are set apart by space, not
 borders or cards.
 
