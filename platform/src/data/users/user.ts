@@ -17,6 +17,14 @@ export const SIGN_UP_CODE_ATTEMPTS = 3
 export const SIGN_UP_CODES_PER_HOUR = 5
 export const SIGN_UP_CODE_GAP_SECONDS = 30
 
+// Someone with an account, as /admin/subscribers lists them. `createdAt` is when they signed up.
+export interface User {
+  readonly id: string
+  readonly name: string
+  readonly email: string
+  readonly createdAt: string
+}
+
 // The sign-up form, trimmed.
 export interface SignUpForm {
   readonly name: string

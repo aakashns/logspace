@@ -1,7 +1,9 @@
 // /admin/subscribers: the switch for subscribing, which goes on only once email is set up and
-// Turnstile enabled, and is paused, not switched off, while either goes away.
+// Turnstile enabled, and is paused, not switched off, while either goes away; and the list of
+// who's subscribed, each of whom can be deleted.
 import { afterAll, beforeEach, describe, expect, it } from 'bun:test'
 import { Effect } from 'effect'
+import { SqlClient } from 'effect/sql'
 
 import { defined, makeTestApp } from '../../../../test/app.ts'
 import { SiteConfigCommands } from '../../../data/site/commands.ts'
@@ -55,12 +57,27 @@ const save = (enabled: boolean) =>
 const theSwitch = (html: string) =>
   defined(/<input type="checkbox" role="switch"[^>]*>/.exec(html)?.[0], 'the switch')
 const home = async () => (await app.fetch('/')).text()
+const addUser = (id: string, name: string, email: string, createdAt: string) =>
+  app.run(
+    Effect.flatMap(SqlClient.SqlClient, (sql) =>
+      sql`insert into users ${sql.insert({
+        id,
+        name,
+        email,
+        email_verified: 1,
+        created_at: createdAt,
+        updated_at: createdAt,
+      })}`.pipe(Effect.orDie),
+    ),
+  )
 
 describe('/admin/subscribers', () => {
   it('is only for the admin', async () => {
-    let response = await app.fetch('/admin/subscribers', { method: 'POST' })
-    expect(response.status).toBe(302)
-    expect(response.headers.get('Location')).toBe('/admin/login')
+    for (let path of ['/admin/subscribers', '/admin/subscribers/some-id/delete']) {
+      let response = await app.fetch(path, { method: 'POST' })
+      expect(response.status).toBe(302)
+      expect(response.headers.get('Location')).toBe('/admin/login')
+    }
   })
 
   it('has a switch that saves when changed, with a title and description', async () => {
@@ -129,5 +146,38 @@ describe('/admin/subscribers', () => {
     await setUpTurnstile(true)
     expect(await page()).not.toContain('paused')
     expect(await home()).toContain('href="/subscribe"')
+  })
+
+  it('lists subscribers, newest first, each with a menu to delete them', async () => {
+    expect(await page()).toContain('No subscribers yet.')
+    await addUser('ada-id', 'Ada <b>Lovelace</b>', 'ada@example.com', '2026-10-01T09:30:00.000Z')
+    await addUser('grace-id', 'Grace Hopper', 'grace@example.com', '2026-10-20T14:05:00.000Z')
+
+    let html = await page()
+    expect(html).not.toContain('No subscribers yet.')
+    expect(html).toContain('<td data-ignore>Ada &lt;b&gt;Lovelace&lt;/b&gt;</td>')
+    expect(html).toContain(
+      '<time datetime="2026-10-20T14:05:00.000Z">20 Oct 2026, 2:05 PM UTC</time>',
+    )
+    expect(html.indexOf('grace@example.com')).toBeLessThan(html.indexOf('ada@example.com'))
+    expect(html).toContain('aria-label="Actions for ada@example.com"')
+    expect(html).toContain('action="/admin/subscribers/ada-id/delete"')
+
+    let deleted = await app.fetch('/admin/subscribers/ada-id/delete', {
+      method: 'POST',
+      headers: { Cookie: cookie },
+    })
+    expect(deleted.status).toBe(303)
+    expect(deleted.headers.get('Location')).toBe('/admin/subscribers')
+    let after = await page()
+    expect(after).not.toContain('ada@example.com')
+    expect(after).toContain('grace@example.com')
+
+    // Deleting someone already gone leaves the list as it is.
+    let again = await app.fetch('/admin/subscribers/ada-id/delete', {
+      method: 'POST',
+      headers: { Cookie: cookie },
+    })
+    expect(again.status).toBe(303)
   })
 })

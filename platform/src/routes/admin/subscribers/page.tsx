@@ -1,8 +1,21 @@
 import type { Html } from '#jsx/jsx-runtime'
 
+import { DotsThreeIcon, TrashIcon } from '../../../components/icons.tsx'
 import { stylesheet } from '../../../components/stylesheet.ts'
 import { Alert, ALERT_STYLES, AlertDescription, AlertTitle } from '../../../components/ui/alert.tsx'
 import { Button } from '../../../components/ui/button.tsx'
+import {
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DIALOG_STYLES,
+} from '../../../components/ui/dialog.tsx'
+import {
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DROPDOWN_MENU_STYLES,
+} from '../../../components/ui/dropdown-menu.tsx'
 import {
   Field,
   FieldContent,
@@ -11,12 +24,20 @@ import {
   FieldLabel,
 } from '../../../components/ui/field.tsx'
 import { Switch, SWITCH_STYLES } from '../../../components/ui/switch.tsx'
+import { formatPostDate } from '../../../data/posts/format.ts'
 import type { SubscriptionsBlocker, SubscriptionsStatus } from '../../../data/site/subscriptions.ts'
+import type { User } from '../../../data/users/user.ts'
 import { urls } from '../../../lib/urls.ts'
 import { BackLink } from '../layout.tsx'
 import css from './page.css' with { type: 'text' }
 
-export const SUBSCRIBERS_PAGE_STYLES = FIELD_STYLES + SWITCH_STYLES + ALERT_STYLES + stylesheet(css)
+export const SUBSCRIBERS_PAGE_STYLES =
+  FIELD_STYLES +
+  SWITCH_STYLES +
+  ALERT_STYLES +
+  DROPDOWN_MENU_STYLES +
+  DIALOG_STYLES +
+  stylesheet(css)
 
 const BLOCKERS: Record<SubscriptionsBlocker, string> = {
   EmailNotSetUp: 'Email isn’t set up.',
@@ -28,9 +49,12 @@ const BLOCKERS: Record<SubscriptionsBlocker, string> = {
 }
 
 // /admin/subscribers: the switch for subscribing, and while it can't be switched on, or is on but
-// paused, why.
-export function SubscribersPage(props: { status: SubscriptionsStatus }): Html {
-  let { status } = props
+// paused, why; then everyone subscribed, newest first.
+export function SubscribersPage(props: {
+  status: SubscriptionsStatus
+  subscribers: readonly User[]
+}): Html {
+  let { status, subscribers } = props
   let missing = status._tag === 'Open' ? [] : status.missing
   // It can always be switched off, but on only once nothing's missing.
   let locked = status._tag === 'Off' && missing.length > 0
@@ -82,6 +106,94 @@ export function SubscribersPage(props: { status: SubscriptionsStatus }): Html {
           </AlertDescription>
         </Alert>
       ) : null}
+      {subscribers.length === 0 ? (
+        <p class="muted">No subscribers yet.</p>
+      ) : (
+        <>
+          <table class="subscriber-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Signed up</th>
+                <th>
+                  <span class="visually-hidden">Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {subscribers.map((subscriber, i) => (
+                <SubscriberRow subscriber={subscriber} index={i} />
+              ))}
+            </tbody>
+          </table>
+          {subscribers.map((subscriber, i) => (
+            <DeleteSubscriberDialog subscriber={subscriber} index={i} />
+          ))}
+        </>
+      )}
     </section>
+  )
+}
+
+const menuId = (index: number) => `subscriber-${index}`
+const dialogId = (index: number) => `delete-subscriber-${index}`
+
+// A subscriber, with a menu of what can be done with them: for now, deleting them, which opens
+// the dialog below, as the menu closes.
+function SubscriberRow(props: { subscriber: User; index: number }): Html {
+  let { subscriber, index } = props
+  return (
+    <tr>
+      <td data-ignore>{subscriber.name}</td>
+      <td data-ignore>{subscriber.email}</td>
+      <td>
+        <time datetime={subscriber.createdAt}>{formatPostDate(subscriber.createdAt)}</time>
+      </td>
+      <td>
+        <DropdownMenuTrigger
+          menu={menuId(index)}
+          variant="ghost"
+          size="icon-sm"
+          aria-label={`Actions for ${subscriber.email}`}
+        >
+          <DotsThreeIcon />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent id={menuId(index)}>
+          <DropdownMenuItem variant="destructive" command="show-modal" commandfor={dialogId(index)}>
+            <TrashIcon />
+            Delete
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </td>
+    </tr>
+  )
+}
+
+// Deleting a subscriber, confirmed. It's outside the table, so its text wraps as a dialog's does.
+function DeleteSubscriberDialog(props: { subscriber: User; index: number }): Html {
+  let { subscriber, index } = props
+  return (
+    <DialogContent
+      id={dialogId(index)}
+      title="Delete this subscriber?"
+      description={
+        <>
+          <span data-ignore>{subscriber.email}</span>’s account is deleted, and they’re no longer
+          subscribed. They can subscribe again.
+        </>
+      }
+    >
+      <form method="post" action={urls.admin.deleteSubscriber(subscriber.id)}>
+        <DialogFooter>
+          <DialogClose dialog={dialogId(index)} variant="outline" autofocus>
+            Cancel
+          </DialogClose>
+          <Button type="submit" variant="destructive">
+            Delete
+          </Button>
+        </DialogFooter>
+      </form>
+    </DialogContent>
   )
 }

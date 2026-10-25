@@ -1,8 +1,8 @@
-// Signing up, the write side of the `users`, `verifications`, and `rate_limits` tables: someone
-// asks for a code (passing Turnstile, and as often as an address may be sent one), which is
-// emailed to them, and entering it makes their account and emails them that they're subscribed.
-// Only an account's address is proven, so an address that already has one gets the same pages
-// and emails, and the form never says who has an account.
+// Signing up, and deleting accounts, the write side of the `users`, `verifications`, and
+// `rate_limits` tables: someone asks for a code (passing Turnstile, and as often as an address may
+// be sent one), which is emailed to them, and entering it makes their account and emails them that
+// they're subscribed. Only an account's address is proven, so an address that already has one
+// gets the same pages and emails, and the form never says who has an account.
 import { randomInt, timingSafeEqual } from 'node:crypto'
 import { Clock, Context, DateTime, Effect, Layer, Option, Schema, Semaphore } from 'effect'
 import { SqlClient } from 'effect/sql'
@@ -82,6 +82,8 @@ export class UserCommands extends Context.Service<
       { name: string; email: string },
       SubscriptionsClosed | SignUpCodeWrong | SignUpCodeExpired
     >
+    // Deletes someone's account, so they're no longer subscribed. One already gone stays gone.
+    readonly delete: (id: string) => Effect.Effect<void>
   }
 >()('logspace/UserCommands') {
   static readonly layer = Layer.effect(
@@ -244,7 +246,11 @@ export class UserCommands extends Context.Service<
         return outcome
       })
 
-      return UserCommands.of({ requestSignUp, completeSignUp })
+      let remove = Effect.fn('UserCommands.delete')(function* (id: string) {
+        yield* sql`delete from users where id = ${id}`.pipe(Effect.orDie)
+      })
+
+      return UserCommands.of({ requestSignUp, completeSignUp, delete: remove })
     }),
   )
 }
