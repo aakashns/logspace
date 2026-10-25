@@ -73,7 +73,7 @@ try {
   // The icon has to be square.
   let icon = await new Bun.Image(photo).resize(512, 512).png().bytes()
   config.set('icon', new File([new Uint8Array(icon)], 'icon.png', { type: 'image/png' }))
-  let saved = await fetch(`${base}/admin/config`, {
+  let saved = await fetch(`${base}/admin/branding`, {
     method: 'POST',
     headers: { Cookie: cookie },
     body: config,

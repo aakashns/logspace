@@ -3,7 +3,7 @@
 // database, storage, caches, and write locks.
 import { BunFileSystem, BunHttpServer } from '@effect/platform-bun'
 import { Effect, Layer } from 'effect'
-import { HttpRouter } from 'effect/http'
+import { FetchHttpClient, HttpRouter } from 'effect/http'
 import { SqlClient } from 'effect/sql'
 
 import { LinkPreviews } from './data/link-previews/link-previews.ts'
@@ -12,6 +12,7 @@ import { PostMedia } from './data/posts/media.ts'
 import { PostQueries } from './data/posts/queries.ts'
 import { SiteConfigCommands } from './data/site/commands.ts'
 import { SiteConfigQueries } from './data/site/queries.ts'
+import { Turnstile } from './data/site/turnstile.ts'
 import { AppConfig } from './lib/config.ts'
 import { DatabaseLive, runMigrations } from './lib/database.ts'
 import { Assets } from './lib/http/assets.ts'
@@ -20,10 +21,14 @@ import { AdminAuth } from './lib/http/session.ts'
 import { Images } from './lib/images.ts'
 import { MediaStorage } from './lib/media-storage.ts'
 import { PublicHttpLive, PublicNetwork } from './lib/public-http.ts'
+import { Secrets } from './lib/secrets.ts'
 import { ComposeRoutes } from './routes/admin/compose/handler.tsx'
-import { ConfigRoutes } from './routes/admin/config/handler.tsx'
+import { BrandingRoutes } from './routes/admin/branding/handler.tsx'
 import { AdminIndexRoutes } from './routes/admin/index/handler.tsx'
+import { IntegrationRoutes } from './routes/admin/integrations/handler.tsx'
 import { LoginRoutes } from './routes/admin/login/handler.tsx'
+import { PostListRoutes } from './routes/admin/posts/handler.tsx'
+import { SubscriberRoutes } from './routes/admin/subscribers/handler.tsx'
 import { AssetRoutes } from './routes/assets/handler.ts'
 import { FeedRoutes } from './routes/feeds/handler.ts'
 import { IndexRoutes } from './routes/index/handler.tsx'
@@ -47,6 +52,23 @@ const PostQueriesLive = PostQueries.layer.pipe(
 )
 const SiteConfigQueriesLive = SiteConfigQueries.layer.pipe(Layer.provide(MigratedDatabase))
 
+// Cloudflare's address, for Turnstile, fetched with PublicNetwork's fetch, which the tests
+// replace. It's one fixed address, so it doesn't need the checks link previews' fetches do.
+const CloudflareHttp = FetchHttpClient.layer.pipe(
+  Layer.provide(
+    Layer.effect(
+      FetchHttpClient.Fetch,
+      Effect.map(PublicNetwork, (network) =>
+        Object.assign(
+          (input: string | URL | Request, init?: BunFetchRequestInit) =>
+            network.fetch(new URL(input instanceof Request ? input.url : input), init ?? {}),
+          { preconnect: fetch.preconnect },
+        ),
+      ),
+    ),
+  ),
+)
+
 // Requires AppConfig and PublicNetwork. SQL and media services are exposed for seeding and file
 // queries; the remaining outputs are the APIs used by routes and the server's shutdown hook.
 export const AppServices = Layer.mergeAll(
@@ -56,11 +78,19 @@ export const AppServices = Layer.mergeAll(
   PostQueriesLive,
   SiteConfigQueriesLive,
   Assets.layer,
+  Secrets.layer,
   AdminAuth.layer.pipe(Layer.provide(MigratedDatabase)),
   PostCommands.layer.pipe(Layer.provide([MigratedDatabase, MediaStorage.layer, Images.layer])),
   SiteConfigCommands.layer.pipe(
-    Layer.provide([MigratedDatabase, MediaStorage.layer, Images.layer, SiteConfigQueriesLive]),
+    Layer.provide([
+      MigratedDatabase,
+      MediaStorage.layer,
+      Images.layer,
+      SiteConfigQueriesLive,
+      Secrets.layer,
+    ]),
   ),
+  Turnstile.layer.pipe(Layer.provide([SiteConfigQueriesLive, Secrets.layer, CloudflareHttp])),
   PostMedia.layer.pipe(Layer.provide([MediaStorage.layer, Images.layer, PostQueriesLive])),
   LinkPreviews.layer.pipe(
     Layer.provide([
@@ -86,8 +116,11 @@ export const AppRoutes = Layer.mergeAll(
   AssetRoutes,
   LoginRoutes,
   AdminIndexRoutes,
+  PostListRoutes,
   ComposeRoutes,
-  ConfigRoutes,
+  BrandingRoutes,
+  IntegrationRoutes,
+  SubscriberRoutes,
   AppMiddleware,
 )
 

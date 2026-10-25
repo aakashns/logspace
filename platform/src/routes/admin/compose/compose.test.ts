@@ -66,8 +66,8 @@ describe('the composer', () => {
     expect(await hasPostFile(post.id, 'a.jpg')).toBe(false)
   })
 
-  it('/admin links to the composer, for a new post and to edit each one', async () => {
-    let html = await (await app.adminFetch('/admin')).text()
+  it('/admin/posts links to the composer, for a new post and to edit each one', async () => {
+    let html = await (await app.adminFetch('/admin/posts')).text()
     expect(html).toContain('href="/admin/posts/new"')
     for (let post of await posts()) expect(html).toContain(`href="/admin/posts/${post.id}/edit"`)
   })
@@ -328,7 +328,7 @@ describe('the composer', () => {
     expect(await hasPostFile(video.id, 'flower.mp4')).toBe(false)
   })
 
-  it('closing the composer throws away what it uploaded, and goes back to /admin', async () => {
+  it('closing the composer throws away what it uploaded, and goes back to /admin/posts', async () => {
     let id = 'discard001'
     await media([
       ['post_id', id],
@@ -336,7 +336,7 @@ describe('the composer', () => {
     ])
     let closed = await composerPost('/admin/posts/discard', [['post_id', id]])
     expect(closed.status).toBe(303)
-    expect(closed.headers.get('Location')).toBe('/admin')
+    expect(closed.headers.get('Location')).toBe('/admin/posts')
     expect(await hasPostFile(id, 'a.jpg')).toBe(false)
 
     // An edit's uploads go, and the post's own files stay.
@@ -472,7 +472,7 @@ describe('the composer', () => {
 
     let response = await app.adminFetch(path, { method: 'POST' })
     expect(response.status).toBe(303)
-    expect(response.headers.get('Location')).toBe('/admin')
+    expect(response.headers.get('Location')).toBe('/admin/posts')
     expect((await app.fetch(`/posts/${id}`)).status).toBe(404)
     expect(await hasPostFile(id, 'a.jpg')).toBe(false)
     expect((await app.adminFetch(path, { method: 'POST' })).status).toBe(404)

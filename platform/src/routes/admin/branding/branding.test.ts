@@ -1,4 +1,4 @@
-// The site's settings: /admin/config, the site's images, and the gate in front of a site that
+// The site's settings: /admin/branding, the site's images, and the gate in front of a site that
 // isn't set up yet.
 import { afterAll, beforeEach, describe, expect, it } from 'bun:test'
 import { Effect, Schema } from 'effect'
@@ -30,7 +30,7 @@ beforeEach(app.seedDatabase)
 afterAll(app.dispose)
 
 const save = (body: URLSearchParams | FormData, headers: HeadersInit = {}) =>
-  app.adminFetch('/admin/config', { method: 'POST', headers, body })
+  app.adminFetch('/admin/branding', { method: 'POST', headers, body })
 const configForm = (fields: Record<string, string> = {}) =>
   new URLSearchParams({ ...TEST_SITE_CONFIG, ...fields })
 
@@ -58,12 +58,12 @@ async function imageSize(response: Response) {
   return { width, height, format }
 }
 
-describe('/admin/config', () => {
+describe('/admin/branding', () => {
   it('needs an admin login', async () => {
-    let page = await app.fetch('/admin/config')
+    let page = await app.fetch('/admin/branding')
     expect(page.status).toBe(302)
     expect(page.headers.get('Location')).toBe('/admin/login')
-    let attempt = await app.fetch('/admin/config', {
+    let attempt = await app.fetch('/admin/branding', {
       method: 'POST',
       body: configForm({ siteTitle: 'Hacked' }),
     })
@@ -72,8 +72,8 @@ describe('/admin/config', () => {
   })
 
   it('is linked from /admin and shows the current settings', async () => {
-    expect(await (await app.adminFetch('/admin')).text()).toContain('href="/admin/config"')
-    let html = await (await app.adminFetch('/admin/config')).text()
+    expect(await (await app.adminFetch('/admin')).text()).toContain('href="/admin/branding"')
+    let html = await (await app.adminFetch('/admin/branding')).text()
     expect(html).toMatch(/<input [^>]*name="siteTitle"[^>]* value="Test Site"/)
     expect(html).toMatch(/<input [^>]*name="siteUrl"[^>]* value="https:\/\/example\.com"/)
   })
@@ -88,7 +88,7 @@ describe('/admin/config', () => {
       }),
     )
     expect(response.status).toBe(303)
-    expect(response.headers.get('Location')).toBe('/admin/config')
+    expect(response.headers.get('Location')).toBe('/admin/branding')
     expect(await savedConfig()).toEqual({
       ...TEST_SITE_CONFIG,
       siteTitle: 'New Title',
@@ -99,9 +99,9 @@ describe('/admin/config', () => {
 
     // The next page says it was saved, once.
     let flashed = defined(app.sessionCookie(response), 'a session cookie')
-    let saved = await app.fetch('/admin/config', { headers: { Cookie: flashed } })
+    let saved = await app.fetch('/admin/branding', { headers: { Cookie: flashed } })
     expect(await saved.text()).toMatch(/role="status"[^>]*>Saved\./)
-    let afterwards = await app.fetch('/admin/config', {
+    let afterwards = await app.fetch('/admin/branding', {
       headers: { Cookie: defined(app.sessionCookie(saved), 'a session cookie') },
     })
     expect(await afterwards.text()).not.toMatch(/Saved\./)
@@ -335,7 +335,7 @@ describe('the site’s images', () => {
       `<img src="/site/logo.webp?v=${logo.version}" alt="Test Site" width="120" height="40" class="site-logo in-light-theme" style="height: 1.2rem">` +
         `<img src="/site/dark-logo.webp?v=${darkLogo.version}" alt="Test Site" width="256" height="64" class="site-logo in-dark-theme" style="height: 1.2rem">`,
     )
-    let config = await (await app.adminFetch('/admin/config')).text()
+    let config = await (await app.adminFetch('/admin/branding')).text()
     expect(config).toContain(
       `<div class="image-preview checkered light-preview"><img src="/site/logo.webp?v=${logo.version}"`,
     )
@@ -452,16 +452,16 @@ describe('a site that isn’t configured', () => {
     }
   })
 
-  it('sends the admin to /admin/config, where the site URL is filled in', async () => {
+  it('sends the admin to /admin/branding, where the site URL is filled in', async () => {
     let cookie = defined(fresh.sessionCookie(await fresh.logIn()), 'a session cookie')
     let admin = await fresh.fetch('/admin', { headers: { Cookie: cookie } })
     expect(admin.status).toBe(302)
-    expect(admin.headers.get('Location')).toBe('/admin/config')
+    expect(admin.headers.get('Location')).toBe('/admin/branding')
 
-    let page = await fresh.fetch('/admin/config', { headers: { Cookie: cookie } })
+    let page = await fresh.fetch('/admin/branding', { headers: { Cookie: cookie } })
     let html = await page.text()
     expect(page.status).toBe(200)
-    expect(html).toMatch(/<title>Configure Site · LogSpace<\/title>/)
+    expect(html).toMatch(/<title>Branding · LogSpace<\/title>/)
     expect(html).toMatch(/Set the site’s title, URL, and description to finish setting it up/)
     expect(html).toMatch(/<input [^>]*name="siteTitle"[^>]* value=""/)
     expect(html).toMatch(/<input [^>]*name="siteUrl"[^>]* value="http:\/\/localhost"/)
@@ -471,7 +471,7 @@ describe('a site that isn’t configured', () => {
   it('is public once its required settings are saved', async () => {
     let cookie = defined(fresh.sessionCookie(await fresh.logIn()), 'a session cookie')
     let { siteTitle, siteUrl, siteDescription } = TEST_SITE_CONFIG
-    let response = await fresh.fetch('/admin/config', {
+    let response = await fresh.fetch('/admin/branding', {
       method: 'POST',
       headers: { Cookie: cookie },
       body: new URLSearchParams({ siteTitle, siteUrl, siteDescription }),
@@ -494,7 +494,7 @@ describe('behind a reverse proxy', () => {
   it('fills in the site URL with the protocol and host the browser used', async () => {
     let cookie = defined(proxied.sessionCookie(await proxied.logIn()), 'a session cookie')
     let html = await (
-      await proxied.fetch('/admin/config', {
+      await proxied.fetch('/admin/branding', {
         headers: {
           Cookie: cookie,
           'X-Forwarded-Proto': 'https',

@@ -13,7 +13,7 @@ export const HOME_PAGE_STYLES = POST_STYLES + stylesheet(css)
 // wider screens (see .banner in page.css).
 export const BANNER_IMAGE_SIZES = '(min-width: 38rem) 38rem, 100vw'
 
-// The banner and introduction set at /admin/config, then the feed. Any of the banner and the
+// The banner and introduction set at /admin/branding, then the feed. Any of the banner and the
 // introduction's two parts can be left out.
 export function HomePage(props: { site: SiteConfig; items: readonly FeedItem[] }): Html {
   let { bannerImage, bannerImageAlt, heroHeading, heroSubheading, siteUrl } = props.site

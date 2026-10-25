@@ -1,4 +1,4 @@
-// The site's settings, at /admin/config.
+// The site's branding, at /admin/branding: its title, URL, introduction, and images.
 import { Effect } from 'effect'
 import { HttpRouter } from 'effect/http'
 
@@ -17,9 +17,9 @@ import { redirect } from '../../../lib/http/responses.ts'
 import { AdminAuth } from '../../../lib/http/session.ts'
 import { urls } from '../../../lib/urls.ts'
 import { adminPage, loggedIn } from '../admin.tsx'
-import { CONFIG_PAGE_STYLES, ConfigPage } from './page.tsx'
+import { BRANDING_PAGE_STYLES, BrandingPage } from './page.tsx'
 
-const configPage = (props: {
+const brandingPage = (props: {
   values: SiteText
   issues?: readonly SiteConfigIssue[] | undefined
   saved?: boolean | undefined
@@ -27,13 +27,13 @@ const configPage = (props: {
   Effect.gen(function* () {
     let saved = yield* (yield* SiteConfigQueries).saved
     return yield* adminPage(
-      'Configure Site',
-      <ConfigPage {...props} images={saved} unconfigured={!isSiteConfigured(saved)} />,
-      { styles: CONFIG_PAGE_STYLES, status: props.issues ? 400 : 200 },
+      'Branding',
+      <BrandingPage {...props} images={saved} unconfigured={!isSiteConfigured(saved)} />,
+      { styles: BRANDING_PAGE_STYLES, status: props.issues ? 400 : 200 },
     )
   })
 
-const showConfig = loggedIn((session) =>
+const showBranding = loggedIn((session) =>
   Effect.gen(function* () {
     let auth = yield* AdminAuth
     let saved = yield* (yield* SiteConfigQueries).saved
@@ -47,14 +47,14 @@ const showConfig = loggedIn((session) =>
       heroSubheading: saved.heroSubheading,
       bannerImageAlt: saved.bannerImageAlt,
     }
-    let response = yield* configPage({ values, saved: session.flash === 'configSaved' })
+    let response = yield* brandingPage({ values, saved: session.flash === 'configSaved' })
     // The note that the settings were saved is shown once.
     let { flash, ...read } = session
     return flash ? auth.saveSession(response, read) : response
   }),
 )
 
-const saveConfig = loggedIn((session) =>
+const saveBranding = loggedIn((session) =>
   Effect.gen(function* () {
     let form = yield* readForm()
     let values = readConfigForm(form)
@@ -69,14 +69,14 @@ const saveConfig = loggedIn((session) =>
     return yield* (yield* SiteConfigCommands).update(values, uploads, removals).pipe(
       Effect.flatMap(() =>
         Effect.map(AdminAuth, (auth) =>
-          auth.saveSession(redirect(urls.admin.config(), 303), {
+          auth.saveSession(redirect(urls.admin.branding(), 303), {
             ...session,
             flash: 'configSaved',
           }),
         ),
       ),
       Effect.catchTag('SiteConfigRejected', (rejected) =>
-        configPage({ values, issues: rejected.issues }),
+        brandingPage({ values, issues: rejected.issues }),
       ),
     )
   }),
@@ -100,7 +100,7 @@ function readConfigForm(form: FormData): SiteText {
   }
 }
 
-export const ConfigRoutes = HttpRouter.addAll([
-  HttpRouter.route('GET', '/admin/config', showConfig),
-  HttpRouter.route('POST', '/admin/config', saveConfig),
+export const BrandingRoutes = HttpRouter.addAll([
+  HttpRouter.route('GET', '/admin/branding', showBranding),
+  HttpRouter.route('POST', '/admin/branding', saveBranding),
 ])

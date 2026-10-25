@@ -1,0 +1,48 @@
+/*
+ * /admin/integrations: a section for each service (see page.tsx).
+ */
+@layer components {
+  .integration {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1.25rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+
+    & h2 {
+      font-size: 1.125rem;
+      line-height: 1.4;
+    }
+    & h3 {
+      font-size: 1rem;
+    }
+  }
+
+  .integration-heading {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem 1rem;
+  }
+
+  .integration-status {
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+
+  /* The widget, and checking its answer, below the keys. */
+  .turnstile-try {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+  }
+
+  /* The widget's frame, 65 pixels high, held open so the button doesn't move when it loads. */
+  .cf-turnstile {
+    min-height: 65px;
+  }
+}

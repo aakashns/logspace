@@ -3,7 +3,7 @@ import type { Html } from '#jsx/jsx-runtime'
 import { getSiteImageHref } from '../data/site/site-images.ts'
 import type { SiteConfig, SiteImage } from '../data/site/site.ts'
 
-// The site's logo for each theme, uploaded at /admin/config, or its title without one; sized by its
+// The site's logo for each theme, uploaded at /admin/branding, or its title without one; sized by its
 // height. Each theme shows its own logo, or the other theme's if it has none. They're images in the
 // page, not CSS, so the browser fetches them as soon as it reads the HTML, alongside the banner.
 export function SiteLogo(props: { site: SiteConfig; height: string }): Html {

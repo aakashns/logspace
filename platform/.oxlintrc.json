@@ -98,7 +98,7 @@
         "src/routes/**/page.tsx",
         "src/routes/admin/layout.tsx",
         "src/routes/index/feed.tsx",
-        "src/routes/admin/config/fields.tsx"
+        "src/routes/admin/fields.tsx"
       ],
       "rules": {
         "no-restricted-imports": [

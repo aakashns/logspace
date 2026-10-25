@@ -110,7 +110,9 @@ test('an empty post is refused, and posts once it’s written', async ({ page })
   await publish(page)
 })
 
-test('an edit changes nothing until it’s saved, and × goes back to /admin', async ({ page }) => {
+test('an edit changes nothing until it’s saved, and × goes back to /admin/posts', async ({
+  page,
+}) => {
   await openComposer(page)
   await caption(page, 'Before the edit')
   await upload(page, 'Add photos', [photo, secondPhoto])
@@ -126,7 +128,7 @@ test('an edit changes nothing until it’s saved, and × goes back to /admin', a
   await loadedImages(page, '#composer-media img', 1)
   // Closing it leaves the post as it was.
   await page.getByRole('button', { name: 'Revert changes', exact: true }).click()
-  await expect(page).toHaveURL(/\/admin$/)
+  await expect(page).toHaveURL(/\/admin\/posts$/)
   await page.goto(post)
   await expect(page.locator('main')).toContainText('Before the edit')
   await loadedImages(page, 'main article img', 2)
