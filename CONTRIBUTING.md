@@ -168,8 +168,8 @@ the database, and nothing is kept between requests, so an edit made in the datab
 | `site/turnstile.ts`     | `Turnstile`: whether it's set up, checking a widget's token with Cloudflare, with a typed error for each way that fails, and logins while it's enabled  |
 | `site/subscriptions.ts` | Whether subscribing is off, paused (email or an enabled Turnstile is missing), or open                                                                 |
 | `users/user.ts`         | Accounts (the `users` table, after better-auth's `user`), and signing up: the form's checks, and the emailed code (a `verifications` row)              |
-| `users/queries.ts`      | The address a sign-up's code was sent to, while it can be entered                                                                                       |
-| `users/commands.ts`     | `UserCommands`: asking for a code (passing Turnstile), and entering it, which makes the account                                                         |
+| `users/queries.ts`      | Whether an address has a code that can still be entered                                                                                                 |
+| `users/commands.ts`     | `UserCommands`: asking for a code (passing Turnstile, as often as an address may be sent one), and entering it, which makes the account                |
 | `site/files.ts`         | The site's image files, from storage, or the default icons that `Images` caches                                                                         |
 | `link-previews/`        | `LinkPreviews` fetches previews in the background, never on a page's time, and saves each one's image as resized WebP copies                            |
 
@@ -263,11 +263,13 @@ and without JavaScript. Each test starts the app with its own temporary data and
   At most 100 sessions are retained, with expired/old-credential rows removed on login. Login is
   checked before an upload's body is read, and the login form itself, which anyone can send, is
   read only up to 16 KB.
-- **Subscribing**: the form needs Turnstile, always, and is read only up to 16 KB. Its code is 6
-  digits, stored as a SHA-256 hash, good for 10 minutes and 3 wrong tries, and replaced by asking
-  again. Which code a browser is entering is in an `HttpOnly`, `SameSite=Lax` cookie sent only to
-  `/subscribe` (the code's random id), so the address is never in a URL, and the code can only be
-  entered in the browser that asked for it. An address that already has an account gets the same
+- **Subscribing**: the form needs Turnstile, always, and is read only up to 16 KB. An address is
+  sent a code at most every 30 seconds, and 5 an hour (counted in `rate_limits`, as better-auth
+  counts requests). A code is 6 digits, stored as a SHA-256 hash, good for 10 minutes and 3 wrong
+  tries, and replaces the ones sent before only once it's sent. The address a browser is entering
+  a code for is in an `HttpOnly`, `SameSite=Lax` cookie sent only to `/subscribe`, sealed like the
+  stored secrets, so it's never in a URL, and the code can only be entered in the browser that
+  asked for it. An address that already has an account gets the same
   pages and emails, so the form doesn't say who has one.
 - **Forms from other sites** are refused (`Sec-Fetch-Site`, else `Origin` against the host), as
   Remix's `cop()` did. Behind Caddy, the host is taken from `X-Forwarded-Host`, which

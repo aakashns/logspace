@@ -1,21 +1,23 @@
 // Subscribing, which signs up for an account: the form (with Turnstile), then the page for the
-// code it emails, then the account. Which code the browser is entering is in a cookie, the id of
-// the code's row, so the address is never in a URL, and the code can only be entered in the
-// browser that asked for it. While subscribing is off or paused, the pages say it's closed.
-import { Effect, Layer } from 'effect'
+// code it emails, then the account. The address the browser is entering a code for is in a
+// cookie, sealed (see ../../lib/secrets.ts), so it's never in a URL, and the code can only be
+// entered in the browser that asked for it. While subscribing is off or paused, the pages say
+// it's closed.
+import { Effect, Layer, Option, Schema } from 'effect'
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from 'effect/http'
 
 import type { Child } from '#jsx/jsx-runtime'
 import { Document } from '../../components/document.tsx'
 import { configuredSite } from '../../data/site/queries.ts'
 import { subscriptionsStatus } from '../../data/site/subscriptions.ts'
-import { UserCommands } from '../../data/users/commands.ts'
-import { pendingSignUpEmail } from '../../data/users/queries.ts'
+import { type SignUpRateLimited, UserCommands } from '../../data/users/commands.ts'
+import { hasPendingSignUp } from '../../data/users/queries.ts'
 import { SIGN_UP_CODE_MINUTES, type SignUpForm, type SignUpIssue } from '../../data/users/user.ts'
 import { AppConfig } from '../../lib/config.ts'
 import { formText, readForm, SMALL_FORM_LIMIT } from '../../lib/http/forms.ts'
 import { pageContext, pageResponse, requestUrl } from '../../lib/http/pages.ts'
 import { privately, redirect, textResponse } from '../../lib/http/responses.ts'
+import { SealedSecret, Secrets } from '../../lib/secrets.ts'
 import { urls } from '../../lib/urls.ts'
 import {
   SUBSCRIBE_PAGE_STYLES,
@@ -27,6 +29,8 @@ import {
 } from './page.tsx'
 
 const CODE_COOKIE = 'sign_up'
+const CODE_COOKIE_PURPOSE = 'subscribe.signUpCookie'
+const decodeSealed = Schema.decodeUnknownOption(SealedSecret)
 
 const page = (title: string, content: Child, options?: { status?: number; turnstile?: boolean }) =>
   Effect.gen(function* () {
@@ -85,18 +89,31 @@ const subscribe = (secure: boolean) =>
     let form = { name: formText(fields, 'name'), email: formText(fields, 'email') }
     let token = formText(fields, 'cf-turnstile-response')
     return yield* (yield* UserCommands).requestSignUp(form, token).pipe(
-      Effect.map((id) =>
-        HttpServerResponse.setCookieUnsafe(redirect(urls.subscribeVerify(), 303), CODE_COOKIE, id, {
-          httpOnly: true,
-          sameSite: 'lax',
-          path: urls.subscribe(),
-          secure,
-          maxAge: `${SIGN_UP_CODE_MINUTES} minutes`,
-        }),
+      Effect.flatMap((address) =>
+        Effect.flatMap(Secrets, (secrets) => secrets.seal(address, CODE_COOKIE_PURPOSE)),
+      ),
+      Effect.map((sealed) =>
+        HttpServerResponse.setCookieUnsafe(
+          redirect(urls.subscribeVerify(), 303),
+          CODE_COOKIE,
+          sealed,
+          {
+            httpOnly: true,
+            sameSite: 'lax',
+            path: urls.subscribe(),
+            secure,
+            maxAge: `${SIGN_UP_CODE_MINUTES} minutes`,
+          },
+        ),
       ),
       Effect.catchTags({
         SubscriptionsClosed: () => closed,
         SignUpRejected: ({ issues }) => subscribeForm({ form, issues }, 400),
+        SignUpRateLimited: (limited) =>
+          subscribeForm(
+            { form, issues: [{ field: 'email', message: rateLimitMessage(limited) }] },
+            429,
+          ),
         TurnstileTokenMissing: () => subscribeForm({ form, error: TURNSTILE_MISSING }, 400),
         TurnstileDenied: () => subscribeForm({ form, error: TURNSTILE_FAILED }, 400),
         TurnstileUnavailable: () => subscribeForm({ form, error: TURNSTILE_FAILED }, 502),
@@ -118,12 +135,23 @@ const subscribe = (secure: boolean) =>
     }),
   )
 
-// The code's id, from the cookie, and the address it was sent to, while it can be entered.
+function rateLimitMessage(limited: SignUpRateLimited): string {
+  if (limited.reason === 'just') {
+    return `A code was just sent to this address. You can ask for another in ${limited.retryAfter} seconds.`
+  }
+  let minutes = Math.ceil(limited.retryAfter / 60)
+  return `Too many codes were sent to this address. You can ask for another in ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}.`
+}
+
+// The address in the cookie, while a code sent to it can be entered.
 const pendingCode = Effect.gen(function* () {
   let request = yield* HttpServerRequest.HttpServerRequest
-  let id = request.cookies[CODE_COOKIE] ?? ''
-  let email = id ? yield* pendingSignUpEmail(id) : undefined
-  return email ? { id, email } : undefined
+  let sealed = Option.getOrUndefined(decodeSealed(request.cookies[CODE_COOKIE]))
+  if (!sealed) return undefined
+  let email = yield* Effect.flatMap(Secrets, (secrets) =>
+    secrets.open(sealed, CODE_COOKIE_PURPOSE),
+  ).pipe(Effect.orElseSucceed(() => undefined))
+  return email && (yield* hasPendingSignUp(email)) ? { email } : undefined
 })
 
 const codeGone = (usedUp: boolean) =>
@@ -152,7 +180,7 @@ const verify = Effect.gen(function* () {
   let code = formText(yield* readForm(SMALL_FORM_LIMIT), 'code')
   let pending = yield* pendingCode
   if (!pending) return yield* codeGone(false)
-  return yield* (yield* UserCommands).completeSignUp(pending.id, code).pipe(
+  return yield* (yield* UserCommands).completeSignUp(pending.email, code).pipe(
     Effect.flatMap(({ name, email }) =>
       Effect.flatMap(configuredSite, ({ siteTitle }) =>
         page(

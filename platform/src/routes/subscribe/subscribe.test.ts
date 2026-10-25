@@ -1,7 +1,7 @@
 // Subscribing: the home page's button, the form with Turnstile, the code emailed (with Resend,
 // which a fake network answers for, as it does for Cloudflare), and the account it makes.
 import { afterAll, beforeEach, describe, expect, it } from 'bun:test'
-import { Effect } from 'effect'
+import { Clock, Effect } from 'effect'
 import { SqlClient } from 'effect/sql'
 
 import { capture, defined, makeTestApp } from '../../../test/app.ts'
@@ -11,13 +11,33 @@ const SITE_KEY = '0x4AAAAAAAsiteKey123'
 const RESEND = 'https://api.resend.com/emails'
 
 // The emails Resend was asked to send, and the tokens Cloudflare was asked about. Cloudflare
-// accepts "good-token" and nothing else.
+// accepts "good-token" and nothing else. Resend answers once `resend` lets it, with `resendFails`
+// set refusing the email.
 let emails: { to: string; subject: string; text: string }[] = []
 let tokens: string[] = []
+let resend: () => Promise<void> = () => Promise.resolve()
+let resendFails = false
+
+// The time, which the tests move on.
+let now = 1_800_000_000_000
+const later = (milliseconds: number) => {
+  now += milliseconds
+}
+const baseClock = Effect.runSync(Clock.Clock)
+const clock: Clock.Clock = {
+  sleep: (duration) => baseClock.sleep(duration),
+  monotonicTimeNanosUnsafe: () => baseClock.monotonicTimeNanosUnsafe(),
+  monotonicTimeNanos: baseClock.monotonicTimeNanos,
+  currentTimeMillisUnsafe: () => now,
+  currentTimeMillis: Effect.sync(() => now),
+  currentTimeNanosUnsafe: () => BigInt(now) * 1_000_000n,
+  currentTimeNanos: Effect.sync(() => BigInt(now) * 1_000_000n),
+}
 
 const app = makeTestApp(
   {},
   {
+    clock,
     network: {
       resolve: () => Promise.reject(new Error('Not expected')),
       fetch: async (url, init) => {
@@ -25,6 +45,8 @@ const app = makeTestApp(
         if (url.href === RESEND) {
           let { to, subject, text } = JSON.parse(body)
           emails.push({ to: to[0], subject, text })
+          await resend()
+          if (resendFails) return Response.json({ message: 'Unavailable' }, { status: 503 })
           return Response.json({ id: 'sent' })
         }
         let token = new URLSearchParams(body).get('response') ?? ''
@@ -92,8 +114,10 @@ const codeCookie = (response: Response) =>
     ?.split(';')[0]
 const lastCode = () => capture(defined(emails.at(-1), 'an email').text, /\n\n(\d{6})\n\n/)
 
-// Asks for a code, returning the cookie that says which.
+// Asks for a code, half a minute after the last one, returning the cookie that says for which
+// address.
 const askForCode = async (fields: Record<string, string> = {}) => {
+  later(30_000)
   let response = await post('/subscribe', {
     name: 'Ada Lovelace',
     email: 'Ada@Example.com',
@@ -109,6 +133,8 @@ beforeEach(async () => {
   await app.seedDatabase()
   emails = []
   tokens = []
+  resend = () => Promise.resolve()
+  resendFails = false
 })
 afterAll(app.dispose)
 
@@ -165,7 +191,7 @@ describe('subscribing', () => {
     )
   })
 
-  it('emails a code, keeping the address out of the URL, and its hash in the database', async () => {
+  it('emails a code, with the address sealed in a cookie, and the code’s hash in the database', async () => {
     let response = await post('/subscribe', {
       name: 'Ada Lovelace',
       email: 'Ada@Example.com',
@@ -175,8 +201,9 @@ describe('subscribing', () => {
     expect(response.headers.get('Location')).toBe('/subscribe/verify')
     let cookie = response.headers.getSetCookie().find((cookie) => cookie.startsWith('sign_up='))
     expect(cookie).toMatch(
-      /^sign_up=[0-9a-f-]{36}; Max-Age=600; Path=\/subscribe; HttpOnly; SameSite=Lax$/,
+      /^sign_up=v1\.[\w-]{16}\.[\w-]+; Max-Age=600; Path=\/subscribe; HttpOnly; SameSite=Lax$/,
     )
+    expect(cookie).not.toContain('ada')
     expect(tokens).toEqual(['good-token'])
 
     let [email] = emails
@@ -243,19 +270,21 @@ describe('subscribing', () => {
     expect(await users()).toEqual([])
   })
 
-  it('needs the code in time, in the browser that asked for it, and only the newest one', async () => {
+  it('needs the last code sent, in time, in the browser that asked for it', async () => {
     let cookie = await askForCode()
     let first = lastCode()
-    let second = await askForCode()
-    let expired = await enter(first, cookie)
-    expect(expired.status).toBe(410)
-    expect(await expired.text()).toContain('Your code expired')
-    expect((await enter(lastCode(), 'sign_up=someone-else')).status).toBe(410)
+    await askForCode()
+    let replaced = await enter(first, cookie)
+    expect(replaced.status).toBe(400)
+    expect(await replaced.text()).toContain('That code isn’t right.')
+    expect((await enter(lastCode(), 'sign_up=v1.someone-elses.cookie')).status).toBe(410)
     expect((await post('/subscribe/verify', { code: lastCode() })).status).toBe(410)
 
     await sql((sql) => sql`update verifications set expires_at = '2000-01-01T00:00:00.000Z'`)
-    expect((await enter(lastCode(), second)).status).toBe(410)
-    expect((await app.fetch('/subscribe/verify', { headers: { Cookie: second } })).status).toBe(410)
+    let expired = await enter(lastCode(), cookie)
+    expect(expired.status).toBe(410)
+    expect(await expired.text()).toContain('Your code expired')
+    expect((await app.fetch('/subscribe/verify', { headers: { Cookie: cookie } })).status).toBe(410)
     expect(await users()).toEqual([])
   })
 
@@ -297,5 +326,68 @@ describe('subscribing', () => {
     expect(await denied.text()).toContain('The check that you’re human didn’t pass.')
     expect(emails).toEqual([])
     expect(await codeRows()).toEqual([])
+  })
+})
+
+describe('how often codes are sent', () => {
+  beforeEach(open)
+
+  const ask = () =>
+    post('/subscribe', {
+      name: 'Ada Lovelace',
+      email: 'ada@example.com',
+      'cf-turnstile-response': 'good-token',
+    })
+
+  it('sends an address a code at most every 30 seconds, and 5 an hour', async () => {
+    expect((await ask()).status).toBe(303)
+    later(20_000)
+    let soon = await ask()
+    expect(soon.status).toBe(429)
+    expect(await soon.text()).toContain(
+      'A code was just sent to this address. You can ask for another in 10 seconds.',
+    )
+    // Another address isn't held up.
+    expect((await askForCode({ email: 'grace@example.com' })).length).toBeGreaterThan(0)
+    for (let sent = 1; sent < 5; sent++) {
+      later(30_000)
+      expect((await ask()).status).toBe(303)
+    }
+    later(30_000)
+    let tooMany = await ask()
+    expect(tooMany.status).toBe(429)
+    expect(await tooMany.text()).toContain(
+      'Too many codes were sent to this address. You can ask for another in 60 minutes.',
+    )
+    expect(emails.filter((email) => email.to === 'ada@example.com')).toHaveLength(5)
+    later(60 * 60 * 1000)
+    expect((await ask()).status).toBe(303)
+  })
+
+  it('keeps the last code if a new one can’t be sent', async () => {
+    let cookie = await askForCode()
+    let code = lastCode()
+    resendFails = true
+    later(30_000)
+    let failed = await ask()
+    expect(failed.status).toBe(502)
+    expect(await failed.text()).toContain('We couldn’t send the email with your code.')
+    expect(codeCookie(failed)).toBeUndefined()
+    expect((await enter(code, cookie)).status).toBe(200)
+  })
+
+  it('keeps the newest code when an older request finishes last', async () => {
+    let release = () => {}
+    resend = () => new Promise((resolve) => (release = resolve))
+    let older = ask()
+    await Promise.resolve()
+    while (emails.length === 0) await new Promise((resolve) => setImmediate(resolve))
+    resend = () => Promise.resolve()
+    let newer = await askForCode()
+    let newest = lastCode()
+    release()
+    let olderCookie = defined(codeCookie(await older), 'the older request’s cookie')
+    expect((await enter(newest, olderCookie)).status).toBe(200)
+    expect(newer.length).toBeGreaterThan(0)
   })
 })

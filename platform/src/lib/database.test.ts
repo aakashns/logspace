@@ -136,7 +136,7 @@ describe('migrations', () => {
       {
         id: '0011',
         name: 'create_users',
-        checksum: '075d37b86cbc9a0f411deda6e7d44341bbbc12ed999b7349b0c54362c1688fe2',
+        checksum: 'b15a4cd63fae32ee4e76b87f3452bdee13498960d5625c2797d3009ec133f5ac',
         batch: 1,
       },
     ])

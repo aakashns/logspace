@@ -1,7 +1,7 @@
--- Accounts, as better-auth's `user` and `verification` tables have them (with this database's
--- plural, snake_case names, and dates as UTC ISO text). For now everyone signs up by subscribing
--- at /subscribe. better-auth's `session` and `account` tables come with logging in: an account row
--- is for a password or another site's login, and an email code needs neither.
+-- Accounts, as better-auth's `user`, `verification`, and `rateLimit` tables have them (with this
+-- database's plural, snake_case names, and dates as UTC ISO text). For now everyone signs up by
+-- subscribing at /subscribe. better-auth's `session` and `account` tables come with logging in:
+-- an account row is for a password or another site's login, and an email code needs neither.
 
 -- Someone with an account, made once they've entered the code emailed to them.
 create table users (
@@ -27,3 +27,12 @@ create table verifications (
   updated_at text not null
 );
 create index verifications_identifier on verifications (identifier);
+
+-- How often something was done lately, as better-auth's `rateLimit` table keeps it: `key` says
+-- what and for whom, like 'sign-up-otp:ada@example.com', `count` how many times in the window,
+-- and `last_request` when it was last done, in milliseconds since 1970.
+create table rate_limits (
+  key text not null primary key,
+  count integer not null,
+  last_request integer not null
+);

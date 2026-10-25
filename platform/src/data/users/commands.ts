@@ -1,9 +1,10 @@
-// Signing up, the write side of the `users` and `verifications` tables: someone asks for a code
-// (passing Turnstile), which is emailed to them, and entering it makes their account and emails
-// them that they're subscribed. Only an account's address is proven, so an address that already
-// has one gets the same pages and emails, and the form never says who has an account.
+// Signing up, the write side of the `users`, `verifications`, and `rate_limits` tables: someone
+// asks for a code (passing Turnstile, and as often as an address may be sent one), which is
+// emailed to them, and entering it makes their account and emails them that they're subscribed.
+// Only an account's address is proven, so an address that already has one gets the same pages
+// and emails, and the form never says who has an account.
 import { randomInt, timingSafeEqual } from 'node:crypto'
-import { Context, DateTime, Effect, Layer, Option, Schema, Semaphore } from 'effect'
+import { Clock, Context, DateTime, Effect, Layer, Option, Schema, Semaphore } from 'effect'
 import { SqlClient } from 'effect/sql'
 
 import { Email, type EmailFailure } from '../site/email.ts'
@@ -15,11 +16,13 @@ import {
   hashCode,
   PendingSignUp,
   SIGN_UP_CODE_ATTEMPTS,
+  SIGN_UP_CODE_GAP_SECONDS,
   SIGN_UP_CODE_LENGTH,
   SIGN_UP_CODE_MINUTES,
+  SIGN_UP_CODES_PER_HOUR,
   type SignUpForm,
-  signUpEmail,
   signUpIdentifier,
+  signUpRateLimitKey,
   typedCode,
 } from './user.ts'
 
@@ -36,36 +39,44 @@ export class SignUpRejected extends Schema.TaggedError<SignUpRejected>()('SignUp
   ),
 }) {}
 
+// Too many codes were sent to the address lately: one `just` now, or the most an hour allows.
+// Another can be sent in `retryAfter` seconds.
+export class SignUpRateLimited extends Schema.TaggedError<SignUpRateLimited>()(
+  'SignUpRateLimited',
+  { reason: Schema.Literals(['just', 'hourly']), retryAfter: Schema.Int },
+) {}
+
 // The code isn't the one sent. With no attempts left, it's used up, and a new one is needed.
 export class SignUpCodeWrong extends Schema.TaggedError<SignUpCodeWrong>()('SignUpCodeWrong', {
   attemptsLeft: Schema.Int,
 }) {}
 
-// There's no code waiting: it expired, was used up, or was replaced by a newer one.
+// There's no code waiting for the address: it expired, or was used up.
 export class SignUpCodeExpired extends Schema.TaggedError<SignUpCodeExpired>()(
   'SignUpCodeExpired',
   {},
 ) {}
 
 const decodePending = Schema.decodeUnknownOption(Schema.fromJsonString(PendingSignUp))
+const HOUR = 60 * 60 * 1000
 
 export class UserCommands extends Context.Service<
   UserCommands,
   {
-    // Checks the form and Turnstile's token, then emails a code to the address, replacing any it
-    // was sent before. Returns the id of the code's row, which only the browser that asked is
-    // given, to say which code it's entering.
+    // Checks the form, Turnstile's token, and how many codes the address was sent lately, then
+    // emails it a code, which replaces the ones sent before once it's sent. Returns the address,
+    // lowercased.
     readonly requestSignUp: (
       form: SignUpForm,
       turnstileToken: string,
     ) => Effect.Effect<
       string,
-      SubscriptionsClosed | SignUpRejected | TurnstileFailure | EmailFailure
+      SubscriptionsClosed | SignUpRejected | TurnstileFailure | SignUpRateLimited | EmailFailure
     >
-    // Makes the account for the code with that id, if `code` is the one emailed, and emails them
-    // that they're subscribed. Returns who signed up.
+    // Makes the account for the address, if `code` is the last one emailed to it, and emails
+    // them that they're subscribed. Returns who signed up.
     readonly completeSignUp: (
-      id: string,
+      email: string,
       code: string,
     ) => Effect.Effect<
       { name: string; email: string },
@@ -84,8 +95,11 @@ export class UserCommands extends Context.Service<
         Context.add(Email, email),
         Context.add(Turnstile, turnstile),
       )
-      // Counting a wrong code, and using a right one, happen one at a time.
+      // Counting codes sent and wrong codes, and using a right one, happen one at a time.
       let codes = yield* Semaphore.make(1)
+      // The time, from the clock the app was made with (which the tests control).
+      let clock = yield* Clock.Clock
+      let currentTime = DateTime.now.pipe(Effect.provideService(Clock.Clock, clock))
 
       let requireOpen = Effect.flatMap(
         Effect.provideContext(subscriptionsStatus, services),
@@ -96,24 +110,49 @@ export class UserCommands extends Context.Service<
         url: saved.siteUrl ?? '',
       }))
 
+      // Counts a code to be sent to the address, as better-auth's rate limiter counts requests,
+      // or says why it can't be sent yet. The count goes once its last code is an hour old.
+      let countCode = (address: string, now: number) =>
+        Effect.gen(function* () {
+          let key = signUpRateLimitKey(address)
+          yield* sql`delete from rate_limits where last_request <= ${now - HOUR}`
+          let [row] = yield* sql<{ count: number; last_request: number }>`
+            select count, last_request from rate_limits where key = ${key}`
+          let since = row ? now - row.last_request : HOUR
+          let gap = SIGN_UP_CODE_GAP_SECONDS * 1000
+          if (since < gap) {
+            let retryAfter = Math.ceil((gap - since) / 1000)
+            return new SignUpRateLimited({ reason: 'just', retryAfter })
+          }
+          if (row && row.count >= SIGN_UP_CODES_PER_HOUR) {
+            let retryAfter = Math.ceil((HOUR - since) / 1000)
+            return new SignUpRateLimited({ reason: 'hourly', retryAfter })
+          }
+          yield* sql`insert into rate_limits ${sql.insert({ key, count: 1, last_request: now })}
+            on conflict (key) do update set count = count + 1, last_request = ${now}`
+          return undefined
+        }).pipe(sql.withTransaction, Effect.orDie)
+
       let requestSignUp = Effect.fn('UserCommands.requestSignUp')(function* (
         form: SignUpForm,
         turnstileToken: string,
       ) {
         yield* requireOpen
         let checked = checkSignUp(form)
-        if (checked._tag === 'Failure')
+        if (checked._tag === 'Failure') {
           return yield* new SignUpRejected({ issues: checked.failure })
+        }
         let { name, email: address } = checked.success
         yield* turnstile.verify(turnstileToken)
+        let now = yield* currentTime
+        let limited = yield* codes.withPermit(countCode(address, DateTime.toEpochMillis(now)))
+        if (limited) return yield* limited
         let code = String(randomInt(10 ** SIGN_UP_CODE_LENGTH)).padStart(SIGN_UP_CODE_LENGTH, '0')
-        let now = yield* DateTime.now
         let identifier = signUpIdentifier(address)
         let value: PendingSignUp = { code: hashCode(code), name, attempts: 0 }
         let id = crypto.randomUUID()
         yield* Effect.gen(function* () {
-          yield* sql`delete from verifications where identifier = ${identifier}
-            or expires_at <= ${DateTime.formatIso(now)}`
+          yield* sql`delete from verifications where expires_at <= ${DateTime.formatIso(now)}`
           yield* sql`insert into verifications ${sql.insert({
             id,
             identifier,
@@ -124,31 +163,38 @@ export class UserCommands extends Context.Service<
           })}`
         }).pipe(sql.withTransaction, Effect.orDie)
         let { title } = yield* site
-        yield* email.send({
-          to: address,
-          subject: `${code} is your code to subscribe to ${title}`,
-          text:
-            `Hi ${name},\n\nEnter this code to finish subscribing to ${title}:\n\n${code}\n\n` +
-            `It expires in ${SIGN_UP_CODE_MINUTES} minutes. If you didn’t ask to subscribe, ` +
-            'ignore this email.\n',
-        })
-        return id
+        // The codes sent before stay until this one is sent, so one that can't be sent leaves
+        // them as they were. One asked for after this, by a request that finished first, stays.
+        yield* email
+          .send({
+            to: address,
+            subject: `${code} is your code to subscribe to ${title}`,
+            text:
+              `Hi ${name},\n\nEnter this code to finish subscribing to ${title}:\n\n${code}\n\n` +
+              `It expires in ${SIGN_UP_CODE_MINUTES} minutes. If you didn’t ask to subscribe, ` +
+              'ignore this email.\n',
+          })
+          .pipe(
+            Effect.tapError(() =>
+              sql`delete from verifications where id = ${id}`.pipe(Effect.orDie),
+            ),
+          )
+        yield* sql`delete from verifications where identifier = ${identifier} and id != ${id}
+          and created_at <= ${DateTime.formatIso(now)}`.pipe(Effect.orDie)
+        return address
       })
 
-      // What a code typed comes to: who it was sent to, or why not. Nothing fails in the
-      // transaction, so a wrong code's count is kept.
-      let useCode = (id: string, typed: string, now: DateTime.Utc) =>
+      // What a code typed for an address comes to: who signed up, or why not. It's checked
+      // against the last code sent. Nothing fails in the transaction, so a wrong code's count is
+      // kept.
+      let useCode = (address: string, typed: string, now: DateTime.Utc) =>
         Effect.gen(function* () {
-          let [row] = yield* sql<{
-            id: string
-            identifier: string
-            value: string
-            expires_at: string
-          }>`
-            select id, identifier, value, expires_at from verifications where id = ${id}`
+          let [row] = yield* sql<{ id: string; value: string; expires_at: string }>`
+            select id, value, expires_at from verifications
+            where identifier = ${signUpIdentifier(address)}
+            order by created_at desc, rowid desc limit 1`
           let pending = row ? Option.getOrUndefined(decodePending(row.value)) : undefined
-          let address = row && signUpEmail(row.identifier)
-          if (!row || !pending || !address || row.expires_at <= DateTime.formatIso(now)) {
+          if (!row || !pending || row.expires_at <= DateTime.formatIso(now)) {
             if (row) yield* sql`delete from verifications where id = ${row.id}`
             return new SignUpCodeExpired()
           }
@@ -168,7 +214,7 @@ export class UserCommands extends Context.Service<
               attemptsLeft: Math.max(0, SIGN_UP_CODE_ATTEMPTS - attempts),
             })
           }
-          yield* sql`delete from verifications where id = ${row.id}`
+          yield* sql`delete from verifications where identifier = ${signUpIdentifier(address)}`
           // An address that has an account keeps it as it is.
           yield* sql`insert into users ${sql.insert({
             id: crypto.randomUUID(),
@@ -182,11 +228,13 @@ export class UserCommands extends Context.Service<
         }).pipe(sql.withTransaction, Effect.orDie)
 
       let completeSignUp = Effect.fn('UserCommands.completeSignUp')(function* (
-        id: string,
+        address: string,
         code: string,
       ) {
         yield* requireOpen
-        let outcome = yield* codes.withPermit(useCode(id, typedCode(code), yield* DateTime.now))
+        let outcome = yield* codes.withPermit(
+          useCode(address.toLowerCase(), typedCode(code), yield* currentTime),
+        )
         if (outcome instanceof SignUpCodeWrong || outcome instanceof SignUpCodeExpired) {
           return yield* outcome
         }
