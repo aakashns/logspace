@@ -41,7 +41,7 @@ const posts = [
     type: "photos",
     date: "2026-10-18T18:20:00Z",
     caption:
-      "Left my phone at home and brought a notebook instead. **No route, no list, no podcast.**\n\nDrew three bad sketches of the maple by the river, then wrote down *one* good sentence. That felt like enough.",
+      "Left my phone at home and brought a notebook instead. No route, no list, no podcast.\n\nDrew three bad sketches of the maple by the river, then wrote down one good sentence. That felt like enough.",
     photos: [
       {
         file: "desk.png",
