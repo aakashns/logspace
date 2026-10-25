@@ -114,7 +114,7 @@
   }
 
   /* A link's preview card. */
-  .link-card {
+  .link-preview {
     display: flex;
     flex-direction: column;
     transition: background-color 150ms;
@@ -163,7 +163,7 @@
   }
 
   /* A square thumbnail beside the text, for sites that ask for a small card. */
-  .link-card.small-card {
+  .link-preview.small-card {
     flex-direction: row;
     align-items: center;
 

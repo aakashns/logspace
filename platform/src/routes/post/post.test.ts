@@ -63,7 +63,7 @@ describe('a post’s page and files', () => {
     expect(html).not.toMatch(/href="https:\/\/\[bad-host\]"/)
     // The preview card is for the first link that's a real URL.
     expect(html).toMatch(
-      /<a href="https:\/\/remix\.run" target="_blank" rel="noopener" class="media-frame link-card"/,
+      /<a href="https:\/\/remix\.run" target="_blank" rel="noopener" class="media-frame link-preview"/,
     )
   })
 

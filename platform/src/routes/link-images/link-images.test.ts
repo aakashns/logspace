@@ -76,6 +76,6 @@ describe('link previews', () => {
   it('shows a card without an image until its copies are saved', async () => {
     // The shared app's cache has no copies for this link.
     let html = await (await app.fetch(`/posts/${(await textPost()).id}`)).text()
-    expect(html).toMatch(/class="media-frame link-card"><div class="card-text">/)
+    expect(html).toMatch(/class="media-frame link-preview"><div class="card-text">/)
   })
 })
