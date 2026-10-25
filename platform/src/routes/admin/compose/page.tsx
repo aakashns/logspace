@@ -17,6 +17,13 @@ import { Tooltip } from '../../../components/controls.tsx'
 import { CloseIcon, ImageIcon, VideoIcon } from '../../../components/icons.tsx'
 import { Caption, POST_STYLES, PostMedia, PostMeta } from '../../../components/post.tsx'
 import { stylesheet } from '../../../components/stylesheet.ts'
+import { Button } from '../../../components/ui/button.tsx'
+import {
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DIALOG_STYLES,
+} from '../../../components/ui/dialog.tsx'
 import type { PostIssue } from '../../../data/posts/post.ts'
 import {
   FULL_WIDTH_IMAGE_SIZES,
@@ -31,7 +38,7 @@ import type { ComposeValues } from './form.ts'
 import css from './page.css' with { type: 'text' }
 
 // The preview shows the post as its page does.
-export const COMPOSE_PAGE_STYLES = POST_STYLES + stylesheet(css)
+export const COMPOSE_PAGE_STYLES = POST_STYLES + DIALOG_STYLES + stylesheet(css)
 
 export const COMPOSER_IDS = {
   issues: 'composer-issues',
@@ -331,30 +338,21 @@ const DELETE_DIALOG = 'delete-post'
 // Deleting a post: a dialog to confirm, outside the composer's form, since forms can't nest.
 function DeleteDialog(props: { id: string }): Html {
   return (
-    <dialog id={DELETE_DIALOG} aria-labelledby={`${DELETE_DIALOG}-title`} class="dialog">
+    <DialogContent
+      id={DELETE_DIALOG}
+      title="Delete this post?"
+      description="It’s removed from the site right away, along with its media files, and this can’t be undone."
+    >
       <form method="post" action={urls.admin.deletePost(props.id)}>
-        <h2 id={`${DELETE_DIALOG}-title`} class="dialog-title">
-          Delete this post?
-        </h2>
-        <p>
-          It’s removed from the site right away, along with its media files, and this can’t be
-          undone.
-        </p>
-        <div class="actions">
-          <button type="submit" class="destructive-button">
-            Delete
-          </button>
-          <button
-            type="button"
-            command="close"
-            commandfor={DELETE_DIALOG}
-            autofocus
-            class="secondary-button"
-          >
+        <DialogFooter>
+          <DialogClose dialog={DELETE_DIALOG} variant="outline" autofocus>
             Cancel
-          </button>
-        </div>
+          </DialogClose>
+          <Button type="submit" variant="destructive">
+            Delete
+          </Button>
+        </DialogFooter>
       </form>
-    </dialog>
+    </DialogContent>
   )
 }
