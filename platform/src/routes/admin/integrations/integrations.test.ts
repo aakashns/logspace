@@ -156,19 +156,21 @@ describe('saving Turnstile’s keys', () => {
     let row = JSON.parse(defined(await savedRow(), 'a saved row'))
     expect(row.siteKey).toBe(SITE_KEY)
     expect(row.secretKey).toMatch(/^v1\./)
+    expect(row.enabled).toBe(false)
     expect(await savedRow()).not.toContain(SECRET_KEY)
     expect(await savedSecret()).toBe(SECRET_KEY)
 
     let shown = await page(cookie)
     let html = await shown.text()
     expect(html).toMatch(/role="status"><div data-slot="alert-title">\s*Saved\./)
-    expect(html).toContain('Until then, logging in goes ahead without it.')
     expect(html).toContain('>Connected<')
     expect(html).toContain(`value="${SITE_KEY}"`)
     expect(html).toContain('placeholder="••••••••••••6789"')
     expect(html).toContain('Leave it empty to keep the saved one.')
     expect(html).not.toContain(SECRET_KEY)
-    expect(html).toContain(`<div class="cf-turnstile" data-sitekey="${SITE_KEY}" data-ignore>`)
+    expect(html).toContain(
+      `<div class="cf-turnstile" data-sitekey="${SITE_KEY}" data-size="flexible" data-ignore>`,
+    )
     expect(html).toContain('<script src="https://challenges.cloudflare.com/turnstile/v0/api.js"')
     expect(html).toContain('action="/admin/integrations/turnstile/verify"')
     expect(html).toContain('formaction="/admin/integrations/turnstile/remove"')
@@ -180,6 +182,33 @@ describe('saving Turnstile’s keys', () => {
     // The note is shown once.
     let again = await (await page(defined(app.sessionCookie(shown), 'a cookie'))).text()
     expect(again).not.toContain('Saved.')
+  })
+
+  it('enables it for logging in with its checkbox, which a rejected form keeps', async () => {
+    expect(await (await page()).text()).toMatch(
+      /<input type="checkbox" id="turnstile-enabled" name="enabled" aria-describedby/,
+    )
+
+    let { cookie } = await saveKeys({ siteKey: SITE_KEY, secretKey: SECRET_KEY, enabled: 'on' })
+    expect(JSON.parse(defined(await savedRow(), 'a saved row')).enabled).toBe(true)
+    let html = await (await page(cookie)).text()
+    expect(html).toMatch(/id="turnstile-enabled" name="enabled" checked/)
+    expect(html).toContain('<code>logspace turnstile off</code>')
+    let login = await (await app.fetch('/admin/login')).text()
+    expect(login).toContain(`data-sitekey="${SITE_KEY}" data-size="flexible"`)
+
+    let rejected = await post(
+      '/admin/integrations/turnstile',
+      { siteKey: '', enabled: 'on' },
+      cookie,
+    )
+    expect(rejected.status).toBe(400)
+    expect(await rejected.text()).toMatch(/id="turnstile-enabled" name="enabled" checked/)
+
+    // Saved without it, it's off.
+    await post('/admin/integrations/turnstile', { siteKey: SITE_KEY, secretKey: '' }, cookie)
+    expect(JSON.parse(defined(await savedRow(), 'a saved row')).enabled).toBe(false)
+    expect(await (await app.fetch('/admin/login')).text()).not.toContain('class="cf-turnstile"')
   })
 
   it('trims keys pasted with spaces or a line break', async () => {
@@ -230,7 +259,7 @@ describe('saving Turnstile’s keys', () => {
     let kept = await saveKeys({ siteKey: '0x4AAAAAAAnewSiteKey', secretKey: '' })
     expect(kept.response.status).toBe(303)
     let row = JSON.parse(defined(await savedRow(), 'a saved row'))
-    expect(row).toEqual({ siteKey: '0x4AAAAAAAnewSiteKey', secretKey: sealed })
+    expect(row).toEqual({ siteKey: '0x4AAAAAAAnewSiteKey', secretKey: sealed, enabled: false })
 
     // A rejected form leaves the saved keys as they were.
     expect((await saveKeys({ siteKey: '', secretKey: '' })).response.status).toBe(400)
@@ -244,7 +273,7 @@ describe('saving Turnstile’s keys', () => {
     let sealedElsewhere = await otherSecret.run(
       Effect.flatMap(Secrets, (secrets) => secrets.seal(SECRET_KEY, TURNSTILE_SECRET_PURPOSE)),
     )
-    await setRow(JSON.stringify({ siteKey: SITE_KEY, secretKey: sealedElsewhere }))
+    await setRow(JSON.stringify({ siteKey: SITE_KEY, secretKey: sealedElsewhere, enabled: false }))
 
     let html = await (await page()).text()
     expect(html).toContain('Needs its secret key again')
@@ -331,6 +360,7 @@ describe('verifying the widget’s answer', () => {
         secretKey: await otherSecret.run(
           Effect.flatMap(Secrets, (secrets) => secrets.seal(SECRET_KEY, TURNSTILE_SECRET_PURPOSE)),
         ),
+        enabled: false,
       }),
     )
     let response = await verify('token')
@@ -377,11 +407,6 @@ describe('verifying the widget’s answer', () => {
     // The page shows the widget again, for another try.
     expect(html).toContain(`data-sitekey="${SITE_KEY}"`)
     expect(html).not.toContain(SECRET_KEY)
-    // Logging in on the site it was solved on now requires it.
-    expect(JSON.parse(defined(await savedRow(), 'a saved row')).verifiedHostname).toBe(
-      'example.com',
-    )
-    expect(html).toContain('Logging in on example.com requires it')
   })
 
   it('explains each reason Cloudflare refuses an answer', async () => {

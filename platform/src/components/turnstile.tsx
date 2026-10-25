@@ -8,16 +8,11 @@ import css from './turnstile.css' with { type: 'text' }
 
 export const TURNSTILE_STYLES = stylesheet(css)
 
-// "flexible" fills the width it's given (at least 300 pixels), rather than a fixed 300.
-export function TurnstileWidget(props: { siteKey: string; size?: 'flexible' | undefined }): Html {
+// It fills the width it's given ("flexible", at least 300 pixels), rather than a fixed 300.
+export function TurnstileWidget(props: { siteKey: string }): Html {
   return (
     <>
-      <div
-        class="cf-turnstile"
-        data-sitekey={props.siteKey}
-        data-size={props.size}
-        data-ignore
-      ></div>
+      <div class="cf-turnstile" data-sitekey={props.siteKey} data-size="flexible" data-ignore></div>
       <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
     </>
   )

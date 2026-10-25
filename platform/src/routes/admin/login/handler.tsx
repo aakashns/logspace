@@ -1,10 +1,15 @@
 // Logging in to /admin and out.
-import { Effect } from 'effect'
+import { Effect, Result } from 'effect'
 import { HttpRouter } from 'effect/http'
 
+import { SiteConfigQueries } from '../../../data/site/queries.ts'
 import { Turnstile } from '../../../data/site/turnstile.ts'
-import { LOGIN_FORM_LIMIT, readForm, UPLOAD_TOO_LARGE_MESSAGE } from '../../../lib/http/forms.ts'
-import { requestUrl } from '../../../lib/http/pages.ts'
+import {
+  formText,
+  LOGIN_FORM_LIMIT,
+  readForm,
+  UPLOAD_TOO_LARGE_MESSAGE,
+} from '../../../lib/http/forms.ts'
 import { redirect } from '../../../lib/http/responses.ts'
 import { AdminAuth } from '../../../lib/http/session.ts'
 import { urls } from '../../../lib/urls.ts'
@@ -13,22 +18,19 @@ import { LOGIN_PAGE_STYLES, LoginPage } from './page.tsx'
 
 const WRONG_PASSWORD = 'That password isn’t right.'
 
-// The page shows Turnstile's widget once it's set up with keys that can be read.
-const loginPage = (errors: { password?: string; turnstile?: string } = {}) =>
+// The form, and why it was refused. It shows Turnstile's widget while it's enabled.
+const loginPage = (errors?: { password?: string; turnstile?: string }) =>
   Effect.gen(function* () {
     let { enabled } = yield* AdminAuth
-    let status = yield* (yield* Turnstile).status
+    let saved = (yield* (yield* SiteConfigQueries).saved).turnstile
     let turnstile =
-      enabled && status._tag === 'SetUp'
-        ? { siteKey: status.siteKey, error: errors.turnstile }
-        : undefined
-    let failed = errors.password !== undefined || errors.turnstile !== undefined
+      enabled && saved?.enabled ? { siteKey: saved.siteKey, error: errors?.turnstile } : undefined
     return yield* adminPage(
       'Log in',
-      <LoginPage enabled={enabled} error={errors.password} turnstile={turnstile} />,
+      <LoginPage enabled={enabled} error={errors?.password} turnstile={turnstile} />,
       {
         styles: LOGIN_PAGE_STYLES,
-        status: failed ? 401 : 200,
+        status: errors ? 401 : 200,
         loggedIn: false,
         turnstile: turnstile !== undefined,
       },
@@ -46,9 +48,17 @@ const showLogin = Effect.gen(function* () {
 const logIn = Effect.gen(function* () {
   let auth = yield* AdminAuth
   let form = yield* readForm(LOGIN_FORM_LIMIT)
-  let token = form.get('cf-turnstile-response')
-  let { hostname } = yield* requestUrl
-  yield* (yield* Turnstile).checkLogin(typeof token === 'string' ? token.trim() : '', hostname)
+  let checked = yield* Effect.result(
+    (yield* Turnstile).checkLogin(formText(form, 'cf-turnstile-response')),
+  )
+  if (Result.isFailure(checked)) {
+    return yield* loginPage({
+      turnstile:
+        checked.failure._tag === 'TurnstileTokenMissing'
+          ? 'Complete the check that you’re human, then log in again.'
+          : 'The check that you’re human didn’t pass. Complete it again, then log in.',
+    })
+  }
   let session = yield* auth.logIn(form.get('password'))
   if (!session) {
     return yield* loginPage({ password: WRONG_PASSWORD })
@@ -58,12 +68,6 @@ const logIn = Effect.gen(function* () {
   Effect.catchTags({
     UploadTooLarge: () => message('Upload too large', UPLOAD_TOO_LARGE_MESSAGE, 413),
     MalformedForm: () => loginPage({ password: WRONG_PASSWORD }),
-    TurnstileTokenMissing: () =>
-      loginPage({ turnstile: 'Complete the check that you’re human, then log in again.' }),
-    TurnstileDenied: () =>
-      loginPage({
-        turnstile: 'That check didn’t pass, or expired. Complete it again, then log in.',
-      }),
   }),
   Effect.map(privately),
 )

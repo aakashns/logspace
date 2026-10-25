@@ -13,7 +13,7 @@ export const LOGIN_PAGE_STYLES = FIELD_STYLES + INPUT_STYLES + TURNSTILE_STYLES 
 export function LoginPage(props: {
   error?: string | undefined
   enabled: boolean
-  // Turnstile's widget, when it's set up, and why the form was refused if it's the widget's fault.
+  // Turnstile's widget, while it's enabled, and why the form was refused if it didn't pass.
   turnstile?: { siteKey: string; error?: string | undefined } | undefined
 }): Html {
   let { error, enabled, turnstile } = props
@@ -37,9 +37,9 @@ export function LoginPage(props: {
             {error ? <FieldError id="password-error">{error}</FieldError> : null}
           </Field>
           {turnstile ? (
-            // Logging in doesn't wait for it: the server decides whether it's needed.
+            // Logging in doesn't wait for it: without its answer, the server refuses the form.
             <Field invalid={turnstile.error !== undefined}>
-              <TurnstileWidget siteKey={turnstile.siteKey} size="flexible" />
+              <TurnstileWidget siteKey={turnstile.siteKey} />
               {turnstile.error ? <FieldError>{turnstile.error}</FieldError> : null}
             </Field>
           ) : null}

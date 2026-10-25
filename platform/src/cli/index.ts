@@ -78,6 +78,20 @@ const upgrade = Command.make(
     ),
 ).pipe(Command.withDescription('Replace this binary with the latest release, or the given one'))
 
+const turnstile = Command.make(
+  'turnstile',
+  { state: Argument.Literals('state', ['on', 'off']) },
+  ({ state }) =>
+    Effect.flatMap(
+      Effect.promise(() => import('./turnstile.ts')),
+      (module) => module.turnstile(state),
+    ),
+).pipe(
+  Command.withDescription(
+    'Turn Cloudflare Turnstile on or off for logging in to /admin, as its Enabled checkbox does (off if it locks you out)',
+  ),
+)
+
 const logspace = Command.make('logspace', {}, () => runServer).pipe(
   Command.withDescription(
     `LogSpace ${VERSION}. The server is configured with environment variables: PORT (44100), HOST (::), ` +
@@ -85,7 +99,7 @@ const logspace = Command.make('logspace', {}, () => runServer).pipe(
       'ADMIN_PASSWORD and AUTH_SESSION_SECRET (the admin password and the secret that signs its ' +
       'session cookie), and TRUST_PROXY=1 behind a reverse proxy.',
   ),
-  Command.withSubcommands([start, deploy, setAdminPassword, migrate, upgrade]),
+  Command.withSubcommands([start, deploy, setAdminPassword, migrate, upgrade, turnstile]),
 )
 
 // The old binary's spellings of help and version, which prints the version alone, for scripts.

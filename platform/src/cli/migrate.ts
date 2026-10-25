@@ -1,27 +1,18 @@
 // `logspace migrate [--dry-run]`: applies the database migrations that haven't run yet, as the
-// server does when it starts, or with --dry-run, lists them. It's the database `start` would use:
-// DATABASE_PATH, else on a server `logspace deploy` set up, the service's, else data/app.sqlite.
-import { Config, Console, Effect, FileSystem, Layer, Option } from 'effect'
+// server does when it starts, or with --dry-run, lists them, in the database `start` would use
+// (see database.ts).
+import { Console, Effect } from 'effect'
 
-import { AppConfig } from '../lib/config.ts'
-import { DatabaseLive, runMigrations } from '../lib/database.ts'
-import { DOMAINS_FILE, SERVER_DATABASE_PATH } from './deploy.ts'
+import { runMigrations } from '../lib/database.ts'
+import { commandDatabase } from './database.ts'
 import { fail, reportFailures } from './shell.ts'
 
 export const migrate = Effect.fn('migrate')(function* (dryRun: boolean) {
-  let fs = yield* FileSystem.FileSystem
-  let config = yield* Effect.provide(AppConfig, AppConfig.layer)
-  let databasePathSet = Option.isSome(yield* Config.option(Config.String('DATABASE_PATH')))
-  let onServer = !databasePathSet && (yield* fs.exists(DOMAINS_FILE))
-  let file = onServer ? SERVER_DATABASE_PATH : config.databasePath
+  let { file, exists, layer } = yield* commandDatabase
   // A dry run doesn't make a database that isn't there.
-  if (dryRun && file !== ':memory:' && !(yield* fs.exists(file))) {
-    return yield* fail(`There's no database at ${file}`)
-  }
+  if (dryRun && !exists) return yield* fail(`There's no database at ${file}`)
   let names = yield* runMigrations({ dryRun }).pipe(
-    Effect.provide(
-      DatabaseLive.pipe(Layer.provide(Layer.succeed(AppConfig, { ...config, databasePath: file }))),
-    ),
+    Effect.provide(layer),
     Effect.catchTag('SqlError', (error) =>
       Effect.fail(fail(`Couldn't migrate ${file}: ${error.message}`)),
     ),

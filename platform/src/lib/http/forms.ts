@@ -63,8 +63,16 @@ const readAtMost = Effect.fnUntraced(function* (body: ReadableStream<Uint8Array>
   return size > limit ? undefined : Buffer.concat(chunks)
 })
 
-// The most a login form can be: a password, with room to spare.
+// The most a login form can be: a password and Turnstile's token (at most 2 KB), with room to
+// spare.
 export const LOGIN_FORM_LIMIT = 16 * 1024
+
+// A form's text field, trimmed (a pasted key often has spaces or a line break around it), or ''
+// for a missing one or a file.
+export function formText(form: FormData, name: string): string {
+  let value = form.get(name)
+  return typeof value === 'string' ? value.trim() : ''
+}
 
 // "120 MB".
 export const megabytes = (bytes: number) => `${Math.round(bytes / (1024 * 1024))} MB`

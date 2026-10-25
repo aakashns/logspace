@@ -52,15 +52,6 @@ const PostQueriesLive = PostQueries.layer.pipe(
   Layer.provide([MigratedDatabase, MediaStorage.layer]),
 )
 const SiteConfigQueriesLive = SiteConfigQueries.layer.pipe(Layer.provide(MigratedDatabase))
-const SiteConfigCommandsLive = SiteConfigCommands.layer.pipe(
-  Layer.provide([
-    MigratedDatabase,
-    MediaStorage.layer,
-    Images.layer,
-    SiteConfigQueriesLive,
-    Secrets.layer,
-  ]),
-)
 
 // Cloudflare's address, for Turnstile, fetched with PublicNetwork's fetch, which the tests
 // replace. It's one fixed address, so it doesn't need the checks link previews' fetches do.
@@ -91,10 +82,16 @@ export const AppServices = Layer.mergeAll(
   Secrets.layer,
   AdminAuth.layer.pipe(Layer.provide(MigratedDatabase)),
   PostCommands.layer.pipe(Layer.provide([MigratedDatabase, MediaStorage.layer, Images.layer])),
-  SiteConfigCommandsLive,
-  Turnstile.layer.pipe(
-    Layer.provide([SiteConfigQueriesLive, SiteConfigCommandsLive, Secrets.layer, CloudflareHttp]),
+  SiteConfigCommands.layer.pipe(
+    Layer.provide([
+      MigratedDatabase,
+      MediaStorage.layer,
+      Images.layer,
+      SiteConfigQueriesLive,
+      Secrets.layer,
+    ]),
   ),
+  Turnstile.layer.pipe(Layer.provide([SiteConfigQueriesLive, Secrets.layer, CloudflareHttp])),
   PostMedia.layer.pipe(Layer.provide([MediaStorage.layer, Images.layer, PostQueriesLive])),
   LinkPreviews.layer.pipe(
     Layer.provide([

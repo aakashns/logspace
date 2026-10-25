@@ -5,7 +5,7 @@ import { HttpRouter } from 'effect/http'
 
 import { SiteConfigCommands } from '../../../data/site/commands.ts'
 import { Turnstile } from '../../../data/site/turnstile.ts'
-import { LOGIN_FORM_LIMIT, readForm } from '../../../lib/http/forms.ts'
+import { formText, LOGIN_FORM_LIMIT, readForm } from '../../../lib/http/forms.ts'
 import { redirect } from '../../../lib/http/responses.ts'
 import { AdminAuth, type Session } from '../../../lib/http/session.ts'
 import { urls } from '../../../lib/urls.ts'
@@ -55,21 +55,19 @@ const showIntegrations = loggedIn((session) =>
   }),
 )
 
-// A form's value, trimmed: keys are pasted, often with spaces or a line break around them.
-const text = (form: FormData, name: string) => {
-  let value = form.get(name)
-  return typeof value === 'string' ? value.trim() : ''
-}
-
 const saveTurnstile = loggedIn((session) =>
   Effect.gen(function* () {
     let form = yield* readForm(FORM_LIMIT)
-    let keys = { siteKey: text(form, 'siteKey'), secretKey: text(form, 'secretKey') }
-    return yield* (yield* SiteConfigCommands).saveTurnstile(keys).pipe(
+    let keys = { siteKey: formText(form, 'siteKey'), secretKey: formText(form, 'secretKey') }
+    let enabled = form.has('enabled')
+    return yield* (yield* SiteConfigCommands).saveTurnstile(keys, enabled).pipe(
       Effect.flatMap(() => doneRedirect(session, 'turnstileSaved')),
       // The secret key typed isn't shown again.
       Effect.catchTag('TurnstileKeysRejected', (rejected) =>
-        integrationsPage({ rejected: { siteKey: keys.siteKey, issues: rejected.issues } }, 400),
+        integrationsPage(
+          { rejected: { siteKey: keys.siteKey, enabled, issues: rejected.issues } },
+          400,
+        ),
       ),
     )
   }),
@@ -88,7 +86,7 @@ const verifyTurnstile = loggedIn(() =>
   Effect.gen(function* () {
     let form = yield* readForm(FORM_LIMIT)
     let verification: TurnstileVerification = yield* (yield* Turnstile)
-      .verify(text(form, 'cf-turnstile-response'))
+      .verify(formText(form, 'cf-turnstile-response'))
       .pipe(
         Effect.map(({ hostname }) => ({ _tag: 'Verified', hostname }) as const),
         Effect.catch((failure) => Effect.succeed(failure)),

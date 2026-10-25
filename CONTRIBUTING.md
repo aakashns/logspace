@@ -74,7 +74,7 @@ remain available to the caller.
 
 `ServerLive` serves the routes on `AppConfig`'s port with Bun's HTTP listener; the CLI and the
 browser tests use it. `src/cli/index.ts` is the binary's command line (`start` by default, and
-`deploy`, `migrate`, `set-admin-password`, `upgrade`, `version`, `help`).
+`deploy`, `migrate`, `set-admin-password`, `turnstile`, `upgrade`, `version`, `help`).
 
 #### 2. The layout: routes, data, components, and lib
 
@@ -130,8 +130,8 @@ into a post by `form.ts`. Every expression is a one-line constant string. Values
 share are passed in `data-*` attributes and read with `el.dataset`, so nothing a user typed can
 end up in an expression. Everything else works without JavaScript: navigation is links, forms are
 forms, and the delete dialog uses `command`/`commandfor`. The one other script is Cloudflare's
-Turnstile widget, on `/admin/integrations` once it has a site key and on `/admin/login` once its
-keys can be read; it puts its token in a plain form.
+Turnstile widget, on `/admin/integrations` once it has a site key and on `/admin/login` while it's
+enabled; it puts its token in a plain form.
 
 #### 4. Data: `data/`
 
@@ -155,7 +155,7 @@ the database, and nothing is kept between requests, so an edit made in the datab
 | `site/site-images.ts`   | The URLs pages link the site's icon, logos, and banner image with                                                                                       |
 | `site/queries.ts`       | `SiteConfigQueries`, and `configuredSite` for what's only served once the settings are saved                                                            |
 | `site/commands.ts`      | `SiteConfigCommands`: saving `/admin/branding` (turning uploads into the site's image files, or `SiteConfigRejected`), and Turnstile's keys             |
-| `site/turnstile.ts`     | `Turnstile`: whether it's set up, checking a widget's token with Cloudflare, and whether a login may go ahead (only refused where it's known to work)   |
+| `site/turnstile.ts`     | `Turnstile`: whether it's set up, checking a widget's token with Cloudflare, with a typed error for each way that fails, and logins while it's enabled  |
 | `site/files.ts`         | The site's image files, from storage, or the default icons that `Images` caches                                                                         |
 | `link-previews/`        | `LinkPreviews` fetches previews in the background, never on a page's time, and saves each one's image as resized WebP copies                            |
 

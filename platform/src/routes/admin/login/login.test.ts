@@ -5,7 +5,6 @@ import { Effect, Redacted } from 'effect'
 import { ADMIN_PASSWORD, defined, makeTestApp } from '../../../../test/app.ts'
 import { TEST_SITE_CONFIG } from '../../../../test/seed.ts'
 import { SiteConfigCommands } from '../../../data/site/commands.ts'
-import { SiteConfigQueries } from '../../../data/site/queries.ts'
 import { TURNSTILE_SECRET_PURPOSE } from '../../../data/site/site.ts'
 import { Secrets } from '../../../lib/secrets.ts'
 
@@ -132,25 +131,10 @@ describe('logging in', () => {
 })
 
 describe('Turnstile on the login form', () => {
-  const connect = () =>
+  const save = (enabled: boolean) =>
     app.run(
       Effect.flatMap(SiteConfigCommands, (commands) =>
-        commands.saveTurnstile({ siteKey: SITE_KEY, secretKey: SECRET_KEY }),
-      ),
-    )
-  // As after Cloudflare accepted an answer solved on this hostname.
-  const verifiedOn = (hostname: string) =>
-    app.run(
-      Effect.gen(function* () {
-        let saved = defined((yield* (yield* SiteConfigQueries).saved).turnstile, 'Turnstile')
-        yield* (yield* SiteConfigCommands).saveTurnstileHostname(saved, hostname)
-      }),
-    )
-  const verifiedHostname = () =>
-    app.run(
-      Effect.map(SiteConfigQueries, (queries) => queries.saved).pipe(
-        Effect.flatten,
-        Effect.map((saved) => saved.turnstile?.verifiedHostname),
+        commands.saveTurnstile({ siteKey: SITE_KEY, secretKey: SECRET_KEY }, enabled),
       ),
     )
   const logIn = (fields: Record<string, string> = {}) =>
@@ -160,18 +144,31 @@ describe('Turnstile on the login form', () => {
     })
   const loggedIn = (response: Response) =>
     response.status === 302 && app.sessionCookie(response) !== undefined
-  const refusal = /<div role="alert" data-slot="field-error">([^<]*)<\/div>/
+  // Why the form was refused, with the widget shown again to complete.
+  const refused = async (response: Response) => {
+    expect(response.status).toBe(401)
+    expect(app.sessionCookie(response)).toBeUndefined()
+    let html = await response.text()
+    expect(html).toContain(`data-sitekey="${SITE_KEY}"`)
+    return html.match(/<div role="alert" data-slot="field-error">([^<]*)<\/div>/)?.[1]
+  }
+  const MISSING = 'Complete the check that you’re human, then log in again.'
+  const DENIED = 'The check that you’re human didn’t pass. Complete it again, then log in.'
 
-  it('isn’t shown or asked about until it’s connected', async () => {
-    let response = await app.fetch('/admin/login')
-    expect(await response.text()).not.toContain('class="cf-turnstile"')
-    expect(response.headers.get('Content-Security-Policy')).not.toContain('cloudflare')
-    expect(loggedIn(await logIn({ 'cf-turnstile-response': 'token' }))).toBe(true)
+  it('isn’t shown or asked about until it’s enabled', async () => {
+    for (let setUp of [async () => {}, () => save(false)]) {
+      await setUp()
+      let response = await app.fetch('/admin/login')
+      expect(await response.text()).not.toContain('class="cf-turnstile"')
+      expect(response.headers.get('Content-Security-Policy')).not.toContain('cloudflare')
+      expect(loggedIn(await logIn())).toBe(true)
+      expect(loggedIn(await logIn({ 'cf-turnstile-response': 'token' }))).toBe(true)
+    }
     expect(asked).toEqual([])
   })
 
-  it('shows the widget at full width once connected, without waiting for it to log in', async () => {
-    await connect()
+  it('is shown at full width once enabled, without the form waiting for it', async () => {
+    await save(true)
     let response = await app.fetch('/admin/login')
     let html = await response.text()
     expect(html).toContain(
@@ -182,72 +179,34 @@ describe('Turnstile on the login form', () => {
     expect(response.headers.get('Content-Security-Policy')).toContain(
       'frame-src https://challenges.cloudflare.com',
     )
-    // Until an answer from this site is accepted, it isn't needed, nor Cloudflare asked.
-    expect(loggedIn(await logIn())).toBe(true)
-    expect(asked).toEqual([])
   })
 
-  it('is required once Cloudflare accepts an answer solved on this site', async () => {
-    await connect()
-    answerJson({ success: true, hostname: 'localhost', 'error-codes': [] })
-    expect(loggedIn(await logIn({ 'cf-turnstile-response': 'good-token' }))).toBe(true)
-    expect(asked).toEqual(['good-token'])
-    expect(await verifiedHostname()).toBe('localhost')
+  it('logs in only with an answer Cloudflare accepts, checked before the password', async () => {
+    await save(true)
+    expect(await refused(await logIn())).toBe(MISSING)
+    expect(asked).toEqual([])
 
-    // Cloudflare is asked, with a token it can't accept, whether the keys still work.
-    answerJson({ success: false, 'error-codes': ['invalid-input-response'] })
-    let missing = await logIn()
-    expect(missing.status).toBe(401)
-    expect(app.sessionCookie(missing)).toBeUndefined()
-    let html = await missing.text()
-    expect(html.match(refusal)?.[1]).toBe(
-      'Complete the check that you’re human, then log in again.',
-    )
-    expect(html).toContain(`data-sitekey="${SITE_KEY}"`)
-    expect(asked.at(-1)).toBe('none')
+    answerJson({ success: false, 'error-codes': ['timeout-or-duplicate'] })
+    expect(await refused(await logIn({ 'cf-turnstile-response': 'old-token' }))).toBe(DENIED)
 
-    for (let codes of [['invalid-input-response'], ['timeout-or-duplicate']]) {
-      answerJson({ success: false, 'error-codes': codes })
-      let denied = await logIn({ 'cf-turnstile-response': 'bad-token' })
-      expect(denied.status).toBe(401)
-      expect((await denied.text()).match(refusal)?.[1]).toBe(
-        'That check didn’t pass, or expired. Complete it again, then log in.',
-      )
-    }
-    // A wrong password is still wrong, once the check passes.
     answerJson({ success: true, hostname: 'localhost' })
     let wrong = await logIn({ password: 'not-the-password', 'cf-turnstile-response': 'token' })
     expect(wrong.status).toBe(401)
     expect(await wrong.text()).toContain('That password isn’t right.')
+    expect(loggedIn(await logIn({ 'cf-turnstile-response': 'good-token' }))).toBe(true)
+    expect(asked).toEqual(['old-token', 'token', 'good-token'])
   })
 
-  it('lets the admin in when the keys stop working or Cloudflare can’t be asked', async () => {
-    await connect()
-    await verifiedOn('localhost')
-    for (let codes of [['invalid-input-secret'], ['missing-input-secret'], ['bad-request'], []]) {
-      answerJson({ success: false, 'error-codes': codes })
-      expect(loggedIn(await logIn())).toBe(true)
-      expect(loggedIn(await logIn({ 'cf-turnstile-response': 'token' }))).toBe(true)
-    }
+  it('has no way around it: keys Cloudflare rejects, or Cloudflare out of reach, refuse too', async () => {
+    await save(true)
+    answerJson({ success: false, 'error-codes': ['invalid-input-secret'] })
+    expect(await refused(await logIn({ 'cf-turnstile-response': 'token' }))).toBe(DENIED)
     answerJson({ error: 'down' }, 503)
-    expect(loggedIn(await logIn())).toBe(true)
+    expect(await refused(await logIn({ 'cf-turnstile-response': 'token' }))).toBe(DENIED)
     answer = () => Promise.reject(new Error('Offline'))
-    expect(loggedIn(await logIn())).toBe(true)
-  })
+    expect(await refused(await logIn({ 'cf-turnstile-response': 'token' }))).toBe(DENIED)
 
-  it('isn’t required on another hostname, as after the site moves', async () => {
-    await connect()
-    await verifiedOn('old.example.com')
-    expect(loggedIn(await logIn())).toBe(true)
-    expect(asked).toEqual([])
-    // Nor when it's refused there, since it was never known to work here.
-    answerJson({ success: false, 'error-codes': ['invalid-input-response'] })
-    expect(loggedIn(await logIn({ 'cf-turnstile-response': 'token' }))).toBe(true)
-  })
-
-  it('isn’t shown or required when the secret key can’t be read', async () => {
-    await connect()
-    await verifiedOn('localhost')
+    // Nor a secret key that can't be read, as after AUTH_SESSION_SECRET changes.
     let other = makeTestApp({ sessionSecret: Redacted.make('another-session-secret') })
     let sealed = await other.run(
       Effect.flatMap(Secrets, (secrets) => secrets.seal(SECRET_KEY, TURNSTILE_SECRET_PURPOSE)),
@@ -257,20 +216,17 @@ describe('Turnstile on the login form', () => {
       Effect.flatMap(SiteConfigCommands, (commands) =>
         commands.save({
           ...TEST_SITE_CONFIG,
-          turnstile: { siteKey: SITE_KEY, secretKey: sealed, verifiedHostname: 'localhost' },
+          turnstile: { siteKey: SITE_KEY, secretKey: sealed, enabled: true },
         }),
       ),
     )
-    expect(await (await app.fetch('/admin/login')).text()).not.toContain('class="cf-turnstile"')
-    expect(loggedIn(await logIn())).toBe(true)
-    expect(asked).toEqual([])
+    expect(await refused(await logIn({ 'cf-turnstile-response': 'token' }))).toBe(DENIED)
+    expect(asked).toEqual(['token', 'token', 'token'])
   })
 
-  it('isn’t required after its keys are saved again, until an answer is accepted', async () => {
-    await connect()
-    await verifiedOn('localhost')
-    await connect()
-    expect(await verifiedHostname()).toBeUndefined()
+  it('needs only the password once it’s turned off again', async () => {
+    await save(true)
+    await save(false)
     expect(loggedIn(await logIn())).toBe(true)
   })
 })

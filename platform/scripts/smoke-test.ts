@@ -1,7 +1,8 @@
 // Runs a built binary as a server would, in an empty folder with no node_modules, and checks what
 // needs its embedded files: migrations, pages, Datastar, the default icon, and Bun.Image (resizing
-// a photo, and making the icons from an uploaded image). Then it installs it with install.sh and
-// upgrades it, from pretend releases. CI runs it on every binary it releases.
+// a photo, and making the icons from an uploaded image), and the turnstile command on the running
+// server's database. Then it installs it with install.sh and upgrades it, from pretend releases.
+// CI runs it on every binary it releases.
 //
 //   bun scripts/smoke-test.ts dist/logspace
 import * as fs from 'node:fs/promises'
@@ -102,6 +103,26 @@ try {
   let resized = html.match(/srcset="([^" ]+)/)?.[1]?.replaceAll('&amp;', '&')
   let webp = resized ? await fetch(base + resized) : undefined
   check(webp?.headers.get('Content-Type') === 'image/webp', 'a resized copy is made by Bun.Image')
+
+  // Turnstile, enabled at /admin/integrations (with Cloudflare's test keys), then turned off and
+  // on again by the command, against the running server's database.
+  let connected = await fetch(`${base}/admin/integrations/turnstile`, {
+    method: 'POST',
+    headers: { Cookie: cookie },
+    body: new URLSearchParams({
+      siteKey: '1x00000000000000000000AA',
+      secretKey: '1x0000000000000000000000000000000AA',
+      enabled: 'on',
+    }),
+    redirect: 'manual',
+  })
+  let widget = async () =>
+    (await (await fetch(`${base}/admin/login`)).text()).includes('class="cf-turnstile"')
+  check(connected.status === 303 && (await widget()), 'logging in shows Turnstile once enabled')
+  let off = Bun.spawnSync([binary, 'turnstile', 'off'], { cwd: dir })
+  check(off.exitCode === 0 && !(await widget()), 'logspace turnstile off turns it off')
+  let on = Bun.spawnSync([binary, 'turnstile', 'on'], { cwd: dir })
+  check(on.exitCode === 0 && (await widget()), 'logspace turnstile on turns it back on')
 } finally {
   server.kill()
   await server.exited

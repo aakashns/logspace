@@ -29,6 +29,7 @@ Write like a tweet, with **bold**, *italic*, and links that turn clickable on th
 sudo logspace upgrade              # Install the latest release
 sudo logspace deploy               # Then restart with it (saved domains)
 sudo logspace set-admin-password   # Change your password
+sudo logspace turnstile off        # If Cloudflare Turnstile locks you out of /admin
 journalctl -u logspace             # View server logs
 logspace help                      # All commands and settings
 ```
