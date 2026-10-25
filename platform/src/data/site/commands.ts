@@ -202,12 +202,13 @@ export class SiteConfigCommands extends Context.Service<
         if (checked._tag === 'Failure') {
           return yield* new EmailSettingsRejected({ issues: checked.failure })
         }
-        let { secret, provider, ...rest } = checked.success
+        let { secret, provider, hourlyLimit, ...addresses } = checked.success
         // Without a new one, the checks passed only because the saved one opens.
         let kept = secret ? yield* secrets.seal(secret, purpose) : sealed
         if (!kept) return yield* Effect.die('A secret was checked but not found')
         let email: EmailSettings = {
-          ...rest,
+          ...addresses,
+          hourlyLimit,
           provider:
             provider._tag === 'ses'
               ? { ...provider, secretAccessKey: kept }

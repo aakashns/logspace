@@ -4,7 +4,7 @@
 // Only an account's address is proven, so an address that already has one gets the same pages
 // and emails, and the form never says who has an account.
 import { randomInt, timingSafeEqual } from 'node:crypto'
-import { Clock, Context, DateTime, Effect, Exit, Layer, Option, Schema, Semaphore } from 'effect'
+import { Clock, Context, DateTime, Effect, Layer, Option, Schema, Semaphore } from 'effect'
 import { SqlClient } from 'effect/sql'
 
 import { Email, type EmailFailure } from '../site/email.ts'
@@ -110,12 +110,6 @@ export class UserCommands extends Context.Service<
         url: saved.siteUrl ?? '',
       }))
 
-      // Codes being sent, by address: when each was counted. They count as sent until they're
-      // settled, so overlapping requests can't get past the limit, but they're kept apart from
-      // `rate_limits` so one that isn't sent is taken back exactly once, whatever else was
-      // counted or taken back meanwhile.
-      let sending = new Map<string, number[]>()
-
       // Counts a code to be sent to the address, as better-auth's rate limiter counts requests,
       // or says why it can't be sent yet. The count goes once its last code is an hour old.
       let countCode = (address: string, now: number) =>
@@ -124,37 +118,20 @@ export class UserCommands extends Context.Service<
           yield* sql`delete from rate_limits where last_request <= ${now - HOUR}`
           let [row] = yield* sql<{ count: number; last_request: number }>`
             select count, last_request from rate_limits where key = ${key}`
-          let pending = sending.get(address) ?? []
-          let count = (row?.count ?? 0) + pending.length
-          let since = count > 0 ? now - Math.max(row?.last_request ?? 0, ...pending) : HOUR
+          let since = row ? now - row.last_request : HOUR
           let gap = SIGN_UP_CODE_GAP_SECONDS * 1000
           if (since < gap) {
             let retryAfter = Math.ceil((gap - since) / 1000)
             return new SignUpRateLimited({ reason: 'just', retryAfter })
           }
-          if (count >= SIGN_UP_CODES_PER_HOUR) {
+          if (row && row.count >= SIGN_UP_CODES_PER_HOUR) {
             let retryAfter = Math.ceil((HOUR - since) / 1000)
             return new SignUpRateLimited({ reason: 'hourly', retryAfter })
           }
-          sending.set(address, [...pending, now])
+          yield* sql`insert into rate_limits ${sql.insert({ key, count: 1, last_request: now })}
+            on conflict (key) do update set count = count + 1, last_request = ${now}`
           return undefined
-        }).pipe(Effect.orDie)
-
-      // Settles the code counted at `counted`: saved in `rate_limits` if it was sent, or dropped,
-      // so asking again isn't refused as if it had been.
-      let settleCode = (address: string, counted: number, sent: boolean) =>
-        Effect.gen(function* () {
-          let pending = sending.get(address) ?? []
-          let index = pending.indexOf(counted)
-          let rest = pending.filter((_, other) => other !== index)
-          if (rest.length > 0) sending.set(address, rest)
-          else sending.delete(address)
-          if (!sent) return
-          let key = signUpRateLimitKey(address)
-          yield* sql`insert into rate_limits ${sql.insert({ key, count: 1, last_request: counted })}
-            on conflict (key) do update set count = count + 1,
-              last_request = max(last_request, ${counted})`
-        }).pipe(Effect.orDie)
+        }).pipe(sql.withTransaction, Effect.orDie)
 
       let requestSignUp = Effect.fn('UserCommands.requestSignUp')(function* (
         form: SignUpForm,
@@ -167,26 +144,19 @@ export class UserCommands extends Context.Service<
         }
         let { name, email: address } = checked.success
         yield* turnstile.verify(turnstileToken)
-        let now = DateTime.toEpochMillis(yield* currentTime)
-        let limited = yield* codes.withPermit(countCode(address, now))
+        let now = yield* currentTime
+        let limited = yield* codes.withPermit(countCode(address, DateTime.toEpochMillis(now)))
         if (limited) return yield* limited
         let code = String(randomInt(10 ** SIGN_UP_CODE_LENGTH)).padStart(SIGN_UP_CODE_LENGTH, '0')
         let { title } = yield* site
-        yield* email
-          .send({
-            to: address,
-            subject: `${code} is your code to subscribe to ${title}`,
-            text:
-              `Hi ${name},\n\nEnter this code to finish subscribing to ${title}:\n\n${code}\n\n` +
-              `It expires in ${SIGN_UP_CODE_MINUTES} minutes. If you didn’t ask to subscribe, ` +
-              'ignore this email.\n',
-          })
-          .pipe(
-            // Only SES's or Resend's failures are known not to have sent it.
-            Effect.onExit((exit) =>
-              codes.withPermit(settleCode(address, now, !Exit.hasFails(exit))),
-            ),
-          )
+        yield* email.send({
+          to: address,
+          subject: `${code} is your code to subscribe to ${title}`,
+          text:
+            `Hi ${name},\n\nEnter this code to finish subscribing to ${title}:\n\n${code}\n\n` +
+            `It expires in ${SIGN_UP_CODE_MINUTES} minutes. If you didn’t ask to subscribe, ` +
+            'ignore this email.\n',
+        })
         // Saved once it's sent. Each code is entered at its own page, so the codes sent before
         // stay as they are (until they expire), and no one else asking for a code for the address
         // can replace or use up someone's.

@@ -265,8 +265,8 @@ and without JavaScript. Each test starts the app with its own temporary data and
   read only up to 16 KB.
 - **Subscribing**: the form needs Turnstile, always, and is read only up to 16 KB. An address is
   sent a code at most every 30 seconds, and 5 an hour (counted in `rate_limits`, as better-auth
-  counts requests; a code that can't be sent isn't counted), and the site sends at most its email
-  settings' emails per hour (1000 unless changed), all told. A code is 6 digits, stored as a SHA-256 hash, good for 10 minutes and 3 wrong
+  counts requests, whether or not it's sent), and the site sends at most its email settings'
+  emails per hour (1000 unless changed), all told. A code is 6 digits, stored as a SHA-256 hash, good for 10 minutes and 3 wrong
   tries, and saved only once it's sent. It's entered at its own page, `/subscribe/verify/<id>`, by
   its row's random id, so the address is never in a URL, and an old page, or someone else asking
   for a code for the same address, can't replace or use up another code. An address that already

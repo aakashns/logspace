@@ -276,23 +276,21 @@ export class Email extends Context.Service<
           }),
         )
 
-      // Counts an email to be sent this hour, or, if `limit` were sent, says when the next can be.
-      // Each hour begins with its first email. Emails SES or Resend refuse count too, so a site
-      // can't go on asking them.
+      // Counts an email to be sent, or says when the next can be if `limit` were sent this hour.
+      // The hour begins with its first email, and its row goes once it's over. Emails SES or
+      // Resend refuse count too, so a site can't go on asking them.
       let countEmail = (limit: number, now: number) =>
         Effect.gen(function* () {
+          yield* sql`delete from rate_limits
+            where key = ${RATE_LIMIT_KEY} and last_request <= ${now - HOUR}`
           let [row] = yield* sql<{ count: number; last_request: number }>`
             select count, last_request from rate_limits where key = ${RATE_LIMIT_KEY}`
-          if (row && now - row.last_request < HOUR) {
-            if (row.count >= limit) {
-              let retryAfter = Math.ceil((row.last_request + HOUR - now) / 1000)
-              return new EmailLimitReached({ limit, retryAfter })
-            }
-            yield* sql`update rate_limits set count = count + 1 where key = ${RATE_LIMIT_KEY}`
-            return undefined
+          if (row && row.count >= limit) {
+            let retryAfter = Math.ceil((row.last_request + HOUR - now) / 1000)
+            return new EmailLimitReached({ limit, retryAfter })
           }
           yield* sql`insert into rate_limits ${sql.insert({ key: RATE_LIMIT_KEY, count: 1, last_request: now })}
-            on conflict (key) do update set count = 1, last_request = ${now}`
+            on conflict (key) do update set count = count + 1`
           return undefined
         }).pipe(sql.withTransaction, Effect.orDie, counting.withPermit)
 

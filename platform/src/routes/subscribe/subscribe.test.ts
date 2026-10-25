@@ -323,7 +323,7 @@ describe('how often codes are sent', () => {
     let soon = await ask()
     expect(soon.status).toBe(429)
     expect(await soon.text()).toContain(
-      'A code was just sent to this address. You can ask for another in 10 seconds.',
+      'A code was just requested for this address. You can ask for another in 10 seconds.',
     )
     // Another address isn't held up.
     await askForCode({ email: 'grace@example.com' })
@@ -335,7 +335,7 @@ describe('how often codes are sent', () => {
     let tooMany = await ask()
     expect(tooMany.status).toBe(429)
     expect(await tooMany.text()).toContain(
-      'Too many codes were sent to this address. You can ask for another in 60 minutes.',
+      'Too many codes were requested for this address. You can ask for another in 60 minutes.',
     )
     expect(emails.filter((email) => email.to === 'ada@example.com')).toHaveLength(5)
     later(60 * 60 * 1000)
@@ -351,12 +351,6 @@ describe('how often codes are sent', () => {
     expect(await limited.text()).toContain(
       'We can’t send any more emails right now. Try again in 60 minutes.',
     )
-    // The code that wasn't sent isn't counted for the address, so asking again isn't refused as
-    // if one had just been sent.
-    later(1000)
-    let again = await ask({ email: 'alan@example.com' })
-    expect(again.status).toBe(503)
-    expect(await again.text()).toContain('Try again in 60 minutes.')
     expect(emails).toHaveLength(2)
     later(60 * 60 * 1000)
     await askForCode({ email: 'alan@example.com' })
@@ -371,8 +365,6 @@ describe('how often codes are sent', () => {
     let failed = await ask()
     expect(failed.status).toBe(502)
     expect(await failed.text()).toContain('We couldn’t send the email with your code.')
-    // It isn't counted, so asking again right away is sent on, not refused as just sent.
-    expect((await ask()).status).toBe(502)
     expect(await codeRows()).toHaveLength(1)
 
     // While a new one is being sent, the last one still works.
@@ -417,48 +409,4 @@ describe('how often codes are sent', () => {
     expect((await app.fetch(olderPage)).status).toBe(200)
     expect((await enter(newerCode, newer)).status).toBe(200)
   })
-
-  it('keeps a newer code’s count when an older one overlapping it isn’t sent', async () => {
-    let release = () => {}
-    resend = () => new Promise((resolve) => (release = resolve))
-    let older = ask()
-    while (emails.length === 0) await new Promise((resolve) => setImmediate(resolve))
-    resend = () => Promise.resolve()
-    await askForCode()
-    resendFails = true
-    release()
-    expect((await older).status).toBe(502)
-    resendFails = false
-    let soon = await ask()
-    expect(soon.status).toBe(429)
-    expect(await soon.text()).toContain('A code was just sent to this address.')
-    // The newer code is one of the 5 an hour, and the older isn't.
-    for (let sent = 2; sent <= 5; sent++) await askForCode()
-    later(30_000)
-    expect((await ask()).status).toBe(429)
-  })
-
-  for (let first of ['older', 'newer'] as const) {
-    it(`counts neither of two overlapping codes that aren’t sent, the ${first} failing first`, async () => {
-      let releases: (() => void)[] = []
-      resend = () => new Promise((resolve) => releases.push(resolve))
-      let requests = [ask()]
-      while (emails.length < 1) await new Promise((resolve) => setImmediate(resolve))
-      later(30_000)
-      requests.push(ask())
-      while (emails.length < 2) await new Promise((resolve) => setImmediate(resolve))
-      resendFails = true
-      for (let index of first === 'older' ? [0, 1] : [1, 0]) {
-        defined(releases[index], 'a held email')()
-        expect((await defined(requests[index], 'a request')).status).toBe(502)
-      }
-      resendFails = false
-      resend = () => Promise.resolve()
-      // All 5 of the hour's codes are left, and none was just sent.
-      expect((await ask()).status).toBe(303)
-      for (let sent = 2; sent <= 5; sent++) await askForCode()
-      later(30_000)
-      expect((await ask()).status).toBe(429)
-    })
-  }
 })
