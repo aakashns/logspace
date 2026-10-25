@@ -417,4 +417,24 @@ describe('how often codes are sent', () => {
     expect((await app.fetch(olderPage)).status).toBe(200)
     expect((await enter(newerCode, newer)).status).toBe(200)
   })
+
+  it('keeps a newer code’s count when an older one overlapping it isn’t sent', async () => {
+    let release = () => {}
+    resend = () => new Promise((resolve) => (release = resolve))
+    let older = ask()
+    while (emails.length === 0) await new Promise((resolve) => setImmediate(resolve))
+    resend = () => Promise.resolve()
+    await askForCode()
+    resendFails = true
+    release()
+    expect((await older).status).toBe(502)
+    resendFails = false
+    let soon = await ask()
+    expect(soon.status).toBe(429)
+    expect(await soon.text()).toContain('A code was just sent to this address.')
+    // The newer code is one of the 5 an hour, and the older isn't.
+    for (let sent = 2; sent <= 5; sent++) await askForCode()
+    later(30_000)
+    expect((await ask()).status).toBe(429)
+  })
 })

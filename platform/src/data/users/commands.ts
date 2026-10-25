@@ -134,19 +134,28 @@ export class UserCommands extends Context.Service<
           return { before: row }
         }).pipe(sql.withTransaction, Effect.orDie)
 
-      // Puts the address's count back as it was before a code that wasn't sent, so asking again
-      // isn't refused as if it had been.
+      // Takes back a code counted at `counted` that wasn't sent, so asking again isn't refused as
+      // if it had been. If no other code was counted since, the count is put back as it was
+      // `before`; if one was (its send overlapped this one's), only this one is taken off, keeping
+      // the other's time.
       let uncountCode = (
         address: string,
+        counted: number,
         before: { count: number; last_request: number } | undefined,
-      ) => {
-        let key = signUpRateLimitKey(address)
-        return (
-          before
-            ? sql`update rate_limits set ${sql.update(before)} where key = ${key}`
-            : sql`delete from rate_limits where key = ${key}`
-        ).pipe(Effect.orDie)
-      }
+      ) =>
+        Effect.gen(function* () {
+          let key = signUpRateLimitKey(address)
+          let [row] = yield* sql<{ count: number; last_request: number }>`
+            select count, last_request from rate_limits where key = ${key}`
+          if (!row) return
+          if (row.last_request !== counted) {
+            yield* sql`update rate_limits set count = count - 1 where key = ${key} and count > 1`
+          } else if (before) {
+            yield* sql`update rate_limits set ${sql.update(before)} where key = ${key}`
+          } else {
+            yield* sql`delete from rate_limits where key = ${key}`
+          }
+        }).pipe(sql.withTransaction, Effect.orDie)
 
       let requestSignUp = Effect.fn('UserCommands.requestSignUp')(function* (
         form: SignUpForm,
@@ -159,8 +168,8 @@ export class UserCommands extends Context.Service<
         }
         let { name, email: address } = checked.success
         yield* turnstile.verify(turnstileToken)
-        let now = yield* currentTime
-        let counted = yield* codes.withPermit(countCode(address, DateTime.toEpochMillis(now)))
+        let now = DateTime.toEpochMillis(yield* currentTime)
+        let counted = yield* codes.withPermit(countCode(address, now))
         if (counted instanceof SignUpRateLimited) return yield* counted
         let code = String(randomInt(10 ** SIGN_UP_CODE_LENGTH)).padStart(SIGN_UP_CODE_LENGTH, '0')
         let { title } = yield* site
@@ -173,7 +182,7 @@ export class UserCommands extends Context.Service<
               `It expires in ${SIGN_UP_CODE_MINUTES} minutes. If you didn’t ask to subscribe, ` +
               'ignore this email.\n',
           })
-          .pipe(Effect.tapError(() => codes.withPermit(uncountCode(address, counted.before))))
+          .pipe(Effect.tapError(() => codes.withPermit(uncountCode(address, now, counted.before))))
         // Saved once it's sent. Each code is entered at its own page, so the codes sent before
         // stay as they are (until they expire), and no one else asking for a code for the address
         // can replace or use up someone's.
