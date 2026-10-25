@@ -138,6 +138,8 @@ describe('/admin/integrations', () => {
     expect(html).toMatch(/<title>Integrations · Test Site<\/title>/)
     expect(html).toContain('Cloudflare Turnstile')
     expect(html).toContain('Not connected')
+    // Its card is closed until opened.
+    expect(html).toContain('<details><summary class="integration-summary">')
     expect(html).toContain('action="/admin/integrations/turnstile"')
     expect(html).not.toContain('Disconnect')
     expect(html).not.toContain('placeholder=')
@@ -163,6 +165,8 @@ describe('saving Turnstile’s keys', () => {
     let shown = await page(cookie)
     let html = await shown.text()
     expect(html).toMatch(/role="status"><div data-slot="alert-title">\s*Saved\./)
+    // Open, to show that.
+    expect(html).toContain('<details open><summary class="integration-summary">')
     expect(html).toContain('>Connected<')
     expect(html).toContain(`value="${SITE_KEY}"`)
     expect(html).toContain('placeholder="••••••••••••6789"')

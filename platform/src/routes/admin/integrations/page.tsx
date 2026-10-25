@@ -1,10 +1,12 @@
 import type { Child, Html } from '#jsx/jsx-runtime'
 
 import { stylesheet } from '../../../components/stylesheet.ts'
+import { CaretDownIcon } from '../../../components/icons.tsx'
 import { TURNSTILE_STYLES, TurnstileWidget } from '../../../components/turnstile.tsx'
 import { Alert, ALERT_STYLES, AlertDescription, AlertTitle } from '../../../components/ui/alert.tsx'
 import { Badge, BADGE_STYLES } from '../../../components/ui/badge.tsx'
 import { Button } from '../../../components/ui/button.tsx'
+import { Card, CARD_STYLES } from '../../../components/ui/card.tsx'
 import { Checkbox, CHECKBOX_STYLES } from '../../../components/ui/checkbox.tsx'
 import {
   Field,
@@ -22,7 +24,13 @@ import { BackLink } from '../layout.tsx'
 import css from './page.css' with { type: 'text' }
 
 export const INTEGRATIONS_PAGE_STYLES =
-  FIELDS_STYLES + ALERT_STYLES + BADGE_STYLES + CHECKBOX_STYLES + TURNSTILE_STYLES + stylesheet(css)
+  FIELDS_STYLES +
+  ALERT_STYLES +
+  BADGE_STYLES +
+  CARD_STYLES +
+  CHECKBOX_STYLES +
+  TURNSTILE_STYLES +
+  stylesheet(css)
 
 // How checking the widget's answer with Cloudflare went.
 export type TurnstileVerification =
@@ -39,7 +47,7 @@ export interface TurnstileSectionProps {
   readonly verification?: TurnstileVerification | undefined
 }
 
-// /admin/integrations: a section for each service the site connects to.
+// /admin/integrations: a collapsible card for each service the site connects to.
 export function IntegrationsPage(props: { turnstile: TurnstileSectionProps }): Html {
   return (
     <section class="admin-page">
@@ -73,11 +81,13 @@ function TurnstileSection(props: TurnstileSectionProps): Html {
   let enabled = rejected ? rejected.enabled : status._tag !== 'NotSetUp' && status.enabled
   let badge = STATUSES[status._tag]
   return (
-    <section class="integration" aria-labelledby="turnstile-heading">
-      <div class="integration-heading">
-        <h2 id="turnstile-heading">Cloudflare Turnstile</h2>
-        <Badge variant={badge.variant}>{badge.label}</Badge>
-      </div>
+    <Integration
+      id="turnstile"
+      title="Cloudflare Turnstile"
+      badge={<Badge variant={badge.variant}>{badge.label}</Badge>}
+      // Open on the page that reports what was done, so the report is seen.
+      open={notice !== undefined || rejected !== undefined || verification !== undefined}
+    >
       <p class="muted">
         Tells people from bots, without a puzzle, on forms anyone can send. Add a widget in{' '}
         <a href="https://dash.cloudflare.com/?to=/:account/turnstile">Cloudflare’s dashboard</a>{' '}
@@ -170,7 +180,32 @@ function TurnstileSection(props: TurnstileSectionProps): Html {
       ) : (
         <TurnstileTry siteKey={status.siteKey} verification={verification} />
       )}
-    </section>
+    </Integration>
+  )
+}
+
+// A card that opens to a service's settings, its name and status always showing.
+function Integration(props: {
+  id: string
+  title: string
+  badge: Html
+  open: boolean
+  children: Child
+}): Html {
+  let { id, title, badge, open, children } = props
+  return (
+    <Card class="integration">
+      <details open={open}>
+        <summary class="integration-summary">
+          <h2 id={`${id}-heading`}>{title}</h2>
+          {badge}
+          <CaretDownIcon class="integration-caret" />
+        </summary>
+        <section class="integration-body" aria-labelledby={`${id}-heading`}>
+          {children}
+        </section>
+      </details>
+    </Card>
   )
 }
 
