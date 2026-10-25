@@ -25,6 +25,7 @@ test('switching subscriptions on and off saves it, once email and Turnstile are 
     form({
       provider: 'ses',
       from: 'news@example.com',
+      hourlyLimit: '1000',
       sesRegion: 'us-east-1',
       sesEndpoint: `${app.origin}/dev/ses`,
       sesAccessKeyId: EXAMPLE_AWS_KEY.accessKeyId,
