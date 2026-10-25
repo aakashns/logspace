@@ -139,6 +139,13 @@ function savedEmailForm(status: EmailStatus): EmailForm {
   }
 }
 
+// Typing a region changes the endpoint to SES's in that region, if it's SES's in another (not, say,
+// the site's fake of SES, in development).
+const FOLLOW_REGION =
+  'const endpoint = el.form.sesEndpoint; ' +
+  "if (endpoint.value.startsWith('https://email.') && endpoint.value.endsWith('.amazonaws.com')) " +
+  "endpoint.value = 'https://email.' + el.value.trim() + '.amazonaws.com'"
+
 function EmailSection(props: EmailSectionProps): Html {
   let { status, notice, rejected, test } = props
   let form = rejected?.form ?? savedEmailForm(status)
@@ -227,21 +234,27 @@ function EmailSection(props: EmailSectionProps): Html {
           </LabelledField>
           {/* Only the chosen provider's fields show (see page.css). */}
           <div class="email-ses">
-            <TextField
+            <LabelledField
               label="Region"
-              name="sesRegion"
-              id="email-sesRegion"
-              value={form.sesRegion}
-              invalid={invalid('sesRegion')}
+              for="email-sesRegion"
               hint="Where your SES account sends from, like us-east-1."
-            />
+            >
+              <Input
+                id="email-sesRegion"
+                name="sesRegion"
+                value={form.sesRegion}
+                aria-invalid={invalid('sesRegion')}
+                aria-describedby={hintId('email-sesRegion')}
+                data-on:input={FOLLOW_REGION}
+              />
+            </LabelledField>
             <TextField
               label="Endpoint"
               name="sesEndpoint"
               id="email-sesEndpoint"
               value={form.sesEndpoint}
               invalid={invalid('sesEndpoint')}
-              hint="SES’s address for the region, like https://email.us-east-1.amazonaws.com."
+              hint="SES’s address for the region, like https://email.us-east-1.amazonaws.com. It follows the region, unless it’s another address."
             />
             <TextField
               label="Access key ID"
