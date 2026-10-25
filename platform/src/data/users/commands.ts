@@ -111,7 +111,8 @@ export class UserCommands extends Context.Service<
       }))
 
       // Counts a code to be sent to the address, as better-auth's rate limiter counts requests,
-      // or says why it can't be sent yet. The count goes once its last code is an hour old.
+      // returning the count before, or says why it can't be sent yet. The count goes once its last
+      // code is an hour old.
       let countCode = (address: string, now: number) =>
         Effect.gen(function* () {
           let key = signUpRateLimitKey(address)
@@ -130,8 +131,22 @@ export class UserCommands extends Context.Service<
           }
           yield* sql`insert into rate_limits ${sql.insert({ key, count: 1, last_request: now })}
             on conflict (key) do update set count = count + 1, last_request = ${now}`
-          return undefined
+          return { before: row }
         }).pipe(sql.withTransaction, Effect.orDie)
+
+      // Puts the address's count back as it was before a code that wasn't sent, so asking again
+      // isn't refused as if it had been.
+      let uncountCode = (
+        address: string,
+        before: { count: number; last_request: number } | undefined,
+      ) => {
+        let key = signUpRateLimitKey(address)
+        return (
+          before
+            ? sql`update rate_limits set ${sql.update(before)} where key = ${key}`
+            : sql`delete from rate_limits where key = ${key}`
+        ).pipe(Effect.orDie)
+      }
 
       let requestSignUp = Effect.fn('UserCommands.requestSignUp')(function* (
         form: SignUpForm,
@@ -145,18 +160,20 @@ export class UserCommands extends Context.Service<
         let { name, email: address } = checked.success
         yield* turnstile.verify(turnstileToken)
         let now = yield* currentTime
-        let limited = yield* codes.withPermit(countCode(address, DateTime.toEpochMillis(now)))
-        if (limited) return yield* limited
+        let counted = yield* codes.withPermit(countCode(address, DateTime.toEpochMillis(now)))
+        if (counted instanceof SignUpRateLimited) return yield* counted
         let code = String(randomInt(10 ** SIGN_UP_CODE_LENGTH)).padStart(SIGN_UP_CODE_LENGTH, '0')
         let { title } = yield* site
-        yield* email.send({
-          to: address,
-          subject: `${code} is your code to subscribe to ${title}`,
-          text:
-            `Hi ${name},\n\nEnter this code to finish subscribing to ${title}:\n\n${code}\n\n` +
-            `It expires in ${SIGN_UP_CODE_MINUTES} minutes. If you didn’t ask to subscribe, ` +
-            'ignore this email.\n',
-        })
+        yield* email
+          .send({
+            to: address,
+            subject: `${code} is your code to subscribe to ${title}`,
+            text:
+              `Hi ${name},\n\nEnter this code to finish subscribing to ${title}:\n\n${code}\n\n` +
+              `It expires in ${SIGN_UP_CODE_MINUTES} minutes. If you didn’t ask to subscribe, ` +
+              'ignore this email.\n',
+          })
+          .pipe(Effect.tapError(() => codes.withPermit(uncountCode(address, counted.before))))
         // Saved once it's sent. Each code is entered at its own page, so the codes sent before
         // stay as they are (until they expire), and no one else asking for a code for the address
         // can replace or use up someone's.

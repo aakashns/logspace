@@ -63,13 +63,14 @@ const app = makeTestApp(
 
 const commands = <A, E>(run: (commands: SiteConfigCommands['Service']) => Effect.Effect<A, E>) =>
   app.run(Effect.flatMap(SiteConfigCommands, run))
-const setUpEmail = () =>
+const setUpEmail = (hourlyLimit = '1000') =>
   commands((commands) =>
     commands.saveEmail({
       provider: 'resend',
       fromName: 'Test Site',
       from: 'news@example.com',
       replyTo: '',
+      hourlyLimit,
       sesRegion: '',
       sesEndpoint: '',
       sesAccessKeyId: '',
@@ -341,6 +342,27 @@ describe('how often codes are sent', () => {
     expect((await ask()).status).toBe(303)
   })
 
+  it('sends no code past the site’s emails an hour, until the hour is up', async () => {
+    await setUpEmail('2')
+    await askForCode()
+    await askForCode({ email: 'grace@example.com' })
+    let limited = await ask({ email: 'alan@example.com' })
+    expect(limited.status).toBe(503)
+    expect(await limited.text()).toContain(
+      'We can’t send any more emails right now. Try again in 60 minutes.',
+    )
+    // The code that wasn't sent isn't counted for the address, so asking again isn't refused as
+    // if one had just been sent.
+    later(1000)
+    let again = await ask({ email: 'alan@example.com' })
+    expect(again.status).toBe(503)
+    expect(await again.text()).toContain('Try again in 60 minutes.')
+    expect(emails).toHaveLength(2)
+    later(60 * 60 * 1000)
+    await askForCode({ email: 'alan@example.com' })
+    expect(emails.at(-1)?.to).toBe('alan@example.com')
+  })
+
   it('keeps the last code if a new one can’t be sent, or isn’t sent yet', async () => {
     let page = await askForCode()
     let code = lastCode()
@@ -349,6 +371,8 @@ describe('how often codes are sent', () => {
     let failed = await ask()
     expect(failed.status).toBe(502)
     expect(await failed.text()).toContain('We couldn’t send the email with your code.')
+    // It isn't counted, so asking again right away is sent on, not refused as just sent.
+    expect((await ask()).status).toBe(502)
     expect(await codeRows()).toHaveLength(1)
 
     // While a new one is being sent, the last one still works.

@@ -101,6 +101,11 @@ const subscribe = Effect.gen(function* () {
           { form, issues: [{ field: 'email', message: 'Expected an email address' }] },
           400,
         ),
+      EmailLimitReached: ({ retryAfter }) => {
+        let minutes = Math.ceil(retryAfter / 60)
+        let error = `We can’t send any more emails right now. Try again in ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}.`
+        return subscribeForm({ form, error }, 503)
+      },
       EmailNotSent: () => subscribeForm({ form, error: EMAIL_FAILED }, 502),
     }),
   )

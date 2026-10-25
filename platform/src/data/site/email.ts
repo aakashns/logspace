@@ -1,10 +1,12 @@
 // Email, set up at /admin/integrations: whether it's set up, and sending a message, with Amazon
-// SES's API or Resend's, over HTTPS. SES's requests are signed with AWS Signature Version 4.
+// SES's API or Resend's, over HTTPS, as many an hour as its settings allow. SES's requests are
+// signed with AWS Signature Version 4.
 // https://docs.aws.amazon.com/ses/latest/APIReference-V2/API_SendEmail.html
 // https://resend.com/docs/api-reference/emails/send-email
 import { createHash, createHmac } from 'node:crypto'
-import { Context, DateTime, Duration, Effect, Layer, Schema } from 'effect'
+import { Clock, Context, DateTime, Duration, Effect, Layer, Schema, Semaphore } from 'effect'
 import { HttpClient, HttpClientRequest } from 'effect/http'
+import { SqlClient } from 'effect/sql'
 
 import { Secrets, SecretUnreadable } from '../../lib/secrets.ts'
 import { SiteConfigQueries } from './queries.ts'
@@ -18,6 +20,10 @@ import {
 
 const RESEND_URL = 'https://api.resend.com/emails'
 const TIMEOUT = Duration.seconds(30)
+const HOUR = 60 * 60 * 1000
+// The `key` of how many emails the site sent this hour, in the `rate_limits` table, where
+// `last_request` is when the hour began.
+const RATE_LIMIT_KEY = 'email'
 const PROVIDER_NAMES = { ses: 'Amazon SES', resend: 'Resend' } as const satisfies Record<
   EmailProvider,
   string
@@ -54,7 +60,15 @@ export class EmailNotSent extends Schema.TaggedError<EmailNotSent>()('EmailNotSe
   message: Schema.String,
 }) {}
 
-export type EmailFailure = EmailNotSetUp | SecretUnreadable | EmailAddressInvalid | EmailNotSent
+// The site sent as many emails as it may this hour (`limit`), and can send more in `retryAfter`
+// seconds.
+export class EmailLimitReached extends Schema.TaggedError<EmailLimitReached>()(
+  'EmailLimitReached',
+  { limit: Schema.Int, retryAfter: Schema.Int },
+) {}
+
+export type EmailFailure =
+  EmailNotSetUp | SecretUnreadable | EmailAddressInvalid | EmailLimitReached | EmailNotSent
 
 // Why SES or Resend refused it: SES says `message` (or `Message`), with the kind of error in a
 // header, and Resend says `message`.
@@ -147,7 +161,8 @@ export class Email extends Context.Service<
   Email,
   {
     readonly status: Effect.Effect<EmailStatus>
-    // Sends a plain-text email from the site, as its settings say.
+    // Sends a plain-text email from the site, as its settings say, if it hasn't sent as many as
+    // they allow this hour.
     readonly send: (message: EmailMessage) => Effect.Effect<void, EmailFailure>
   }
 >()('logspace/Email') {
@@ -157,6 +172,12 @@ export class Email extends Context.Service<
       let queries = yield* SiteConfigQueries
       let secrets = yield* Secrets
       let client = yield* HttpClient.HttpClient
+      let sql = yield* SqlClient.SqlClient
+      // Counting emails happens one at a time.
+      let counting = yield* Semaphore.make(1)
+      // The time, from the clock the app was made with (which the tests control).
+      let clock = yield* Clock.Clock
+      let currentTime = DateTime.now.pipe(Effect.provideService(Clock.Clock, clock))
 
       let secretOf = (provider: EmailSettings['provider']) =>
         provider._tag === 'ses'
@@ -255,12 +276,40 @@ export class Email extends Context.Service<
           }),
         )
 
+      // Counts an email to be sent this hour, or, if `limit` were sent, says when the next can be.
+      // Each hour begins with its first email. Emails SES or Resend refuse count too, so a site
+      // can't go on asking them.
+      let countEmail = (limit: number, now: number) =>
+        Effect.gen(function* () {
+          let [row] = yield* sql<{ count: number; last_request: number }>`
+            select count, last_request from rate_limits where key = ${RATE_LIMIT_KEY}`
+          if (row && now - row.last_request < HOUR) {
+            if (row.count >= limit) {
+              let retryAfter = Math.ceil((row.last_request + HOUR - now) / 1000)
+              return new EmailLimitReached({ limit, retryAfter })
+            }
+            yield* sql`update rate_limits set count = count + 1 where key = ${RATE_LIMIT_KEY}`
+            return undefined
+          }
+          yield* sql`insert into rate_limits ${sql.insert({ key: RATE_LIMIT_KEY, count: 1, last_request: now })}
+            on conflict (key) do update set count = 1, last_request = ${now}`
+          return undefined
+        }).pipe(sql.withTransaction, Effect.orDie, counting.withPermit)
+
       let send = Effect.fn('Email.send')(function* (message: EmailMessage) {
         let settings = (yield* queries.saved).email
         if (!settings) return yield* new EmailNotSetUp()
         if (!isEmailAddress(message.to)) return yield* new EmailAddressInvalid()
         let { provider, replyTo } = settings
         let secret = yield* secretOf(provider)
+        let now = yield* currentTime
+        let limited = yield* countEmail(settings.hourlyLimit, DateTime.toEpochMillis(now))
+        if (limited) {
+          yield* Effect.logWarning('Email limit reached').pipe(
+            Effect.annotateLogs({ limit: limited.limit, retryAfter: limited.retryAfter }),
+          )
+          return yield* limited
+        }
         let fields = {
           from: mailbox(settings.fromName, settings.from, provider._tag),
           replyTo,
@@ -268,7 +317,7 @@ export class Email extends Context.Service<
         }
         let request =
           provider._tag === 'ses'
-            ? sesRequest(provider, secret, fields, DateTime.toDateUtc(yield* DateTime.now))
+            ? sesRequest(provider, secret, fields, DateTime.toDateUtc(now))
             : resendRequest(secret, fields)
         yield* deliver(provider._tag, request).pipe(
           Effect.timeoutOrElse({

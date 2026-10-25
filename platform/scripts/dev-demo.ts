@@ -46,6 +46,7 @@ const seeding = Effect.runPromise(
       fromName: TEST_SITE_CONFIG.siteTitle,
       from: 'demo@example.com',
       replyTo: 'demo-replies@example.com',
+      hourlyLimit: '1000',
       sesRegion: 'us-east-1',
       sesEndpoint: new URL(urls.dev.ses(), origin).href,
       sesAccessKeyId: EXAMPLE_AWS_KEY.accessKeyId,

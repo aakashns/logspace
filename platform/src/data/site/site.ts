@@ -4,7 +4,7 @@
 // integrations as JSON). The title, URL, and description are required: until they're saved the
 // site isn't configured, and its public pages send visitors to /admin/login. Any other setting
 // that's never been saved has its default.
-import { Option, Result, Schema } from 'effect'
+import { Effect, Option, Result, Schema } from 'effect'
 
 import { toIssues } from '../../lib/issues.ts'
 import { SealedSecret } from '../../lib/secrets.ts'
@@ -65,7 +65,11 @@ export const TURNSTILE_SECRET_PURPOSE = 'turnstile.secretKey'
 // `replyTo` if it's set, through Amazon SES's or Resend's API. SES is sent to at `endpoint`, like
 // https://email.us-east-1.amazonaws.com (or the site's fake of SES, at /dev/ses, in development),
 // with an IAM user's access key. Resend is sent to with an API key. The secret access key and the
-// API key are sealed (see ../../lib/secrets.ts) for EMAIL_SECRET_PURPOSES.
+// API key are sealed (see ../../lib/secrets.ts) for EMAIL_SECRET_PURPOSES. The site sends at most
+// `hourlyLimit` emails an hour, all told (see email.ts), which settings saved before it was a
+// setting have as EMAILS_PER_HOUR.
+export const EMAILS_PER_HOUR = 1000
+export const MAX_EMAILS_PER_HOUR = 1_000_000
 export const SesProvider = Schema.TaggedStruct('ses', {
   region: Schema.String,
   endpoint: Schema.String,
@@ -78,6 +82,7 @@ export const EmailSettings = Schema.Struct({
   from: Schema.String,
   replyTo: Schema.String,
   provider: Schema.Union([SesProvider, ResendProvider]),
+  hourlyLimit: Schema.Int.pipe(Schema.withDecodingDefaultKey(Effect.succeed(EMAILS_PER_HOUR))),
 })
 export type EmailSettings = typeof EmailSettings.Type
 export type EmailProvider = EmailSettings['provider']['_tag']
@@ -223,6 +228,7 @@ export interface EmailForm {
   readonly fromName: string
   readonly from: string
   readonly replyTo: string
+  readonly hourlyLimit: string
   readonly sesRegion: string
   readonly sesEndpoint: string
   readonly sesAccessKeyId: string
@@ -242,6 +248,7 @@ export type CheckedEmailForm = {
   readonly fromName: string
   readonly from: string
   readonly replyTo: string
+  readonly hourlyLimit: number
   readonly provider:
     Omit<typeof SesProvider.Type, 'secretAccessKey'> | Omit<typeof ResendProvider.Type, 'apiKey'>
   readonly secret: string
@@ -285,6 +292,13 @@ export function checkEmailForm(
   if (form.replyTo && !isEmailAddress(form.replyTo)) {
     issues.push({ field: 'replyTo', message: address })
   }
+  let hourlyLimit = /^\d{1,7}$/.test(form.hourlyLimit) ? Number(form.hourlyLimit) : 0
+  if (hourlyLimit < 1 || hourlyLimit > MAX_EMAILS_PER_HOUR) {
+    issues.push({
+      field: 'hourlyLimit',
+      message: `Expected a whole number from 1 to ${MAX_EMAILS_PER_HOUR.toLocaleString('en-US')}`,
+    })
+  }
   // The secret typed, checked, or the saved one if it opens.
   let secret = (field: 'sesSecretAccessKey' | 'resendApiKey', what: string, format: RegExp) => {
     if (form[field] && !format.test(form[field])) {
@@ -320,6 +334,7 @@ export function checkEmailForm(
       fromName: form.fromName,
       from: form.from,
       replyTo: form.replyTo,
+      hourlyLimit,
       provider: {
         _tag: 'ses',
         region: form.sesRegion,
@@ -336,6 +351,7 @@ export function checkEmailForm(
       fromName: form.fromName,
       from: form.from,
       replyTo: form.replyTo,
+      hourlyLimit,
       provider: { _tag: 'resend' },
       secret: typed,
     })

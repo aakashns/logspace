@@ -19,6 +19,7 @@ import { NativeSelect, NATIVE_SELECT_STYLES } from '../../../components/ui/nativ
 import { Separator, SEPARATOR_STYLES } from '../../../components/ui/separator.tsx'
 import type { EmailFailure, EmailStatus } from '../../../data/site/email.ts'
 import {
+  EMAILS_PER_HOUR,
   type EmailForm,
   type EmailIssue,
   type TurnstileIssue,
@@ -106,6 +107,7 @@ const EMAIL_FIELDS: Record<EmailIssue['field'], string> = {
   fromName: 'From name',
   from: 'From',
   replyTo: 'Reply-to',
+  hourlyLimit: 'Emails per hour',
   sesRegion: 'Region',
   sesEndpoint: 'Endpoint',
   sesAccessKeyId: 'Access key ID',
@@ -114,13 +116,15 @@ const EMAIL_FIELDS: Record<EmailIssue['field'], string> = {
 }
 
 // The settings as they're saved, as the form shows them, or before they are, with SES's endpoint
-// in us-east-1 filled in, to change. The secrets are never sent to the browser.
+// in us-east-1 and the usual limit filled in, to change. The secrets are never sent to the
+// browser.
 function savedEmailForm(status: EmailStatus): EmailForm {
   let empty = {
     provider: 'ses',
     fromName: '',
     from: '',
     replyTo: '',
+    hourlyLimit: String(EMAILS_PER_HOUR),
     sesRegion: '',
     sesEndpoint: 'https://email.us-east-1.amazonaws.com',
     sesAccessKeyId: '',
@@ -128,8 +132,15 @@ function savedEmailForm(status: EmailStatus): EmailForm {
     resendApiKey: '',
   }
   if (status._tag === 'NotSetUp') return empty
-  let { fromName, from, replyTo, provider } = status.settings
-  let form = { ...empty, provider: provider._tag, fromName, from, replyTo }
+  let { fromName, from, replyTo, hourlyLimit, provider } = status.settings
+  let form = {
+    ...empty,
+    provider: provider._tag,
+    fromName,
+    from,
+    replyTo,
+    hourlyLimit: String(hourlyLimit),
+  }
   if (provider._tag === 'resend') return form
   return {
     ...form,
@@ -308,6 +319,22 @@ function EmailSection(props: EmailSectionProps): Html {
               aria-describedby={hintId('email-replyTo')}
             />
           </LabelledField>
+          <LabelledField
+            label="Emails per hour"
+            for="email-hourlyLimit"
+            hint="The most the site sends in an hour, all told. Past it, emails aren’t sent until the next hour, so a flood of sign-ups can’t run up your bill."
+          >
+            <Input
+              id="email-hourlyLimit"
+              name="hourlyLimit"
+              type="number"
+              min="1"
+              step="1"
+              value={form.hourlyLimit}
+              aria-invalid={invalid('hourlyLimit')}
+              aria-describedby={hintId('email-hourlyLimit')}
+            />
+          </LabelledField>
           <div class="actions">
             <Button type="submit">Save</Button>
             {status._tag === 'NotSetUp' ? null : (
@@ -374,6 +401,11 @@ function emailFailureMessage(failure: EmailFailure): string {
       return unreadableSecretMessage('secret access key or API key')
     case 'EmailAddressInvalid':
       return 'Enter an email address to send it to, like you@example.com.'
+    case 'EmailLimitReached': {
+      let minutes = Math.ceil(failure.retryAfter / 60)
+      let limit = `${failure.limit.toLocaleString('en-US')} ${failure.limit === 1 ? 'email' : 'emails'}`
+      return `The site reached its limit of ${limit} an hour. It can send more in ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}, or you can raise its emails per hour above.`
+    }
     case 'EmailNotSent':
       return failure.message
   }

@@ -17,6 +17,7 @@ const setUpEmail = () =>
       fromName: '',
       from: 'news@example.com',
       replyTo: '',
+      hourlyLimit: '1000',
       sesRegion: '',
       sesEndpoint: '',
       sesAccessKeyId: '',

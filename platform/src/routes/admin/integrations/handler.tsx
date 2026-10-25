@@ -143,6 +143,7 @@ const saveEmail = adminOnly((session) =>
       fromName: formText(form, 'fromName'),
       from: formText(form, 'from'),
       replyTo: formText(form, 'replyTo'),
+      hourlyLimit: formText(form, 'hourlyLimit'),
       sesRegion: formText(form, 'sesRegion'),
       sesEndpoint: formText(form, 'sesEndpoint'),
       sesAccessKeyId: formText(form, 'sesAccessKeyId'),
@@ -209,6 +210,8 @@ function testStatus(result: EmailTest): number {
       return 409
     case 'EmailAddressInvalid':
       return 400
+    case 'EmailLimitReached':
+      return 429
   }
 }
 

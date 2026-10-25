@@ -88,6 +88,7 @@ const EXAMPLE_FORM = {
   fromName: 'Test Site',
   from: 'news@example.com',
   replyTo: 'me@example.com',
+  hourlyLimit: '1000',
 }
 // SES itself, with a key of its own.
 const SES_FORM = {
@@ -102,6 +103,7 @@ const RESEND_FORM = {
   resendApiKey: API_KEY,
   fromName: 'Test Site',
   from: 'news@example.com',
+  hourlyLimit: '1000',
 }
 const save = async (fields: Record<string, string>) =>
   post('/admin/integrations/email', fields, await login())
@@ -148,6 +150,7 @@ describe('email settings', () => {
     expect(row).toMatchObject({
       from: 'news@example.com',
       replyTo: 'me@example.com',
+      hourlyLimit: 1000,
       provider: {
         _tag: 'ses',
         region: 'eu-west-1',
@@ -169,6 +172,7 @@ describe('email settings', () => {
     expect(html).toContain('Set up')
     expect(html).toContain('value="eu-west-1"')
     expect(html).toContain('value="TESTACCESSKEYID00001"')
+    expect(html).toContain('name="hourlyLimit" type="number" min="1" step="1" value="1000"')
     expect(html).toContain(`placeholder="••••••••••••${SECRET_ACCESS_KEY.slice(-4)}"`)
     expect(html).not.toContain(SECRET_ACCESS_KEY)
     expect(html).toContain('Send a test email')
@@ -192,6 +196,7 @@ describe('email settings', () => {
       sesSecretAccessKey: 'short',
       from: 'not an address',
       replyTo: 'me@',
+      hourlyLimit: '0',
     })
     expect(response.status).toBe(400)
     let html = await response.text()
@@ -203,6 +208,7 @@ describe('email settings', () => {
     expect(issues).toContain('Secret access key: Expected the secret access key')
     expect(issues).toContain('From: Expected an email address')
     expect(issues).toContain('Reply-to: Expected an email address')
+    expect(issues).toContain('Emails per hour: Expected a whole number from 1 to 1,000,000')
     expect(html).toContain('value="not an address"')
     expect(html).toContain('value="Ireland"')
     expect(html).not.toContain('value="short"')
@@ -221,6 +227,15 @@ describe('email settings', () => {
     expect((await saved()).provider._tag).toBe('ses')
     expect((await save(RESEND_FORM)).status).toBe(303)
     expect((await saved()).provider._tag).toBe('resend')
+  })
+
+  it('limit the emails an hour to 1000 when saved before there was a limit', async () => {
+    await save(EXAMPLE_FORM)
+    let { hourlyLimit, ...older } = await saved()
+    expect(hourlyLimit).toBe(1000)
+    await sql((sql) => sql`update config set value = ${JSON.stringify(older)} where key = 'email'`)
+    expect(await page()).toContain('name="hourlyLimit" type="number" min="1" step="1" value="1000"')
+    expect((await sendTest('reader@example.com')).status).toBe(200)
   })
 
   it('are forgotten when removed', async () => {
@@ -364,6 +379,32 @@ describe('a test email', () => {
       expect(alert(await response.text())).toContain('Enter an email address to send it to')
     }
     expect(await inboxSize()).toBe(before)
+  })
+
+  it('isn’t sent past the emails an hour allows, until the hour is up', async () => {
+    await save({ ...EXAMPLE_FORM, hourlyLimit: '2' })
+    let before = await inboxSize()
+    expect((await sendTest('one@example.com')).status).toBe(200)
+    expect((await sendTest('two@example.com')).status).toBe(200)
+    let limited = await sendTest('three@example.com')
+    expect(limited.status).toBe(429)
+    expect(alert(await limited.text())).toContain(
+      'The site reached its limit of 2 emails an hour. It can send more in 60 minutes',
+    )
+    expect(await inboxSize()).toBe(before + 2)
+
+    // Raising the limit lets more go this hour.
+    await save({ ...EXAMPLE_FORM, sesSecretAccessKey: '', hourlyLimit: '3' })
+    expect((await sendTest('three@example.com')).status).toBe(200)
+    expect((await sendTest('four@example.com')).status).toBe(429)
+
+    // An hour on, the count starts again.
+    await sql(
+      (sql) =>
+        sql`update rate_limits set last_request = last_request - ${60 * 60 * 1000} where key = 'email'`,
+    )
+    expect((await sendTest('four@example.com')).status).toBe(200)
+    expect(await inboxSize()).toBe(before + 4)
   })
 
   it('goes to Resend’s API, with the API key it was saved with', async () => {
