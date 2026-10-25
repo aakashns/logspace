@@ -330,6 +330,28 @@ describe('a test email', () => {
     })
   })
 
+  it('goes to SES with a long name that isn’t ASCII in encoded words of at most 75 characters', async () => {
+    let name = 'Café — Newsletter for friends and family around the world, 世界中の友だちへ'
+    await save({ ...SES_FORM, fromName: name })
+    answer = () => Promise.resolve(Response.json({ MessageId: 'id' }))
+    expect((await sendTest('reader@example.com')).status).toBe(200)
+    let body = requests[0]?.body
+    let from =
+      typeof body === 'object' && body && 'FromEmailAddress' in body ? body.FromEmailAddress : ''
+    let [words = '', address] = String(from).split(' <')
+    expect(address).toBe('news@example.com>')
+    let encoded = words.split(' ')
+    expect(encoded.length).toBeGreaterThan(1)
+    for (let word of encoded) {
+      expect(word).toMatch(/^=\?UTF-8\?B\?[A-Za-z0-9+/=]+\?=$/)
+      expect(word.length).toBeLessThanOrEqual(75)
+    }
+    // Each word is whole characters, so it decodes on its own, and they join to the name.
+    let decoded = encoded.map((word) => Buffer.from(word.slice(10, -2), 'base64').toString('utf8'))
+    expect(decoded.join('')).toBe(name)
+    for (let part of decoded) expect(part).not.toContain('\uFFFD')
+  })
+
   it('needs an address, and settings to send it with', async () => {
     let unset = await sendTest('reader@example.com')
     expect(unset.status).toBe(409)

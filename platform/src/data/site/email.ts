@@ -68,10 +68,21 @@ const decodeRefusal = Schema.decodeUnknownEffect(RefusalAnswer)
 // encoded (RFC 2047) when it isn't. Without a name, it's the address alone.
 function mailbox(name: string, address: string, provider: EmailProvider): string {
   if (!name) return address
-  if (provider === 'ses' && !/^[\x20-\x7e]*$/.test(name)) {
-    return `=?UTF-8?B?${Buffer.from(name).toString('base64')}?= <${address}>`
-  }
+  if (provider === 'ses' && !/^[\x20-\x7e]*$/.test(name))
+    return `${encodedWords(name)} <${address}>`
   return `"${name.replace(/[\\"]/g, '\\$&')}" <${address}>`
+}
+
+// RFC 2047's encoded words, which are at most 75 characters each: 45 bytes of UTF-8 in Base64,
+// with "=?UTF-8?B?" and "?=" around them. A longer text takes several, split between characters
+// and separated by spaces, which readers drop when they join them.
+function encodedWords(text: string): string {
+  let chunks = ['']
+  for (let char of text) {
+    if (Buffer.byteLength(chunks.at(-1) + char) > 45) chunks.push('')
+    chunks[chunks.length - 1] += char
+  }
+  return chunks.map((chunk) => `=?UTF-8?B?${Buffer.from(chunk).toString('base64')}?=`).join(' ')
 }
 
 // RFC 3986's encoding, as AWS signs with.
