@@ -145,7 +145,7 @@ function LinkCard(props: { preview: LinkPreview }): Html {
       href={preview.url}
       target="_blank"
       rel="noopener"
-      class={`media-frame link-card${preview.smallImage ? ' small-card' : ''}`}
+      class={`media-frame link-preview${preview.smallImage ? ' small-card' : ''}`}
     >
       {preview.image ? (
         <PostImage
