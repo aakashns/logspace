@@ -43,6 +43,7 @@ export const urls = {
     branding: () => '/admin/branding',
     integrations: () => '/admin/integrations',
     subscribers: () => '/admin/subscribers',
+    deleteSubscriber: (id: string) => `/admin/subscribers/${encodeURIComponent(id)}/delete`,
     // What Turnstile's section of /admin/integrations posts to: its keys, to disconnect it, and
     // to check its widget with Cloudflare.
     saveTurnstile: () => '/admin/integrations/turnstile',
