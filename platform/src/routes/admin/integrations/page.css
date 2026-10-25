@@ -1,34 +1,24 @@
 /*
- * /admin/integrations: a card for each service (see page.tsx), closed to its name and status
- * until opened, so each one's settings stay apart from the others'.
+ * /admin/integrations: a section for each service (see page.tsx), closed to its name and status
+ * until opened, with a line below it.
  */
 @layer components {
-  /* The summary and body pad themselves, so all of the summary's row can be clicked. */
-  .integration {
-    padding-block: 0;
-  }
-
   .integration-summary {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 0.5rem 0.75rem;
-    padding: var(--card-spacing);
+    padding-block: 0.5rem;
     cursor: pointer;
     list-style: none;
+    border-radius: var(--radius-md);
     outline: none;
-    transition: background-color 150ms;
 
     &::-webkit-details-marker {
       display: none;
     }
-    @media (hover: hover) {
-      &:hover {
-        background-color: var(--muted);
-      }
-    }
     &:focus-visible {
-      box-shadow: inset 0 0 0 3px color-mix(in oklch, var(--ring) 50%, transparent);
+      box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 50%, transparent);
     }
 
     & h2 {
@@ -53,9 +43,7 @@
     display: flex;
     flex-direction: column;
     gap: 1rem;
-    padding: 0 var(--card-spacing) var(--card-spacing);
-    font-size: 1rem;
-    line-height: 1.5;
+    padding-block: 0.75rem 0.5rem;
 
     & h3 {
       font-size: 1rem;

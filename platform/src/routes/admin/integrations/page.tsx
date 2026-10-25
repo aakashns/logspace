@@ -6,7 +6,6 @@ import { TURNSTILE_STYLES, TurnstileWidget } from '../../../components/turnstile
 import { Alert, ALERT_STYLES, AlertDescription, AlertTitle } from '../../../components/ui/alert.tsx'
 import { Badge, BADGE_STYLES } from '../../../components/ui/badge.tsx'
 import { Button } from '../../../components/ui/button.tsx'
-import { Card, CARD_STYLES } from '../../../components/ui/card.tsx'
 import { Checkbox, CHECKBOX_STYLES } from '../../../components/ui/checkbox.tsx'
 import {
   Field,
@@ -16,6 +15,7 @@ import {
   FieldLabel,
 } from '../../../components/ui/field.tsx'
 import { Input } from '../../../components/ui/input.tsx'
+import { Separator, SEPARATOR_STYLES } from '../../../components/ui/separator.tsx'
 import { UNREADABLE_SECRET_MESSAGE, type TurnstileIssue } from '../../../data/site/site.ts'
 import type { TurnstileFailure, TurnstileStatus } from '../../../data/site/turnstile.ts'
 import { urls } from '../../../lib/urls.ts'
@@ -27,8 +27,8 @@ export const INTEGRATIONS_PAGE_STYLES =
   FIELDS_STYLES +
   ALERT_STYLES +
   BADGE_STYLES +
-  CARD_STYLES +
   CHECKBOX_STYLES +
+  SEPARATOR_STYLES +
   TURNSTILE_STYLES +
   stylesheet(css)
 
@@ -47,7 +47,7 @@ export interface TurnstileSectionProps {
   readonly verification?: TurnstileVerification | undefined
 }
 
-// /admin/integrations: a collapsible card for each service the site connects to.
+// /admin/integrations: a collapsible section for each service the site connects to.
 export function IntegrationsPage(props: { turnstile: TurnstileSectionProps }): Html {
   return (
     <section class="admin-page">
@@ -184,7 +184,8 @@ function TurnstileSection(props: TurnstileSectionProps): Html {
   )
 }
 
-// A card that opens to a service's settings, its name and status always showing.
+// A service's name and status, which open to its settings, with a line below to set it apart from
+// the next one.
 function Integration(props: {
   id: string
   title: string
@@ -194,7 +195,7 @@ function Integration(props: {
 }): Html {
   let { id, title, badge, open, children } = props
   return (
-    <Card class="integration">
+    <>
       <details open={open}>
         <summary class="integration-summary">
           <h2 id={`${id}-heading`}>{title}</h2>
@@ -205,7 +206,8 @@ function Integration(props: {
           {children}
         </section>
       </details>
-    </Card>
+      <Separator />
+    </>
   )
 }
 
