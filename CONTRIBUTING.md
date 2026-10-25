@@ -12,7 +12,9 @@ bun run dev:demo
 
 That starts a throwaway site with the test posts and prints its address and admin password. Its
 data is in a temporary folder, deleted when you stop it (Ctrl-C), and it needs no configuration.
-The server restarts on changes; reload the browser.
+The server restarts on changes; reload the browser. If [Mailpit](https://mailpit.axllent.org) is
+installed (`brew install mailpit`), it starts too, the site's email is set up to send to it, and
+its inbox's address is printed with the rest.
 
 To keep a site of your own between runs, create `platform/.env` (ignored by Git), using your own
 secrets and absolute paths outside the checkout:
@@ -110,7 +112,7 @@ folder.
 | `admin/posts/`        | `/admin/posts`, the list of posts                                            |
 | `admin/compose/`      | `/admin/posts/new`, `/admin/posts/<id>/edit`, and what the composer posts to |
 | `admin/branding/`     | `/admin/branding`, the site's title, URL, introduction, and images           |
-| `admin/integrations/` | `/admin/integrations`, a section for each service the site connects to       |
+| `admin/integrations/` | `/admin/integrations`, a section for each service: email, and Turnstile      |
 | `admin/subscribers/`  | `/admin/subscribers`, empty for now                                          |
 | `design/`             | `/design`, outside production: every component in `components/ui/`          |
 
@@ -154,7 +156,8 @@ the database, and nothing is kept between requests, so an edit made in the datab
 | `site/site.ts`          | The site's settings (branding, and integrations like `TurnstileSettings`, each one setting saved as JSON), and their checks                             |
 | `site/site-images.ts`   | The URLs pages link the site's icon, logos, and banner image with                                                                                       |
 | `site/queries.ts`       | `SiteConfigQueries`, and `configuredSite` for what's only served once the settings are saved                                                            |
-| `site/commands.ts`      | `SiteConfigCommands`: saving `/admin/branding` (turning uploads into the site's image files, or `SiteConfigRejected`), and Turnstile's keys             |
+| `site/commands.ts`      | `SiteConfigCommands`: saving `/admin/branding` (turning uploads into the site's image files, or `SiteConfigRejected`), and the integrations' settings  |
+| `site/email.ts`         | `Email`: whether it's set up, and sending an email, over SMTP (with nodemailer) or Resend's API, with a typed error for each way that fails             |
 | `site/turnstile.ts`     | `Turnstile`: whether it's set up, checking a widget's token with Cloudflare, with a typed error for each way that fails, and logins while it's enabled  |
 | `site/files.ts`         | The site's image files, from storage, or the default icons that `Images` caches                                                                         |
 | `link-previews/`        | `LinkPreviews` fetches previews in the background, never on a page's time, and saves each one's image as resized WebP copies                            |
@@ -215,12 +218,14 @@ Database migrations are an Effect function, `runMigrations`, used by startup and
 
 The suites are the `*.test.ts` files beside the code. `test/app.ts` builds the app with an
 in-memory database and storage and drives it through `fetch`-style requests. Services can also be
-called directly with `app.run(effect)`. `test/content/` has the posts they start with.
+called directly with `app.run(effect)`. `test/content/` has the posts they start with, and
+`test/smtp-server.ts` is an SMTP server the email tests send to, which keeps what it's sent.
 
 #### Browser tests
 
 `*.pw.ts` (like `src/routes/admin/compose/compose.pw.ts`) drive the composer, and the dropdown
-menu and dialog on `/design`, in Chromium and WebKit with Playwright, which also needs Node.js 20 or newer: publishing each kind of post, with
+menu and dialog on `/design`, and setting up email and sending a test email to Mailpit (skipped
+where Mailpit isn't installed), in Chromium and WebKit with Playwright, which also needs Node.js 20 or newer: publishing each kind of post, with
 and without JavaScript. Each test starts the app with its own temporary data and port
 (`browser/fixtures.ts`). Install the browsers once with `bun run test:browser:install`, then run
 `bun run test:browser`. CI doesn't run them.
@@ -234,7 +239,7 @@ and without JavaScript. Each test starts the app with its own temporary data and
   Pages also send `frame-ancestors 'none'`, `base-uri 'self'`, `object-src 'none'`, and
   `form-action 'self'`. Only a page with the Turnstile widget also allows scripts and frames
   from `https://challenges.cloudflare.com`, still with Trusted Types required.
-- **Stored secrets**: an integration's secret key is sealed with AES-256-GCM, with a key derived
+- **Stored secrets**: an integration's secret key (or email's password or API key) is sealed with AES-256-GCM, with a key derived
   (HKDF) from `AUTH_SESSION_SECRET` and the setting it's for, so a copy of the database alone
   doesn't give it away, and it's never sent back to the browser (only its last four characters).
   Changing `AUTH_SESSION_SECRET` makes saved secrets unreadable; the admin is asked to enter them

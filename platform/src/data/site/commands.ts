@@ -8,6 +8,10 @@ import { MediaStorage, mediaKeys } from '../../lib/media-storage.ts'
 import { Secrets } from '../../lib/secrets.ts'
 import { SiteConfigQueries } from './queries.ts'
 import {
+  checkEmailForm,
+  EMAIL_SECRET_PURPOSES,
+  type EmailForm,
+  type EmailSettings,
   INTEGRATIONS,
   SITE_CONFIG_FIELDS,
   SITE_IMAGE_KINDS,
@@ -50,6 +54,30 @@ export class TurnstileKeysRejected extends Schema.TaggedError<TurnstileKeysRejec
   },
 ) {}
 
+// The email settings weren't saved, for these reasons (shown in its section of
+// /admin/integrations).
+export class EmailSettingsRejected extends Schema.TaggedError<EmailSettingsRejected>()(
+  'EmailSettingsRejected',
+  {
+    issues: Schema.Array(
+      Schema.Struct({
+        field: Schema.Literals([
+          'provider',
+          'from',
+          'replyTo',
+          'smtpHost',
+          'smtpPort',
+          'smtpSecurity',
+          'smtpUsername',
+          'smtpPassword',
+          'resendApiKey',
+        ]),
+        message: Schema.String,
+      }),
+    ),
+  },
+) {}
+
 // The settings /admin/branding saves.
 const BRANDING_SETTINGS = [...TEXT_SETTINGS, ...SITE_IMAGE_KINDS] as const
 
@@ -69,6 +97,9 @@ export class SiteConfigCommands extends Context.Service<
       keys: TurnstileKeys,
       enabled: boolean,
     ) => Effect.Effect<void, TurnstileKeysRejected>
+    // Saves how the site sends email, sealing the password or API key. One left empty keeps the
+    // saved one.
+    readonly saveEmail: (form: EmailForm) => Effect.Effect<void, EmailSettingsRejected>
     // Disconnects an integration, forgetting its settings. Removing one that isn't set up does
     // nothing.
     readonly removeIntegration: (integration: Integration) => Effect.Effect<void>
@@ -129,6 +160,44 @@ export class SiteConfigCommands extends Context.Service<
             ? yield* secrets.seal(keys.secretKey, TURNSTILE_SECRET_PURPOSE)
             : saved.secretKey
         yield* write(['turnstile'], { turnstile: { siteKey: keys.siteKey, secretKey, enabled } })
+      })
+
+      let saveEmail = Effect.fn('SiteConfigCommands.saveEmail')(function* (form: EmailForm) {
+        let purpose = EMAIL_SECRET_PURPOSES[form.provider === 'resend' ? 'resend' : 'smtp']
+        // The password or API key saved for the provider chosen, if it's the saved one.
+        let saved = (yield* queries.saved).email?.provider
+        let sealed =
+          saved?._tag !== form.provider
+            ? undefined
+            : saved._tag === 'smtp'
+              ? saved.password
+              : saved.apiKey
+        let state: SavedSecret = sealed
+          ? yield* secrets.open(sealed, purpose).pipe(
+              Effect.match({
+                onSuccess: () => 'readable' as const,
+                onFailure: () => 'unreadable' as const,
+              }),
+            )
+          : 'none'
+        let checked = checkEmailForm(form, state)
+        if (checked._tag === 'Failure') {
+          return yield* new EmailSettingsRejected({ issues: checked.failure })
+        }
+        let { secret, provider, ...addresses } = checked.success
+        // Without a new one, the checks passed only because the saved one opens, or because
+        // there's no username to use one with.
+        let kept = secret ? yield* secrets.seal(secret, purpose) : sealed
+        let email: EmailSettings
+        if (provider._tag === 'smtp') {
+          email = {
+            ...addresses,
+            provider: provider.username && kept ? { ...provider, password: kept } : provider,
+          }
+        } else if (kept) {
+          email = { ...addresses, provider: { ...provider, apiKey: kept } }
+        } else return yield* Effect.die('An API key was checked but not found')
+        yield* write(['email'], { email })
       })
 
       let removeIntegration = Effect.fn('SiteConfigCommands.removeIntegration')(function* (
@@ -217,6 +286,7 @@ export class SiteConfigCommands extends Context.Service<
         update: (...args) => mutations.withPermit(Effect.uninterruptible(update(...args))),
         saveTurnstile: (keys, enabled) =>
           mutations.withPermit(Effect.uninterruptible(saveTurnstile(keys, enabled))),
+        saveEmail: (form) => mutations.withPermit(Effect.uninterruptible(saveEmail(form))),
         removeIntegration: (integration) =>
           mutations.withPermit(Effect.uninterruptible(removeIntegration(integration))),
         save: (...args) => mutations.withPermit(Effect.uninterruptible(save(...args))),

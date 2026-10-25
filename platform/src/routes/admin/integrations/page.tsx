@@ -15,8 +15,16 @@ import {
   FieldLabel,
 } from '../../../components/ui/field.tsx'
 import { Input } from '../../../components/ui/input.tsx'
+import { NativeSelect, NATIVE_SELECT_STYLES } from '../../../components/ui/native-select.tsx'
 import { Separator, SEPARATOR_STYLES } from '../../../components/ui/separator.tsx'
-import { UNREADABLE_SECRET_MESSAGE, type TurnstileIssue } from '../../../data/site/site.ts'
+import type { EmailFailure, EmailStatus } from '../../../data/site/email.ts'
+import {
+  type EmailForm,
+  type EmailIssue,
+  SMTP_PORTS,
+  type TurnstileIssue,
+  unreadableSecretMessage,
+} from '../../../data/site/site.ts'
 import type { TurnstileFailure, TurnstileStatus } from '../../../data/site/turnstile.ts'
 import { urls } from '../../../lib/urls.ts'
 import { FIELDS_STYLES, hintId, LabelledField, TextField } from '../fields.tsx'
@@ -28,6 +36,7 @@ export const INTEGRATIONS_PAGE_STYLES =
   ALERT_STYLES +
   BADGE_STYLES +
   CHECKBOX_STYLES +
+  NATIVE_SELECT_STYLES +
   SEPARATOR_STYLES +
   TURNSTILE_STYLES +
   stylesheet(css)
@@ -47,8 +56,24 @@ export interface TurnstileSectionProps {
   readonly verification?: TurnstileVerification | undefined
 }
 
+// How sending a test email went.
+export type EmailTest = { readonly _tag: 'Sent'; readonly to: string } | EmailFailure
+
+export interface EmailSectionProps {
+  readonly status: EmailStatus
+  // Set on the page shown after saving or removing the settings.
+  readonly notice?: 'saved' | 'removed' | undefined
+  // A rejected form, as typed (but for the password and API key), and why.
+  readonly rejected?: { form: EmailForm; issues: readonly EmailIssue[] } | undefined
+  // A test email that was sent, or not, and the address it was for.
+  readonly test?: { result: EmailTest; to: string } | undefined
+}
+
 // /admin/integrations: a collapsible section for each service the site connects to.
-export function IntegrationsPage(props: { turnstile: TurnstileSectionProps }): Html {
+export function IntegrationsPage(props: {
+  turnstile: TurnstileSectionProps
+  email: EmailSectionProps
+}): Html {
   return (
     <section class="admin-page">
       <BackLink />
@@ -57,6 +82,7 @@ export function IntegrationsPage(props: { turnstile: TurnstileSectionProps }): H
         Services the site connects to. Secret keys are encrypted and not shown once entered.
       </p>
       <div class="integrations">
+        <EmailSection {...props.email} />
         <TurnstileSection {...props.turnstile} />
         <Separator />
       </div>
@@ -70,9 +96,299 @@ const STATUSES = {
   SecretUnreadable: { label: 'Needs its secret key again', variant: 'destructive' },
 } as const satisfies Record<TurnstileStatus['_tag'], { label: string; variant: string }>
 
+const EMAIL_STATUSES = {
+  NotSetUp: { label: 'Not set up', variant: 'secondary' },
+  SetUp: { label: 'Set up', variant: 'default' },
+  SecretUnreadable: { label: 'Needs its password or API key again', variant: 'destructive' },
+} as const satisfies Record<EmailStatus['_tag'], { label: string; variant: string }>
+
+const SECURITIES = {
+  starttls: `STARTTLS, usually on port ${SMTP_PORTS.starttls}`,
+  tls: `TLS, usually on port ${SMTP_PORTS.tls}`,
+  none: 'None, for a server on this machine, like Mailpit',
+} as const
+
+const EMAIL_FIELDS: Record<EmailIssue['field'], string> = {
+  provider: 'Send with',
+  from: 'From',
+  replyTo: 'Reply-to',
+  smtpHost: 'Server',
+  smtpPort: 'Port',
+  smtpSecurity: 'Security',
+  smtpUsername: 'Username',
+  smtpPassword: 'Password',
+  resendApiKey: 'API key',
+}
+
+// The settings as they're saved, as the form shows them. The password and API key are never sent
+// to the browser.
+function savedEmailForm(status: EmailStatus): EmailForm {
+  let empty = {
+    provider: 'smtp',
+    from: '',
+    replyTo: '',
+    smtpHost: '',
+    smtpPort: '',
+    smtpSecurity: 'starttls',
+    smtpUsername: '',
+    smtpPassword: '',
+    resendApiKey: '',
+  }
+  if (status._tag === 'NotSetUp') return empty
+  let { from, replyTo, provider } = status.settings
+  let form = { ...empty, provider: provider._tag, from, replyTo }
+  if (provider._tag === 'resend') return form
+  return {
+    ...form,
+    smtpHost: provider.host,
+    smtpPort: String(provider.port),
+    smtpSecurity: provider.security,
+    smtpUsername: provider.username,
+  }
+}
+
+function EmailSection(props: EmailSectionProps): Html {
+  let { status, notice, rejected, test } = props
+  let form = rejected?.form ?? savedEmailForm(status)
+  let invalid = (field: EmailIssue['field']) =>
+    rejected?.issues.some((issue) => issue.field === field) ? ('true' as const) : undefined
+  let badge = EMAIL_STATUSES[status._tag]
+  let saved = status._tag === 'NotSetUp' ? undefined : status.settings.provider._tag
+  // What's typed in the password or API key's field, if it's for the saved provider, keeps the
+  // saved one: its last characters say which it is.
+  let secretField = (field: 'smtpPassword' | 'resendApiKey', hint: string) => {
+    let provider = field === 'smtpPassword' ? 'smtp' : 'resend'
+    let what = field === 'smtpPassword' ? 'password' : 'API key'
+    let id = `email-${field}`
+    let placeholder =
+      status._tag === 'SetUp' && saved === provider && status.secretEnding
+        ? `${'•'.repeat(12)}${status.secretEnding}`
+        : undefined
+    return (
+      <LabelledField
+        label={EMAIL_FIELDS[field]}
+        for={id}
+        hint={
+          status._tag === 'SecretUnreadable' && saved === provider
+            ? unreadableSecretMessage(what)
+            : placeholder
+              ? 'Leave it empty to keep the saved one.'
+              : hint
+        }
+      >
+        <Input
+          id={id}
+          name={field}
+          type="password"
+          autocomplete="off"
+          placeholder={placeholder}
+          aria-invalid={invalid(field)}
+          aria-describedby={hintId(id)}
+        />
+      </LabelledField>
+    )
+  }
+  return (
+    <Integration
+      id="email"
+      title="Email"
+      badge={<Badge variant={badge.variant}>{badge.label}</Badge>}
+      open={notice !== undefined || rejected !== undefined || test !== undefined}
+    >
+      <p class="muted">
+        How the site sends email: through an SMTP server, which nearly every email service has, or
+        with <a href="https://resend.com">Resend</a>’s API, for servers that can’t reach SMTP’s
+        ports.
+      </p>
+      {notice === 'saved' ? (
+        <Alert role="status">
+          <AlertTitle>Saved. Send a test email below.</AlertTitle>
+        </Alert>
+      ) : null}
+      {notice === 'removed' ? (
+        <Alert role="status">
+          <AlertTitle>Removed, and its password or API key forgotten.</AlertTitle>
+        </Alert>
+      ) : null}
+      {rejected ? (
+        <Alert variant="destructive">
+          <AlertTitle>The settings weren’t saved.</AlertTitle>
+          <AlertDescription>
+            <ul>
+              {rejected.issues.map((issue) => (
+                <li>{`${EMAIL_FIELDS[issue.field]}: ${issue.message}`}</li>
+              ))}
+            </ul>
+          </AlertDescription>
+        </Alert>
+      ) : null}
+      <form method="post" action={urls.admin.saveEmail()} class="email-form">
+        <FieldGroup>
+          <LabelledField label="Send with" for="email-provider">
+            <NativeSelect id="email-provider" name="provider" aria-invalid={invalid('provider')}>
+              <option value="smtp" selected={form.provider !== 'resend'}>
+                An SMTP server
+              </option>
+              <option value="resend" selected={form.provider === 'resend'}>
+                Resend
+              </option>
+            </NativeSelect>
+          </LabelledField>
+          {/* Only the chosen provider's fields show (see page.css). */}
+          <div class="email-smtp">
+            <TextField
+              label="Server"
+              name="smtpHost"
+              id="email-smtpHost"
+              value={form.smtpHost}
+              invalid={invalid('smtpHost')}
+              hint="Its host name, like smtp.example.com, from your email service."
+            />
+            <LabelledField label="Security" for="email-smtpSecurity">
+              <NativeSelect
+                id="email-smtpSecurity"
+                name="smtpSecurity"
+                aria-invalid={invalid('smtpSecurity')}
+              >
+                {Object.entries(SECURITIES).map(([value, label]) => (
+                  <option value={value} selected={form.smtpSecurity === value}>
+                    {label}
+                  </option>
+                ))}
+              </NativeSelect>
+            </LabelledField>
+            <LabelledField
+              label="Port"
+              for="email-smtpPort"
+              hint="Leave it empty for the security’s usual port."
+            >
+              <Input
+                id="email-smtpPort"
+                name="smtpPort"
+                inputmode="numeric"
+                value={form.smtpPort}
+                aria-invalid={invalid('smtpPort')}
+                aria-describedby={hintId('email-smtpPort')}
+              />
+            </LabelledField>
+            <TextField
+              label="Username"
+              name="smtpUsername"
+              id="email-smtpUsername"
+              value={form.smtpUsername}
+              invalid={invalid('smtpUsername')}
+              hint="Leave it empty if the server doesn’t need a login."
+            />
+            {secretField('smtpPassword', 'Sent only to the SMTP server.')}
+          </div>
+          <div class="email-resend">
+            {secretField(
+              'resendApiKey',
+              'From Resend’s dashboard, with permission to send. Sent only to Resend.',
+            )}
+          </div>
+          <LabelledField
+            label="From"
+            for="email-from"
+            hint="The address emails come from, shown with the site’s title. Your email service must let you send from its domain."
+          >
+            <Input
+              id="email-from"
+              name="from"
+              type="email"
+              value={form.from}
+              aria-invalid={invalid('from')}
+              aria-describedby={hintId('email-from')}
+            />
+          </LabelledField>
+          <LabelledField
+            label="Reply-to"
+            for="email-replyTo"
+            hint="Optional: where replies go, if not to the from address."
+          >
+            <Input
+              id="email-replyTo"
+              name="replyTo"
+              type="email"
+              value={form.replyTo}
+              aria-invalid={invalid('replyTo')}
+              aria-describedby={hintId('email-replyTo')}
+            />
+          </LabelledField>
+          <div class="actions">
+            <Button type="submit">Save</Button>
+            {status._tag === 'NotSetUp' ? null : (
+              <Button type="submit" formaction={urls.admin.removeEmail()} variant="destructive">
+                Remove
+              </Button>
+            )}
+          </div>
+        </FieldGroup>
+      </form>
+      {status._tag === 'NotSetUp' && !test ? null : <EmailTry test={test} />}
+    </Integration>
+  )
+}
+
+// Sends an email to any address, with the saved settings, which shows they work.
+function EmailTry(props: { test: EmailSectionProps['test'] }): Html {
+  let { test } = props
+  return (
+    <section class="integration-try" aria-labelledby="email-try-heading">
+      <h3 id="email-try-heading">Send a test email</h3>
+      {test ? <EmailTestResult result={test.result} /> : null}
+      <form method="post" action={urls.admin.testEmail()} class="integration-try-form">
+        <LabelledField label="To" for="email-test-to">
+          <Input
+            id="email-test-to"
+            name="to"
+            type="email"
+            value={test?.to ?? ''}
+            placeholder="you@example.com"
+            aria-invalid={test?.result._tag === 'EmailAddressInvalid' ? 'true' : undefined}
+          />
+        </LabelledField>
+        <Button type="submit" variant="outline">
+          Send
+        </Button>
+      </form>
+    </section>
+  )
+}
+
+function EmailTestResult(props: { result: EmailTest }): Html {
+  let { result } = props
+  if (result._tag === 'Sent') {
+    return (
+      <Alert role="status">
+        <AlertTitle>{`Sent to ${result.to}. Check its inbox (and spam folder).`}</AlertTitle>
+      </Alert>
+    )
+  }
+  return (
+    <Alert variant="destructive">
+      <AlertTitle>Not sent.</AlertTitle>
+      <AlertDescription>{emailFailureMessage(result)}</AlertDescription>
+    </Alert>
+  )
+}
+
+function emailFailureMessage(failure: EmailFailure): string {
+  switch (failure._tag) {
+    case 'EmailNotSetUp':
+      return 'Email isn’t set up: save its settings first.'
+    case 'SecretUnreadable':
+      return unreadableSecretMessage('password or API key')
+    case 'EmailAddressInvalid':
+      return 'Enter an email address to send it to, like you@example.com.'
+    case 'EmailNotSent':
+      return failure.message
+  }
+}
+
 const SECRET_HINTS = {
   NotSetUp: 'Sent only to Cloudflare, to check the widget’s answers.',
-  SecretUnreadable: UNREADABLE_SECRET_MESSAGE,
+  SecretUnreadable: unreadableSecretMessage('secret key'),
 } as const
 
 function TurnstileSection(props: TurnstileSectionProps): Html {
@@ -221,14 +537,14 @@ function TurnstileTry(props: {
 }): Html {
   let { siteKey, verification } = props
   return (
-    <section class="turnstile-try" aria-labelledby="turnstile-try-heading">
+    <section class="integration-try" aria-labelledby="turnstile-try-heading">
       <h3 id="turnstile-try-heading">Try it</h3>
       <p class="muted">
         Complete the challenge, then verify its answer with Cloudflare. If the widget shows an error
         instead, check that this site’s domain is one of its hostnames on Cloudflare.
       </p>
       {verification ? <VerificationResult verification={verification} /> : null}
-      <form method="post" action={urls.admin.verifyTurnstile()} class="turnstile-form">
+      <form method="post" action={urls.admin.verifyTurnstile()} class="integration-try-form">
         <TurnstileWidget siteKey={siteKey} />
         <Button type="submit" variant="outline">
           Verify
@@ -277,7 +593,7 @@ function failureMessage(failure: TurnstileFailure): Child {
     case 'TurnstileNotSetUp':
       return 'Turnstile isn’t connected: save its keys first.'
     case 'SecretUnreadable':
-      return UNREADABLE_SECRET_MESSAGE
+      return unreadableSecretMessage('secret key')
     case 'TurnstileTokenMissing':
       return 'Complete the challenge first. The widget needs JavaScript, and can take a moment to load.'
     case 'TurnstileDenied':

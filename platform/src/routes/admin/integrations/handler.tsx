@@ -1,9 +1,13 @@
-// The services the site connects to, at /admin/integrations. Each has a section of the page, with
-// forms that post to its own URLs, so saving one never touches another.
+// The services the site connects to, at /admin/integrations: email and Cloudflare Turnstile. Each
+// has a section of the page, with forms that post to its own URLs, so saving one never touches
+// another.
 import { Effect } from 'effect'
 import { HttpRouter } from 'effect/http'
 
 import { SiteConfigCommands } from '../../../data/site/commands.ts'
+import { Email } from '../../../data/site/email.ts'
+import { SiteConfigQueries } from '../../../data/site/queries.ts'
+import type { EmailForm } from '../../../data/site/site.ts'
 import { Turnstile } from '../../../data/site/turnstile.ts'
 import { formText, LOGIN_FORM_LIMIT, readForm } from '../../../lib/http/forms.ts'
 import { redirect } from '../../../lib/http/responses.ts'
@@ -11,6 +15,8 @@ import { AdminAuth, type Session } from '../../../lib/http/session.ts'
 import { urls } from '../../../lib/urls.ts'
 import { adminPage, loggedIn } from '../admin.tsx'
 import {
+  type EmailSectionProps,
+  type EmailTest,
   INTEGRATIONS_PAGE_STYLES,
   IntegrationsPage,
   type TurnstileSectionProps,
@@ -20,12 +26,23 @@ import {
 // Its forms are a few short keys, or the widget's token (at most 2 KB).
 const FORM_LIMIT = LOGIN_FORM_LIMIT
 
-const integrationsPage = (turnstile: Omit<TurnstileSectionProps, 'status'>, status: number = 200) =>
+// The page, with what's to be shown in each section: what was just done in it, if anything.
+const integrationsPage = (
+  sections: {
+    turnstile?: Omit<TurnstileSectionProps, 'status'>
+    email?: Omit<EmailSectionProps, 'status'>
+  },
+  status: number = 200,
+) =>
   Effect.gen(function* () {
     let turnstileStatus = yield* (yield* Turnstile).status
+    let emailStatus = yield* (yield* Email).status
     return yield* adminPage(
       'Integrations',
-      <IntegrationsPage turnstile={{ ...turnstile, status: turnstileStatus }} />,
+      <IntegrationsPage
+        turnstile={{ ...sections.turnstile, status: turnstileStatus }}
+        email={{ ...sections.email, status: emailStatus }}
+      />,
       {
         styles: INTEGRATIONS_PAGE_STYLES,
         status,
@@ -36,8 +53,15 @@ const integrationsPage = (turnstile: Omit<TurnstileSectionProps, 'status'>, stat
   })
 
 // What was done is shown once, on the page it leads back to.
-const FLASHES = { turnstileSaved: 'saved', turnstileRemoved: 'removed' } as const
+const FLASHES = {
+  turnstileSaved: { turnstile: { notice: 'saved' } },
+  turnstileRemoved: { turnstile: { notice: 'removed' } },
+  emailSaved: { email: { notice: 'saved' } },
+  emailRemoved: { email: { notice: 'removed' } },
+} as const
 type Flash = keyof typeof FLASHES
+const isFlash = (flash: string | undefined): flash is Flash =>
+  flash !== undefined && Object.hasOwn(FLASHES, flash)
 
 const doneRedirect = (session: Session, flash: Flash) =>
   Effect.map(AdminAuth, (auth) =>
@@ -48,9 +72,7 @@ const showIntegrations = loggedIn((session) =>
   Effect.gen(function* () {
     let auth = yield* AdminAuth
     let { flash, ...read } = session
-    let notice =
-      flash === 'turnstileSaved' || flash === 'turnstileRemoved' ? FLASHES[flash] : undefined
-    let response = yield* integrationsPage({ notice })
+    let response = yield* integrationsPage(isFlash(flash) ? FLASHES[flash] : {})
     return flash ? auth.saveSession(response, read) : response
   }),
 )
@@ -65,7 +87,7 @@ const saveTurnstile = loggedIn((session) =>
       // The secret key typed isn't shown again.
       Effect.catchTag('TurnstileKeysRejected', (rejected) =>
         integrationsPage(
-          { rejected: { siteKey: keys.siteKey, enabled, issues: rejected.issues } },
+          { turnstile: { rejected: { siteKey: keys.siteKey, enabled, issues: rejected.issues } } },
           400,
         ),
       ),
@@ -91,7 +113,10 @@ const verifyTurnstile = loggedIn(() =>
         Effect.map(({ hostname }) => ({ _tag: 'Verified', hostname }) as const),
         Effect.catch((failure) => Effect.succeed(failure)),
       )
-    return yield* integrationsPage({ verification }, verificationStatus(verification))
+    return yield* integrationsPage(
+      { turnstile: { verification } },
+      verificationStatus(verification),
+    )
   }),
 )
 
@@ -110,9 +135,89 @@ function verificationStatus(verification: TurnstileVerification): number {
   }
 }
 
+const saveEmail = loggedIn((session) =>
+  Effect.gen(function* () {
+    let form = yield* readForm(FORM_LIMIT)
+    let typed: EmailForm = {
+      provider: formText(form, 'provider'),
+      from: formText(form, 'from'),
+      replyTo: formText(form, 'replyTo'),
+      smtpHost: formText(form, 'smtpHost'),
+      smtpPort: formText(form, 'smtpPort'),
+      smtpSecurity: formText(form, 'smtpSecurity'),
+      smtpUsername: formText(form, 'smtpUsername'),
+      smtpPassword: formText(form, 'smtpPassword'),
+      resendApiKey: formText(form, 'resendApiKey'),
+    }
+    return yield* (yield* SiteConfigCommands).saveEmail(typed).pipe(
+      Effect.flatMap(() => doneRedirect(session, 'emailSaved')),
+      // The password and API key typed aren't shown again.
+      Effect.catchTag('EmailSettingsRejected', (rejected) =>
+        integrationsPage(
+          {
+            email: {
+              rejected: {
+                form: { ...typed, smtpPassword: '', resendApiKey: '' },
+                issues: rejected.issues,
+              },
+            },
+          },
+          400,
+        ),
+      ),
+    )
+  }),
+)
+
+const removeEmail = loggedIn((session) =>
+  Effect.gen(function* () {
+    yield* (yield* SiteConfigCommands).removeIntegration('email')
+    return yield* doneRedirect(session, 'emailRemoved')
+  }),
+)
+
+// Sends a test email, with the saved settings, to the address typed, and shows how that went.
+const testEmail = loggedIn(() =>
+  Effect.gen(function* () {
+    let to = formText(yield* readForm(FORM_LIMIT), 'to')
+    let { siteTitle, siteUrl } = yield* (yield* SiteConfigQueries).saved
+    let site = siteTitle || 'your LogSpace'
+    let result: EmailTest = yield* (yield* Email)
+      .send({
+        to,
+        subject: `Test email from ${site}`,
+        text:
+          `This is a test email from ${site}${siteUrl ? ` (${siteUrl})` : ''}, sent from ` +
+          'its admin’s Integrations page. It arrived, so the site can send email.\n',
+      })
+      .pipe(
+        Effect.as({ _tag: 'Sent', to } as const),
+        Effect.catch((failure) => Effect.succeed(failure)),
+      )
+    return yield* integrationsPage({ email: { test: { result, to } } }, testStatus(result))
+  }),
+)
+
+function testStatus(result: EmailTest): number {
+  switch (result._tag) {
+    case 'Sent':
+      return 200
+    case 'EmailNotSent':
+      return 502
+    case 'EmailNotSetUp':
+    case 'SecretUnreadable':
+      return 409
+    case 'EmailAddressInvalid':
+      return 400
+  }
+}
+
 export const IntegrationRoutes = HttpRouter.addAll([
   HttpRouter.route('GET', '/admin/integrations', showIntegrations),
   HttpRouter.route('POST', '/admin/integrations/turnstile', saveTurnstile),
   HttpRouter.route('POST', '/admin/integrations/turnstile/remove', removeTurnstile),
   HttpRouter.route('POST', '/admin/integrations/turnstile/verify', verifyTurnstile),
+  HttpRouter.route('POST', '/admin/integrations/email', saveEmail),
+  HttpRouter.route('POST', '/admin/integrations/email/remove', removeEmail),
+  HttpRouter.route('POST', '/admin/integrations/email/test', testEmail),
 ])

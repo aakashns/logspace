@@ -61,12 +61,40 @@ export const TurnstileSettings = Schema.Struct({
 export type TurnstileSettings = typeof TurnstileSettings.Type
 export const TURNSTILE_SECRET_PURPOSE = 'turnstile.secretKey'
 
+// Email, which the site sends from `from` (named as the site's title), with replies going to
+// `replyTo` if it's set. It's sent through an SMTP server, which nearly every email service has,
+// or Resend's API, over HTTPS, for servers whose host blocks SMTP's ports. The SMTP password and
+// Resend's API key are sealed (see ../../lib/secrets.ts) for EMAIL_SECRET_PURPOSES.
+export const SMTP_SECURITIES = ['starttls', 'tls', 'none'] as const
+export type SmtpSecurity = (typeof SMTP_SECURITIES)[number]
+export const SmtpProvider = Schema.TaggedStruct('smtp', {
+  host: Schema.String,
+  port: Schema.Int,
+  security: Schema.Literals(SMTP_SECURITIES),
+  // Without a username, it sends without logging in.
+  username: Schema.String,
+  password: Schema.optionalKey(SealedSecret),
+})
+export const ResendProvider = Schema.TaggedStruct('resend', { apiKey: SealedSecret })
+export const EmailSettings = Schema.Struct({
+  from: Schema.String,
+  replyTo: Schema.String,
+  provider: Schema.Union([SmtpProvider, ResendProvider]),
+})
+export type EmailSettings = typeof EmailSettings.Type
+export type EmailProvider = EmailSettings['provider']['_tag']
+export const EMAIL_SECRET_PURPOSES = {
+  smtp: 'email.smtpPassword',
+  resend: 'email.resendApiKey',
+} as const satisfies Record<EmailProvider, string>
+
 // The services the site connects to, set at /admin/integrations, each saved as one setting. One
 // that's never been saved isn't set up.
-export const INTEGRATIONS = ['turnstile'] as const
+export const INTEGRATIONS = ['turnstile', 'email'] as const
 export type Integration = (typeof INTEGRATIONS)[number]
 export interface SiteIntegrations {
   readonly turnstile?: TurnstileSettings
+  readonly email?: EmailSettings
 }
 
 export type SiteConfig = SiteText & SiteImages & SiteIntegrations
@@ -177,13 +205,118 @@ export function checkTurnstileKeys(keys: TurnstileKeys, saved: SavedSecret): Tur
   } else if (saved === 'none') {
     issues.push({ field: 'secretKey', message: 'Enter the widget’s secret key' })
   } else if (saved === 'unreadable') {
-    issues.push({ field: 'secretKey', message: UNREADABLE_SECRET_MESSAGE })
+    issues.push({ field: 'secretKey', message: unreadableSecretMessage('secret key') })
   }
   return issues
 }
 
-export const UNREADABLE_SECRET_MESSAGE =
-  'The saved secret key can’t be read, likely because AUTH_SESSION_SECRET changed since it was saved. Enter it again.'
+// The email form, as typed (trimmed). Only the chosen provider's fields are used, and a password
+// or API key left empty keeps the saved one.
+export interface EmailForm {
+  readonly provider: string
+  readonly from: string
+  readonly replyTo: string
+  readonly smtpHost: string
+  readonly smtpPort: string
+  readonly smtpSecurity: string
+  readonly smtpUsername: string
+  readonly smtpPassword: string
+  readonly resendApiKey: string
+}
+
+// A problem with the email form.
+export interface EmailIssue {
+  readonly field: keyof EmailForm
+  readonly message: string
+}
+
+// The email settings a valid form saves, with the password or API key typed, which is empty to
+// keep the saved one.
+export type CheckedEmailForm = {
+  readonly from: string
+  readonly replyTo: string
+  readonly provider:
+    Omit<typeof SmtpProvider.Type, 'password'> | Omit<typeof ResendProvider.Type, 'apiKey'>
+  readonly secret: string
+}
+
+// An address alone, like "news@example.com", without a name. "localhost" and other names
+// without a dot are allowed, for a server on the same machine.
+const EMAIL_ADDRESS = /^[^\s@<>()[\]\\,;:"]+@[^\s@<>()[\]\\,;:"]+$/
+export const isEmailAddress = (value: string) => value.length <= 254 && EMAIL_ADDRESS.test(value)
+const HOST = /^[\w.-]{1,253}$/
+const RESEND_API_KEY = /^re_[\w-]{8,200}$/
+// Each kind of security's usual port, for a port left empty.
+export const SMTP_PORTS = { starttls: 587, tls: 465, none: 25 } as const
+
+// Checks the email form. `saved` is whether the provider chosen has a saved password or API key,
+// which one left empty keeps.
+export function checkEmailForm(
+  form: EmailForm,
+  saved: SavedSecret,
+): Result.Result<CheckedEmailForm, EmailIssue[]> {
+  let issues: EmailIssue[] = []
+  let address = 'Expected an email address, like news@example.com'
+  if (!form.from) issues.push({ field: 'from', message: 'Enter the address to send from' })
+  else if (!isEmailAddress(form.from)) issues.push({ field: 'from', message: address })
+  if (form.replyTo && !isEmailAddress(form.replyTo)) {
+    issues.push({ field: 'replyTo', message: address })
+  }
+  let secret = (field: 'smtpPassword' | 'resendApiKey', what: string) => {
+    if (form[field] || saved === 'readable') return
+    issues.push({
+      field,
+      message: saved === 'unreadable' ? unreadableSecretMessage(what) : `Enter the ${what}`,
+    })
+  }
+  let provider: CheckedEmailForm['provider'] | undefined
+  if (form.provider === 'smtp') {
+    let security = SMTP_SECURITIES.find((value) => value === form.smtpSecurity)
+    if (!security) issues.push({ field: 'smtpSecurity', message: 'Choose a kind of security' })
+    if (!form.smtpHost) issues.push({ field: 'smtpHost', message: 'Enter the server’s address' })
+    else if (!HOST.test(form.smtpHost)) {
+      issues.push({ field: 'smtpHost', message: 'Expected a host name, like smtp.example.com' })
+    }
+    let port = form.smtpPort ? Number(form.smtpPort) : SMTP_PORTS[security ?? 'starttls']
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      issues.push({ field: 'smtpPort', message: 'Expected a port, from 1 to 65535' })
+    }
+    if (form.smtpUsername) secret('smtpPassword', 'password')
+    else if (form.smtpPassword) {
+      issues.push({ field: 'smtpUsername', message: 'Enter the username for the password' })
+    }
+    if (security) {
+      provider = {
+        _tag: 'smtp',
+        host: form.smtpHost,
+        port,
+        security,
+        username: form.smtpUsername,
+      }
+    }
+  } else if (form.provider === 'resend') {
+    if (form.resendApiKey && !RESEND_API_KEY.test(form.resendApiKey)) {
+      issues.push({
+        field: 'resendApiKey',
+        message: 'Expected an API key from Resend, which starts with “re_”',
+      })
+    } else secret('resendApiKey', 'API key')
+    provider = { _tag: 'resend' }
+  } else issues.push({ field: 'provider', message: 'Choose how to send email' })
+  if (issues.length > 0 || !provider) return Result.fail(issues)
+  let typed = provider._tag === 'smtp' ? form.smtpPassword : form.resendApiKey
+  return Result.succeed({
+    from: form.from,
+    replyTo: form.replyTo,
+    provider,
+    // A password without a username isn't used.
+    secret: provider._tag === 'smtp' && !provider.username ? '' : typed,
+  })
+}
+
+// For a saved secret, like 'secret key', that doesn't open.
+export const unreadableSecretMessage = (what: string) =>
+  `The saved ${what} can’t be read, likely because AUTH_SESSION_SECRET changed since it was saved. Enter it again.`
 
 // The config as it's saved, from the `config` table's rows. A setting that's never been saved
 // has its default, and an image or integration whose row is mangled is left out, like a missing
@@ -202,9 +335,12 @@ export function fromConfigRows(rows: ReadonlyMap<string, string>): SavedSiteConf
   }
   let turnstile = Option.getOrUndefined(decodeTurnstile(rows.get('turnstile') ?? ''))
   if (turnstile) config.turnstile = turnstile
+  let email = Option.getOrUndefined(decodeEmail(rows.get('email') ?? ''))
+  if (email) config.email = email
   return config
 }
 
 // A saved image setting, or none if it isn't valid JSON for one.
 const decodeSiteImage = Schema.decodeUnknownOption(Schema.fromJsonString(SiteImage))
 const decodeTurnstile = Schema.decodeUnknownOption(Schema.fromJsonString(TurnstileSettings))
+const decodeEmail = Schema.decodeUnknownOption(Schema.fromJsonString(EmailSettings))

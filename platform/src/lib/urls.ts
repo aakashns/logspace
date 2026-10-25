@@ -36,6 +36,10 @@ export const urls = {
     saveTurnstile: () => '/admin/integrations/turnstile',
     removeTurnstile: () => '/admin/integrations/turnstile/remove',
     verifyTurnstile: () => '/admin/integrations/turnstile/verify',
+    // What email's section posts to: its settings, to disconnect it, and to send a test.
+    saveEmail: () => '/admin/integrations/email',
+    removeEmail: () => '/admin/integrations/email/remove',
+    testEmail: () => '/admin/integrations/email/test',
     // The composer, for a new post or an edit, and what it posts to: to save the post, and as
     // you write, to add or remove media, and for the preview.
     newPost: () => '/admin/posts/new',

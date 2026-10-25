@@ -32,7 +32,7 @@ export function AdminIndexPage(): Html {
         <AdminLink
           href={urls.admin.integrations()}
           title="Integrations"
-          text="Services the site connects to, like Cloudflare Turnstile."
+          text="Services the site connects to: email, and Cloudflare Turnstile."
         />
         <AdminLink
           href={urls.admin.subscribers()}
