@@ -1,0 +1,89 @@
+/*
+ * shadcn/ui's Card, base-nova style (see card.tsx). Its outline is a ring (a box-shadow) rather
+ * than a border, so it takes no room. A photo first or last in a card runs to its edges.
+ */
+@layer ui {
+  [data-slot='card'] {
+    --card-spacing: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: var(--card-spacing);
+    padding-block: var(--card-spacing);
+    overflow: hidden;
+    border-radius: var(--radius-xl);
+    background-color: var(--card);
+    color: var(--card-foreground);
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    box-shadow: 0 0 0 1px color-mix(in oklch, var(--foreground) 10%, transparent);
+
+    &[data-size='sm'] {
+      --card-spacing: 0.75rem;
+    }
+    &:has(> [data-slot='card-footer']) {
+      padding-bottom: 0;
+    }
+    &:has(> img:first-child) {
+      padding-top: 0;
+    }
+    & > img:first-child {
+      border-top-left-radius: var(--radius-xl);
+      border-top-right-radius: var(--radius-xl);
+    }
+    & > img:last-child {
+      border-bottom-left-radius: var(--radius-xl);
+      border-bottom-right-radius: var(--radius-xl);
+    }
+  }
+
+  [data-slot='card-header'] {
+    display: grid;
+    grid-auto-rows: min-content;
+    align-items: start;
+    gap: 0.25rem;
+    padding-inline: var(--card-spacing);
+
+    &:has([data-slot='card-action']) {
+      grid-template-columns: 1fr auto;
+    }
+    &:has([data-slot='card-description']) {
+      grid-template-rows: auto auto;
+    }
+  }
+
+  /* The heading font, which comes in one weight. */
+  [data-slot='card-title'] {
+    font-family: var(--font-heading);
+    font-size: 1rem;
+    line-height: 1.375;
+    font-weight: 600;
+
+    [data-size='sm'] > [data-slot='card-header'] > & {
+      font-size: 0.875rem;
+    }
+  }
+
+  [data-slot='card-description'] {
+    color: var(--muted-foreground);
+    font-size: 0.875rem;
+  }
+
+  [data-slot='card-action'] {
+    grid-column-start: 2;
+    grid-row: 1 / span 2;
+    align-self: start;
+    justify-self: end;
+  }
+
+  [data-slot='card-content'] {
+    padding-inline: var(--card-spacing);
+  }
+
+  [data-slot='card-footer'] {
+    display: flex;
+    align-items: center;
+    padding: var(--card-spacing);
+    border-top: 1px solid var(--border);
+    background-color: color-mix(in oklch, var(--muted) 50%, transparent);
+  }
+}

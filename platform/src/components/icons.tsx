@@ -1,7 +1,12 @@
 // The app's icons, drawn on a 24 × 24 grid in the text color.
 import type { Html } from '#jsx/jsx-runtime'
 
-type IconProps = { class?: string | undefined }
+// `data-icon` says which side of a button's text the icon is on, which trims that side's padding
+// (see ui/button.css).
+type IconProps = {
+  class?: string | undefined
+  'data-icon'?: 'inline-start' | 'inline-end' | undefined
+}
 
 const stroke = { fill: 'none', stroke: 'currentColor', 'stroke-width': '1.5' }
 
@@ -86,9 +91,14 @@ export function LogoutIcon(): Html {
 
 // From Phosphor Icons (https://phosphoricons.com, regular weight), © 2023 Phosphor Icons, MIT
 // licensed. They're drawn on a 256 × 256 grid, filled, with strokes as wide as the icons above.
-function PhosphorIcon(props: IconProps & { d: string }): Html {
+export function PhosphorIcon(props: IconProps & { d: string }): Html {
   return (
-    <svg viewBox="0 0 256 256" aria-hidden="true" class={props.class}>
+    <svg
+      viewBox="0 0 256 256"
+      aria-hidden="true"
+      class={props.class}
+      data-icon={props['data-icon']}
+    >
       <path d={props.d} fill="currentColor" />
     </svg>
   )
@@ -112,6 +122,16 @@ export function ImageIcon(): Html {
 export function VideoIcon(): Html {
   return (
     <PhosphorIcon d="M251.77,73a8,8,0,0,0-8.21.39L208,97.05V72a16,16,0,0,0-16-16H32A16,16,0,0,0,16,72V184a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V159l35.56,23.71A8,8,0,0,0,248,184a8,8,0,0,0,8-8V80A8,8,0,0,0,251.77,73ZM192,184H32V72H192V184Zm48-22.95-32-21.33V116.28L240,95Z" />
+  )
+}
+
+// Phosphor's caret-down, for a select's arrow.
+export function CaretDownIcon(props: IconProps): Html {
+  return (
+    <PhosphorIcon
+      {...props}
+      d="M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z"
+    />
   )
 }
 

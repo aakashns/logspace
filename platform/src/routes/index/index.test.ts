@@ -75,7 +75,7 @@ describe('the home page', () => {
   it('inlines every page’s styles, with the heading font embedded, and its own', async () => {
     let html = await (await app.fetch('/')).text()
     let style = html.match(/<style>(.*?)<\/style>/s)?.[1] ?? ''
-    expect(style).toMatch(/^@layer reset,theme,components;/)
+    expect(style).toMatch(/^@layer reset,theme,ui,components;/)
     expect(style).toMatch(/font-family:'Instrument Sans'/)
     expect(style).toMatch(/url\("data:font\/woff2;base64,/)
     expect(style).not.toMatch(/instrument-sans-latin-600\.woff2/)

@@ -1,0 +1,90 @@
+/*
+ * /design (see page.tsx): two panels side by side where there's room, each forcing its theme with
+ * `color-scheme`, which every light-dark() color in the theme follows.
+ */
+@layer components {
+  main:has(> .design) {
+    max-width: 80rem;
+  }
+
+  .design {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding-block: 2rem;
+  }
+
+  .design-intro {
+    color: var(--muted-foreground);
+  }
+
+  .design-panels {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 30rem), 1fr));
+    align-items: start;
+    gap: 1.5rem;
+  }
+
+  .design-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 2.5rem;
+    padding: 1.5rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    background-color: var(--background);
+    color: var(--foreground);
+    color-scheme: light;
+
+    &[data-scheme='dark'] {
+      color-scheme: dark;
+    }
+  }
+
+  .design-panel-title {
+    font-size: 1.25rem;
+  }
+
+  .design-section {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+
+    & > h3 {
+      color: var(--muted-foreground);
+      font-size: 0.875rem;
+    }
+  }
+
+  .design-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .design-separated {
+    gap: 1rem;
+    height: 1.25rem;
+    font-size: 0.875rem;
+  }
+
+  .design-form {
+    display: grid;
+    gap: 1rem;
+  }
+
+  .design-menu {
+    min-width: 14rem;
+  }
+
+  .design-card-footer {
+    justify-content: flex-end;
+    gap: 0.5rem;
+  }
+
+  .design-note {
+    color: var(--muted-foreground);
+    font-size: 0.875rem;
+  }
+}

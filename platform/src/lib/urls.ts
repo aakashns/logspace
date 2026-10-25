@@ -20,6 +20,8 @@ export const urls = {
   // One of a post's files, from media storage.
   postFile: (id: string, file: string) =>
     `/posts/${encodeURIComponent(id)}/${encodeURIComponent(file)}`,
+  // The components in components/ui, outside production.
+  design: () => '/design',
   admin: {
     index: () => '/admin',
     login: () => '/admin/login',
