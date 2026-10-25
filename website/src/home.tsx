@@ -169,9 +169,8 @@ export function Home() {
               and upload media. They all appear in one feed.
             </li>
             <li>
-              <strong>Write in your browser.</strong> Add bold and italic, edit
-              published posts, and change your site’s title, description, and
-              images.
+              <strong>Write in your browser.</strong> Edit published posts, and
+              change your site’s title, description, and images.
             </li>
             <li>
               <strong>Links and RSS.</strong> Every post has its own URL.

@@ -37,9 +37,6 @@
     & a:hover {
       text-decoration: underline;
     }
-    & strong {
-      font-weight: 650;
-    }
   }
 
   /* Photos, videos, and link cards: full width, with a border and rounded corners. */
