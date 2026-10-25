@@ -111,7 +111,7 @@ folder.
 | `admin/posts/`        | `/admin/posts`, the list of posts                                            |
 | `admin/compose/`      | `/admin/posts/new`, `/admin/posts/<id>/edit`, and what the composer posts to |
 | `admin/branding/`     | `/admin/branding`, the site's title, URL, introduction, and images           |
-| `admin/integrations/` | `/admin/integrations`, a section for each service: email, and Turnstile      |
+| `admin/integrations/` | `/admin/integrations`, a section for each service: Turnstile, and email      |
 | `admin/subscribers/`  | `/admin/subscribers`, empty for now                                          |
 | `dev/`                | `/dev`, outside production: tools for working on the app (below)             |
 

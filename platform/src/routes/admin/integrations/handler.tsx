@@ -1,4 +1,4 @@
-// The services the site connects to, at /admin/integrations: email and Cloudflare Turnstile. Each
+// The services the site connects to, at /admin/integrations: Cloudflare Turnstile and email. Each
 // has a section of the page, with forms that post to its own URLs, so saving one never touches
 // another.
 import { Effect } from 'effect'

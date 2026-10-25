@@ -81,8 +81,8 @@ export function IntegrationsPage(props: {
         Services the site connects to. Secret keys are encrypted and not shown once entered.
       </p>
       <div class="integrations">
-        <EmailSection {...props.email} />
         <TurnstileSection {...props.turnstile} />
+        <EmailSection {...props.email} />
         <Separator />
       </div>
     </section>
