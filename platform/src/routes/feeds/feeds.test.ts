@@ -49,7 +49,7 @@ describe('feeds', () => {
       .join('\n')
     expect(html).not.toMatch(/ (src|href|poster|srcset)="\//)
     // A text post's caption, and a photos post's photos.
-    expect(html).toContain('<strong>No build step</strong>')
+    expect(html).toContain('No build step, Web APIs everywhere')
     expect(html).toMatch(/<img src="https:\/\/example\.com\/posts\/drdp3ei6fd\/hike-1\.jpg\?v=/)
     expect(html).toMatch(/<video src="https:\/\/example\.com\/posts\/steq6e0rsh\/flower\.mp4"/)
   })

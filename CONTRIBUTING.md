@@ -154,7 +154,7 @@ the database, and nothing is kept between requests, so an edit made in the datab
 | `posts/post.ts`         | What a post is (`PostRecord`, an Effect `Schema`), and the checks a post passes before it's saved, reported as `{ field, message }` issues for the form |
 | `posts/rows.ts`         | How a post maps to a row of the `posts` table                                                                                                           |
 | `posts/presentation.ts` | Posts as pages show them: media URLs, image sizes, `srcset`s, captions rendered to HTML, link previews, and page metadata                               |
-| `posts/caption.ts`      | Captions: paragraphs, line breaks, **bold**, _italic_, and URLs as links, and the first URL for its preview                                             |
+| `posts/caption.ts`      | Captions: paragraphs, line breaks, and URLs as links, and the first URL for its preview                                                                 |
 | `posts/queries.ts`      | `PostQueries`: posts and their images' sizes, presented                                                                                                 |
 | `posts/commands.ts`     | `PostCommands` (below), `PostRejected` (with the issues to show), and `PostNotFound`                                                                    |
 | `posts/media.ts`        | `PostMedia`: a post's files, and its resized photos, made on first request and stored; concurrent requests for one share a single resize                |

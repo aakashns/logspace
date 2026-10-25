@@ -25,7 +25,7 @@
     "type": "text",
     "date": "2026-10-15T15:40:00Z",
     "city": "Bengaluru",
-    "caption": "Rebuilt this site on Remix 3 over the weekend. **No build step**, Web APIs everywhere, and the whole page ships *almost no* JavaScript.\n\nhttps://remix.run"
+    "caption": "Rebuilt this site on Remix 3 over the weekend. No build step, Web APIs everywhere, and the whole page ships almost no JavaScript.\n\nhttps://remix.run"
   },
   {
     "id": "t83tytis1i",

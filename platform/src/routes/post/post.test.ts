@@ -33,12 +33,11 @@ describe('a post’s page and files', () => {
     )
   })
 
-  it('renders a caption’s bold, italic, and links', async () => {
+  it('renders a caption’s paragraphs and links', async () => {
     let html = await (await app.fetch('/posts/xf6ddthtoo')).text()
     expect(html).toContain(
       '<div class="caption" data-ignore><p>Rebuilt this site on Remix 3 over the weekend. ' +
-        '<strong>No build step</strong>, Web APIs everywhere, and the whole page ships ' +
-        '<em>almost no</em> JavaScript.</p>\n' +
+        'No build step, Web APIs everywhere, and the whole page ships almost no JavaScript.</p>\n' +
         '<p><a target="_blank" rel="noopener" href="https://remix.run">remix.run</a></p></div>',
     )
   })

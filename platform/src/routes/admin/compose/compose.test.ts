@@ -178,11 +178,11 @@ describe('the composer', () => {
     let events = await (
       await composerPost('/admin/posts/preview', [
         ['post_id', post.id],
-        ['caption', 'Hello **world**'],
+        ['caption', 'Hello https://remix.run'],
       ])
     ).text()
     expect(events).toContain('data: selector #composer-preview\ndata: mode inner\n')
-    expect(events).toContain('<strong>world</strong>')
+    expect(events).toContain('Hello <a target="_blank" rel="noopener" href="https://remix.run">')
     // An edit's preview keeps the post's date.
     expect(events).toContain(`datetime="${post.date}"`)
     expect((await findPost(post.id))?.caption).toBe(post.caption)
@@ -245,7 +245,7 @@ describe('the composer', () => {
     let post = await samplePost('photos')
     let response = await save([
       ['post_id', post.id],
-      ['caption', '  **Bold**\r\n\r\nand *italic*  \r\n'],
+      ['caption', '  First\r\n\r\nand second  \r\n'],
       ['photo', 'hike-3.jpg'],
       ['photo', 'hike-1.jpg'],
     ])
@@ -254,7 +254,7 @@ describe('the composer', () => {
     let saved = await findPost(post.id)
     expect(saved?.date).toBe(post.date)
     expect(saved?.city).toBe(post.city)
-    expect(saved?.caption).toBe('**Bold**\n\nand *italic*')
+    expect(saved?.caption).toBe('First\n\nand second')
     let photos = saved?.type === 'photos' ? saved.photos : []
     expect(photos.map(({ src, alt }) => ({ src: src.split('?')[0], alt }))).toEqual([
       {
@@ -267,7 +267,7 @@ describe('the composer', () => {
       },
     ])
     expect(await (await app.fetch(`/posts/${post.id}`)).text()).toContain(
-      '<p><strong>Bold</strong></p>\n<p>and <em>italic</em></p>',
+      '<p>First</p>\n<p>and second</p>',
     )
     // The photo taken out is deleted with the save.
     expect(await hasPostFile(post.id, 'hike-2.jpg')).toBe(false)

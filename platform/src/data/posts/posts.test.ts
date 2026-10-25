@@ -81,13 +81,12 @@ describe('captions', () => {
   let link = (url: string, text: string) =>
     `<a target="_blank" rel="noopener" href="${url}">${text}</a>`
 
-  it('keeps line breaks and paragraphs, with bold and italic as the only formatting', () => {
+  it('keeps line breaks and paragraphs, with no other formatting', () => {
     expect(renderCaption('**Hi** *there*\nnext line\n\n\n# Not a heading\n- or a list')).toBe(
-      '<p><strong>Hi</strong> <em>there</em><br>next line</p>\n' +
-        '<p># Not a heading<br>- or a list</p>',
+      '<p>**Hi** *there*<br>next line</p>\n<p># Not a heading<br>- or a list</p>',
     )
-    expect(renderCaption('**a *b* c** 2 * 3 * 4 _x_ `y` [z](https://a.com)')).toBe(
-      `<p><strong>a <em>b</em> c</strong> 2 * 3 * 4 _x_ \`y\` [z](${link('https://a.com', 'a.com')})</p>`,
+    expect(renderCaption('_x_ `y` [z](https://a.com)')).toBe(
+      `<p>_x_ \`y\` [z](${link('https://a.com', 'a.com')})</p>`,
     )
   })
 
@@ -96,8 +95,8 @@ describe('captions', () => {
       `<p>See ${link('https://www.remix.run/docs', 'remix.run/docs')}. ` +
         `And (${link('https://x.com/a', 'x.com/a')})!</p>`,
     )
-    expect(renderCaption('**https://a.com/x_y*z** then more')).toBe(
-      `<p><strong>${link('https://a.com/x_y*z', 'a.com/x_y*z')}</strong> then more</p>`,
+    expect(renderCaption('https://a.com/x_y*z then more')).toBe(
+      `<p>${link('https://a.com/x_y*z', 'a.com/x_y*z')} then more</p>`,
     )
     expect(renderCaption(`https://example.com/${'a'.repeat(50)}`)).toContain(
       `>example.com/${'a'.repeat(27)}…</a>`,
@@ -120,8 +119,8 @@ describe('captions', () => {
     expect(renderCaption('https://a.com/?a=1&b=2')).toContain('href="https://a.com/?a=1&amp;b=2"')
   })
 
-  it('strips formatting for plain text', () => {
-    expect(captionText('**Title**\n\nSome *text*\nnext')).toBe('Title\nSome text\nnext')
+  it('puts each paragraph on a line for plain text', () => {
+    expect(captionText('Title\n\n\nSome *text*\nnext')).toBe('Title\nSome *text*\nnext')
   })
 })
 
