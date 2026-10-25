@@ -112,6 +112,7 @@ folder.
 | `admin/branding/`     | `/admin/branding`, the site's title, URL, introduction, and images           |
 | `admin/integrations/` | `/admin/integrations`, a section for each service the site connects to       |
 | `admin/subscribers/`  | `/admin/subscribers`, empty for now                                          |
+| `design/`             | `/design`, outside production: every component in `components/ui/`          |
 
 Each has the same files: `handler.tsx`, its handlers with its route table at the bottom;
 `page.tsx` and `page.css`, what it shows; and its tests. `admin/admin.tsx`, `admin/layout.tsx`,
@@ -175,6 +176,15 @@ beside it and minified with `stylesheet()`. Every page inlines `DOCUMENT_STYLES`
 theme, and the navbar's) and its own styles, which its handler passes: `page.tsx` exports them,
 with `POST_STYLES` if it shows posts, and the pages under `/admin` add the admin layout's.
 
+`components/ui/` is [shadcn/ui](https://ui.shadcn.com)'s components in its base-nova style, as
+plain HTML: Button, Input, Textarea, NativeSelect, Field and Label, Checkbox, Switch, Card,
+Badge, Separator, Kbd, Alert, Dialog, and DropdownMenu. Each sets shadcn's `data-slot`, which its
+CSS (in the `ui` layer, under a page's own) styles with the theme's tokens, and exports its
+styles for the pages that use it (like `BUTTON_STYLES`). Form controls are native ones, the
+dialog is a `<dialog>` opened with `command`/`commandfor`, and the dropdown menu is a popover
+placed with CSS anchor positioning; Datastar only adds the menu's arrow keys and focus, and its
+checkbox and radio items' signals. `bun run dev` serves them all, in both themes, at `/design`.
+
 #### 6. Lib: `lib/`
 
 Shared resources are Effect services (`Context.Service`) with a `layer` that builds them.
@@ -205,8 +215,8 @@ called directly with `app.run(effect)`. `test/content/` has the posts they start
 
 #### Browser tests
 
-`*.pw.ts` (like `src/routes/admin/compose/compose.pw.ts`) drive the composer in Chromium and
-WebKit with Playwright, which also needs Node.js 20 or newer: publishing each kind of post, with
+`*.pw.ts` (like `src/routes/admin/compose/compose.pw.ts`) drive the composer, and the dropdown
+menu and dialog on `/design`, in Chromium and WebKit with Playwright, which also needs Node.js 20 or newer: publishing each kind of post, with
 and without JavaScript. Each test starts the app with its own temporary data and port
 (`browser/fixtures.ts`). Install the browsers once with `bun run test:browser:install`, then run
 `bun run test:browser`. CI doesn't run them.

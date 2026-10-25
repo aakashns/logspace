@@ -1,0 +1,115 @@
+/*
+ * shadcn/ui's Dialog, base-nova style (see dialog.tsx). The browser centers a modal <dialog>; it
+ * and its backdrop fade and zoom in and out, as shadcn's do, and only fade with reduced motion.
+ * The page doesn't scroll behind it.
+ */
+@layer ui {
+  html:has([data-slot='dialog-content']:modal) {
+    overflow: hidden;
+  }
+
+  [data-slot='dialog-content'] {
+    width: 100%;
+    max-width: calc(100% - 2rem);
+    padding: 1rem;
+    border: 0;
+    border-radius: var(--radius-xl);
+    background-color: var(--popover);
+    color: var(--popover-foreground);
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    box-shadow: 0 0 0 1px color-mix(in oklch, var(--foreground) 10%, transparent);
+    outline: none;
+    opacity: 0;
+    transition-property: opacity, scale, overlay, display;
+    transition-duration: 100ms;
+    transition-behavior: allow-discrete;
+
+    @media (min-width: 40rem) {
+      max-width: 24rem;
+    }
+    &[open] {
+      display: grid;
+      gap: 1rem;
+      opacity: 1;
+
+      @starting-style {
+        opacity: 0;
+      }
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      &:not([open]) {
+        scale: 0.95;
+      }
+      &[open] {
+        @starting-style {
+          scale: 0.95;
+        }
+      }
+    }
+    &::backdrop {
+      background-color: rgb(0 0 0 / 0.1);
+      backdrop-filter: blur(4px);
+      opacity: 0;
+      transition-property: opacity, overlay, display;
+      transition-duration: 100ms;
+      transition-behavior: allow-discrete;
+    }
+    &[open]::backdrop {
+      opacity: 1;
+
+      @starting-style {
+        opacity: 0;
+      }
+    }
+    & > [command='close'][data-size='icon-sm'] {
+      position: absolute;
+      top: 0.5rem;
+      right: 0.5rem;
+    }
+  }
+
+  [data-slot='dialog-header'] {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  /* The heading font, which comes in one weight. */
+  [data-slot='dialog-title'] {
+    font-family: var(--font-heading);
+    font-size: 1rem;
+    line-height: 1;
+    font-weight: 600;
+  }
+
+  [data-slot='dialog-description'] {
+    color: var(--muted-foreground);
+    font-size: 0.875rem;
+
+    & a {
+      text-decoration: underline;
+      text-underline-offset: 3px;
+
+      &:hover {
+        color: var(--foreground);
+      }
+    }
+  }
+
+  [data-slot='dialog-footer'] {
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 0.5rem;
+    margin: 0 -1rem -1rem;
+    padding: 1rem;
+    border-top: 1px solid var(--border);
+    border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+    background-color: color-mix(in oklch, var(--muted) 50%, transparent);
+
+    @media (min-width: 40rem) {
+      flex-direction: row;
+      justify-content: flex-end;
+    }
+  }
+}

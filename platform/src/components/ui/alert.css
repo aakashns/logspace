@@ -1,0 +1,72 @@
+/*
+ * shadcn/ui's Alert, base-nova style (see alert.tsx). An icon takes the first column, beside the
+ * title and description.
+ */
+@layer ui {
+  [data-slot='alert'] {
+    position: relative;
+    display: grid;
+    gap: 0.125rem;
+    width: 100%;
+    padding: 0.5rem 0.625rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background-color: var(--card);
+    color: var(--card-foreground);
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    text-align: left;
+
+    &:has(> svg) {
+      grid-template-columns: auto 1fr;
+      column-gap: 0.5rem;
+    }
+    & > svg {
+      grid-row: span 2;
+      width: 1rem;
+      height: 1rem;
+      translate: 0 0.125rem;
+      color: currentColor;
+    }
+    &[data-variant='destructive'] {
+      color: var(--destructive);
+
+      & > [data-slot='alert-description'] {
+        color: color-mix(in oklch, var(--destructive) 90%, transparent);
+      }
+    }
+  }
+
+  [data-slot='alert-title'] {
+    font-weight: 500;
+
+    [data-slot='alert']:has(> svg) > & {
+      grid-column-start: 2;
+    }
+  }
+
+  [data-slot='alert-description'] {
+    color: var(--muted-foreground);
+    font-size: 0.875rem;
+    text-wrap: balance;
+
+    @media (min-width: 48rem) {
+      text-wrap: pretty;
+    }
+    & p:not(:last-child) {
+      margin-bottom: 1rem;
+    }
+  }
+
+  [data-slot='alert-title'],
+  [data-slot='alert-description'] {
+    & a {
+      text-decoration: underline;
+      text-underline-offset: 3px;
+
+      &:hover {
+        color: var(--foreground);
+      }
+    }
+  }
+}

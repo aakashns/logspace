@@ -1,9 +1,10 @@
 /*
  * CSS reset, adapted from remix.run's global stylesheet (itself based on Tailwind's preflight).
  * The first CSS on every page (see document.tsx), so the layer order is declared here: later
- * layers win whatever the selectors' specificity.
+ * layers win whatever the selectors' specificity. `ui` is the shadcn/ui components in ui/, under
+ * `components`, so a page's own styles can adjust them.
  */
-@layer reset, theme, components;
+@layer reset, theme, ui, components;
 
 @layer reset {
   *,

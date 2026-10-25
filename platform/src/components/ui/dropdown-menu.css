@@ -1,0 +1,155 @@
+/*
+ * shadcn/ui's DropdownMenu, base-nova style (see dropdown-menu.tsx). The menu is a popover, placed
+ * against its trigger with CSS anchor positioning: below it and lined up with its start, 4px
+ * away, flipping above or to the other side where it doesn't fit. It fades and zooms in from
+ * just above, and fades and zooms out, as shadcn's does, and only fades with reduced motion.
+ */
+@layer ui {
+  [data-slot='dropdown-menu-content'] {
+    position-area: block-end span-inline-end;
+    position-try-fallbacks:
+      flip-block,
+      flip-inline,
+      flip-block flip-inline;
+    inset: auto;
+    width: max-content;
+    min-width: 8rem;
+    min-width: max(8rem, anchor-size(width));
+    max-height: calc(100dvh - 2rem);
+    margin: 0.25rem 0;
+    padding: 0.25rem;
+    overflow-x: hidden;
+    overflow-y: auto;
+    border: 0;
+    border-radius: var(--radius-lg);
+    background-color: var(--popover);
+    color: var(--popover-foreground);
+    box-shadow:
+      0 0 0 1px color-mix(in oklch, var(--foreground) 10%, transparent),
+      0 4px 6px -1px rgb(0 0 0 / 0.1),
+      0 2px 4px -2px rgb(0 0 0 / 0.1);
+    outline: none;
+    transform-origin: top left;
+    opacity: 0;
+    transition-property: opacity, scale, translate, overlay, display;
+    transition-duration: 100ms;
+    transition-behavior: allow-discrete;
+
+    &:popover-open {
+      opacity: 1;
+
+      @starting-style {
+        opacity: 0;
+      }
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      &:not(:popover-open) {
+        scale: 0.95;
+      }
+      &:popover-open {
+        @starting-style {
+          scale: 0.95;
+          translate: 0 -0.5rem;
+        }
+      }
+    }
+    /* Without anchor positioning, it's in the middle of the screen, as a popover is by default. */
+    @supports not (position-area: block-end) {
+      inset: 0;
+      margin: auto;
+    }
+  }
+
+  :is(
+    [data-slot='dropdown-menu-item'],
+    [data-slot='dropdown-menu-checkbox-item'],
+    [data-slot='dropdown-menu-radio-item']
+  ) {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    width: 100%;
+    padding: 0.25rem 0.375rem;
+    border-radius: var(--radius-md);
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    text-align: start;
+    cursor: default;
+    user-select: none;
+    outline: none;
+
+    & svg {
+      flex-shrink: 0;
+      width: 1rem;
+      height: 1rem;
+      pointer-events: none;
+    }
+    &:focus {
+      background-color: var(--accent);
+      color: var(--accent-foreground);
+    }
+    &:disabled {
+      pointer-events: none;
+      opacity: 0.5;
+    }
+    &[data-inset] {
+      padding-inline-start: 1.75rem;
+    }
+  }
+
+  [data-slot='dropdown-menu-item'][data-variant='destructive'] {
+    color: var(--destructive);
+
+    &:focus {
+      background-color: light-dark(
+        color-mix(in oklch, var(--destructive) 10%, transparent),
+        color-mix(in oklch, var(--destructive) 20%, transparent)
+      );
+      color: var(--destructive);
+    }
+  }
+
+  :is([data-slot='dropdown-menu-checkbox-item'], [data-slot='dropdown-menu-radio-item']) {
+    padding-inline-end: 2rem;
+
+    &[aria-checked='false'] [data-slot='dropdown-menu-item-indicator'] {
+      visibility: hidden;
+    }
+  }
+
+  [data-slot='dropdown-menu-item-indicator'] {
+    position: absolute;
+    inset-inline-end: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+  }
+
+  [data-slot='dropdown-menu-label'] {
+    padding: 0.25rem 0.375rem;
+    color: var(--muted-foreground);
+    font-size: 0.75rem;
+    line-height: 1rem;
+    font-weight: 500;
+  }
+
+  [data-slot='dropdown-menu-separator'] {
+    height: 1px;
+    margin: 0.25rem -0.25rem;
+    background-color: var(--border);
+  }
+
+  [data-slot='dropdown-menu-shortcut'] {
+    margin-inline-start: auto;
+    color: var(--muted-foreground);
+    font-size: 0.75rem;
+    line-height: 1rem;
+    letter-spacing: 0.1em;
+
+    :focus > & {
+      color: var(--accent-foreground);
+    }
+  }
+}

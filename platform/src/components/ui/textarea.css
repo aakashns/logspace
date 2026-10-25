@@ -1,0 +1,53 @@
+/*
+ * shadcn/ui's Textarea, base-nova style (see textarea.tsx): Input's look (see input.css), at least
+ * 4rem high, and as high as its text where `field-sizing` is supported.
+ */
+@layer ui {
+  [data-slot='textarea'] {
+    display: flex;
+    width: 100%;
+    min-height: 4rem;
+    padding: 0.5rem 0.625rem;
+    border: 1px solid var(--input);
+    border-radius: var(--radius-lg);
+    background-color: light-dark(transparent, color-mix(in oklch, var(--input) 30%, transparent));
+    color: var(--foreground);
+    font-size: 1rem;
+    line-height: 1.5rem;
+    field-sizing: content;
+    outline: none;
+    transition-property: color, background-color, border-color;
+    transition-duration: 150ms;
+
+    @media (min-width: 48rem) {
+      font-size: 0.875rem;
+      line-height: 1.25rem;
+    }
+    &::placeholder {
+      color: var(--muted-foreground);
+    }
+    &:focus-visible {
+      border-color: var(--ring);
+      box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 50%, transparent);
+    }
+    &[aria-invalid='true'] {
+      border-color: light-dark(
+        var(--destructive),
+        color-mix(in oklch, var(--destructive) 50%, transparent)
+      );
+      box-shadow: 0 0 0 3px
+        light-dark(
+          color-mix(in oklch, var(--destructive) 20%, transparent),
+          color-mix(in oklch, var(--destructive) 40%, transparent)
+        );
+    }
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
+      background-color: light-dark(
+        color-mix(in oklch, var(--input) 50%, transparent),
+        color-mix(in oklch, var(--input) 80%, transparent)
+      );
+    }
+  }
+}

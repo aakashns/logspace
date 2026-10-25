@@ -1,0 +1,64 @@
+/*
+ * shadcn/ui's Checkbox, base-nova style (see checkbox.tsx): the box is the <input> itself, with
+ * its native look removed, and the check mark sits in the same grid cell.
+ */
+@layer ui {
+  [data-slot='checkbox'] {
+    display: inline-grid;
+    flex-shrink: 0;
+    place-items: center;
+
+    & > * {
+      grid-area: 1 / 1;
+    }
+    & > input {
+      width: 1rem;
+      height: 1rem;
+      margin: 0;
+      border: 1px solid var(--input);
+      border-radius: var(--radius-sm);
+      background-color: light-dark(transparent, color-mix(in oklch, var(--input) 30%, transparent));
+      appearance: none;
+      outline: none;
+      transition-property: background-color, border-color, box-shadow;
+      transition-duration: 150ms;
+
+      &:checked {
+        border-color: var(--primary);
+        background-color: var(--primary);
+      }
+      &:focus-visible {
+        border-color: var(--ring);
+        box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 50%, transparent);
+      }
+      &[aria-invalid='true'] {
+        border-color: light-dark(
+          var(--destructive),
+          color-mix(in oklch, var(--destructive) 50%, transparent)
+        );
+        box-shadow: 0 0 0 3px
+          light-dark(
+            color-mix(in oklch, var(--destructive) 20%, transparent),
+            color-mix(in oklch, var(--destructive) 40%, transparent)
+          );
+      }
+      &[aria-invalid='true']:checked {
+        border-color: var(--primary);
+      }
+      &:disabled {
+        cursor: not-allowed;
+        opacity: 0.5;
+      }
+    }
+    & > svg {
+      width: 0.875rem;
+      height: 0.875rem;
+      color: var(--primary-foreground);
+      pointer-events: none;
+      visibility: hidden;
+    }
+    & > input:checked + svg {
+      visibility: visible;
+    }
+  }
+}

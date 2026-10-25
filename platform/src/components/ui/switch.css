@@ -1,0 +1,70 @@
+/*
+ * shadcn/ui's Switch, base-nova style (see switch.tsx): the track is the <input>, with its native
+ * look removed, and the thumb slides over it when it's checked.
+ */
+@layer ui {
+  [data-slot='switch'] {
+    --switch-width: 2rem;
+    --switch-height: 1.15rem;
+    --thumb-size: 1rem;
+    display: inline-grid;
+    flex-shrink: 0;
+    align-items: center;
+
+    &[data-size='sm'] {
+      --switch-width: 1.5rem;
+      --switch-height: 0.875rem;
+      --thumb-size: 0.75rem;
+    }
+    &:has(> input:disabled) {
+      opacity: 0.5;
+    }
+    & > * {
+      grid-area: 1 / 1;
+    }
+    & > input {
+      width: var(--switch-width);
+      height: var(--switch-height);
+      margin: 0;
+      border: 1px solid transparent;
+      border-radius: 9999px;
+      background-color: light-dark(
+        var(--input),
+        color-mix(in oklch, var(--input) 80%, transparent)
+      );
+      appearance: none;
+      outline: none;
+      transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+
+      &:checked {
+        background-color: var(--primary);
+      }
+      &:focus-visible {
+        border-color: var(--ring);
+        box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 50%, transparent);
+      }
+      &[aria-invalid='true'] {
+        border-color: light-dark(
+          var(--destructive),
+          color-mix(in oklch, var(--destructive) 50%, transparent)
+        );
+      }
+      &:disabled {
+        cursor: not-allowed;
+      }
+    }
+    & > [data-slot='switch-thumb'] {
+      width: var(--thumb-size);
+      height: var(--thumb-size);
+      margin-inline-start: 1px;
+      border-radius: 9999px;
+      background-color: light-dark(var(--background), var(--foreground));
+      pointer-events: none;
+      transition: translate 150ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    & > input:checked + [data-slot='switch-thumb'] {
+      translate: calc(var(--switch-width) - var(--thumb-size) - 2px) 0;
+      background-color: light-dark(var(--background), var(--primary-foreground));
+    }
+  }
+}
