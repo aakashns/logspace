@@ -1,10 +1,18 @@
 import type { Child, Html } from '#jsx/jsx-runtime'
 
 import { stylesheet } from '../../../components/stylesheet.ts'
+import { TURNSTILE_STYLES, TurnstileWidget } from '../../../components/turnstile.tsx'
 import { Alert, ALERT_STYLES, AlertDescription, AlertTitle } from '../../../components/ui/alert.tsx'
 import { Badge, BADGE_STYLES } from '../../../components/ui/badge.tsx'
 import { Button } from '../../../components/ui/button.tsx'
-import { FieldGroup } from '../../../components/ui/field.tsx'
+import { Checkbox, CHECKBOX_STYLES } from '../../../components/ui/checkbox.tsx'
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from '../../../components/ui/field.tsx'
 import { Input } from '../../../components/ui/input.tsx'
 import { UNREADABLE_SECRET_MESSAGE, type TurnstileIssue } from '../../../data/site/site.ts'
 import type { TurnstileFailure, TurnstileStatus } from '../../../data/site/turnstile.ts'
@@ -14,9 +22,7 @@ import { BackLink } from '../layout.tsx'
 import css from './page.css' with { type: 'text' }
 
 export const INTEGRATIONS_PAGE_STYLES =
-  FIELDS_STYLES + ALERT_STYLES + BADGE_STYLES + stylesheet(css)
-
-const TURNSTILE_SCRIPT = 'https://challenges.cloudflare.com/turnstile/v0/api.js'
+  FIELDS_STYLES + ALERT_STYLES + BADGE_STYLES + CHECKBOX_STYLES + TURNSTILE_STYLES + stylesheet(css)
 
 // How checking the widget's answer with Cloudflare went.
 export type TurnstileVerification =
@@ -26,8 +32,10 @@ export interface TurnstileSectionProps {
   readonly status: TurnstileStatus
   // Set on the page shown after saving or removing the keys.
   readonly notice?: 'saved' | 'removed' | undefined
-  // A rejected form: the site key that was typed (never the secret key), and why.
-  readonly rejected?: { siteKey: string; issues: readonly TurnstileIssue[] } | undefined
+  // A rejected form: the site key that was typed (never the secret key), whether it was to be
+  // enabled, and why.
+  readonly rejected?:
+    { siteKey: string; enabled: boolean; issues: readonly TurnstileIssue[] } | undefined
   readonly verification?: TurnstileVerification | undefined
 }
 
@@ -62,6 +70,7 @@ function TurnstileSection(props: TurnstileSectionProps): Html {
   let invalid = (field: TurnstileIssue['field']) =>
     rejected?.issues.some((issue) => issue.field === field) ? ('true' as const) : undefined
   let siteKey = status._tag === 'NotSetUp' ? '' : status.siteKey
+  let enabled = rejected ? rejected.enabled : status._tag !== 'NotSetUp' && status.enabled
   let badge = STATUSES[status._tag]
   return (
     <section class="integration" aria-labelledby="turnstile-heading">
@@ -128,6 +137,21 @@ function TurnstileSection(props: TurnstileSectionProps): Html {
               aria-describedby={hintId('turnstile-secretKey')}
             />
           </LabelledField>
+          <Field orientation="horizontal">
+            <Checkbox
+              id="turnstile-enabled"
+              name="enabled"
+              checked={enabled}
+              aria-describedby="turnstile-enabled-description"
+            />
+            <FieldContent>
+              <FieldLabel for="turnstile-enabled">Enabled</FieldLabel>
+              <FieldDescription id="turnstile-enabled-description">
+                Logging in requires passing it. If it ever locks you out, run{' '}
+                <code>logspace turnstile off</code> on the server.
+              </FieldDescription>
+            </FieldContent>
+          </Field>
           <div class="actions">
             <Button type="submit">Save</Button>
             {status._tag === 'NotSetUp' ? null : (
@@ -166,13 +190,11 @@ function TurnstileTry(props: {
       </p>
       {verification ? <VerificationResult verification={verification} /> : null}
       <form method="post" action={urls.admin.verifyTurnstile()} class="turnstile-form">
-        {/* The widget fills this in, and adds the token to the form. */}
-        <div class="cf-turnstile" data-sitekey={siteKey} data-ignore></div>
+        <TurnstileWidget siteKey={siteKey} />
         <Button type="submit" variant="outline">
           Verify
         </Button>
       </form>
-      <script src={TURNSTILE_SCRIPT} async defer></script>
     </section>
   )
 }

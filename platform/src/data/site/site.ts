@@ -50,11 +50,13 @@ export type SiteImages = { readonly [K in SiteImageKind]?: SiteImage }
 
 // Cloudflare Turnstile, which tells people from bots: the widget's site key, which pages show,
 // and its secret key, which checks the widget's answers with Cloudflare, sealed (see
-// ../../lib/secrets.ts) for TURNSTILE_SECRET_PURPOSE.
+// ../../lib/secrets.ts) for TURNSTILE_SECRET_PURPOSE. Enabled, logging in requires passing it,
+// with no way around it but `logspace turnstile off` (see ../../cli/turnstile.ts).
 const TURNSTILE_KEY = /^[\w-]{10,200}$/
 export const TurnstileSettings = Schema.Struct({
   siteKey: Schema.String.check(Schema.isPattern(TURNSTILE_KEY)),
   secretKey: SealedSecret,
+  enabled: Schema.Boolean,
 })
 export type TurnstileSettings = typeof TurnstileSettings.Type
 export const TURNSTILE_SECRET_PURPOSE = 'turnstile.secretKey'

@@ -1,5 +1,6 @@
-// Cloudflare Turnstile, set up at /admin/integrations: whether it's set up, and checking a
-// widget's answer (its token) with Cloudflare, which is the only way to know a token is real.
+// Cloudflare Turnstile, set up at /admin/integrations: whether it's set up, checking a widget's
+// answer (its token) with Cloudflare, which is the only way to know a token is real, and whether
+// a login may go ahead.
 // https://developers.cloudflare.com/turnstile/get-started/server-side-validation/
 import { Context, Duration, Effect, Layer, Schema } from 'effect'
 import { HttpClient, HttpClientRequest } from 'effect/http'
@@ -17,8 +18,13 @@ const TIMEOUT = Duration.seconds(10)
 // saved, without showing it.
 export type TurnstileStatus =
   | { readonly _tag: 'NotSetUp' }
-  | { readonly _tag: 'SetUp'; readonly siteKey: string; readonly secretKeyEnding: string }
-  | { readonly _tag: 'SecretUnreadable'; readonly siteKey: string }
+  | {
+      readonly _tag: 'SetUp'
+      readonly siteKey: string
+      readonly secretKeyEnding: string
+      readonly enabled: boolean
+    }
+  | { readonly _tag: 'SecretUnreadable'; readonly siteKey: string; readonly enabled: boolean }
 
 // There are no keys to check a token with.
 export class TurnstileNotSetUp extends Schema.TaggedError<TurnstileNotSetUp>()(
@@ -70,6 +76,10 @@ export class Turnstile extends Context.Service<
     readonly status: Effect.Effect<TurnstileStatus>
     // Checks a widget's token with Cloudflare, returning the site it was solved on.
     readonly verify: (token: string) => Effect.Effect<{ hostname: string }, TurnstileFailure>
+    // Whether a login form may go ahead: once Turnstile is enabled, only with a token Cloudflare
+    // accepts. Nothing gets around it, not even Cloudflare being out of reach; the way back in is
+    // `logspace turnstile off`.
+    readonly checkLogin: (token: string) => Effect.Effect<void, TurnstileFailure>
   }
 >()('logspace/Turnstile') {
   static readonly layer = Layer.effect(
@@ -82,12 +92,17 @@ export class Turnstile extends Context.Service<
       let status = Effect.gen(function* () {
         let saved = (yield* queries.saved).turnstile
         if (!saved) return { _tag: 'NotSetUp' } as const
-        let { siteKey } = saved
+        let { siteKey, enabled } = saved
         return yield* secrets.open(saved.secretKey, TURNSTILE_SECRET_PURPOSE).pipe(
           Effect.match({
             onSuccess: (secret) =>
-              ({ _tag: 'SetUp', siteKey, secretKeyEnding: secret.slice(-4) }) as const,
-            onFailure: () => ({ _tag: 'SecretUnreadable', siteKey }) as const,
+              ({
+                _tag: 'SetUp',
+                siteKey,
+                secretKeyEnding: secret.slice(-4),
+                enabled,
+              }) as const,
+            onFailure: () => ({ _tag: 'SecretUnreadable', siteKey, enabled }) as const,
           }),
         )
       }).pipe(Effect.withSpan('Turnstile.status'))
@@ -141,7 +156,11 @@ export class Turnstile extends Context.Service<
         return { hostname: answer.hostname ?? '' }
       })
 
-      return Turnstile.of({ status, verify })
+      let checkLogin = Effect.fn('Turnstile.checkLogin')(function* (token: string) {
+        if ((yield* queries.saved).turnstile?.enabled) yield* verify(token)
+      })
+
+      return Turnstile.of({ status, verify, checkLogin })
     }),
   )
 }
