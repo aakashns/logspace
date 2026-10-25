@@ -56,8 +56,10 @@ export function IntegrationsPage(props: { turnstile: TurnstileSectionProps }): H
       <p class="muted">
         Services the site connects to. Secret keys are encrypted and not shown once entered.
       </p>
-      <TurnstileSection {...props.turnstile} />
-      <Separator />
+      <div class="integrations">
+        <TurnstileSection {...props.turnstile} />
+        <Separator />
+      </div>
     </section>
   )
 }
