@@ -61,6 +61,18 @@ describe('/design', () => {
     )
   })
 
+  it('renders a disabled link without its href, so it can’t be followed', async () => {
+    let html = await (await app.fetch('/design')).text()
+    expect(html).toContain(
+      '<a data-slot="button" data-variant="outline" data-size="default" role="link" aria-disabled="true">Disabled link</a>',
+    )
+    // Nor focused in the menu, which moves only to items it can focus.
+    expect(html).toContain(
+      '<a role="menuitem" data-slot="dropdown-menu-item" data-variant="default" data-inset aria-disabled="true">Changelog (disabled)</a>',
+    )
+    expect(html).toContain('[role^=menuitem]:not(:disabled, [aria-disabled=true])')
+  })
+
   it('isn’t served in production', async () => {
     let response = await production.fetch('/design')
     expect(response.status).toBe(404)

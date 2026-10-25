@@ -89,7 +89,8 @@
       background-color: var(--accent);
       color: var(--accent-foreground);
     }
-    &:disabled {
+    &:disabled,
+    &[aria-disabled='true'] {
       pointer-events: none;
       opacity: 0.5;
     }

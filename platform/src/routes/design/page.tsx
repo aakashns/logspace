@@ -179,6 +179,9 @@ function Buttons(props: { scheme: Scheme }): Html {
         <Button href={`#${props.scheme}-heading`} variant="outline">
           A link
         </Button>
+        <Button href={`#${props.scheme}-heading`} variant="outline" disabled>
+          Disabled link
+        </Button>
         <Button variant="ghost">
           <TrashIcon data-icon="inline-start" />
           Remove
@@ -402,6 +405,9 @@ function Menus(props: { scheme: Scheme }): Html {
           <DropdownMenuSeparator />
           <DropdownMenuItem href="https://github.com/aakashns/logspace" inset>
             GitHub
+          </DropdownMenuItem>
+          <DropdownMenuItem href={`#${s}-heading`} inset disabled>
+            Changelog (disabled)
           </DropdownMenuItem>
           <DropdownMenuItem variant="destructive">
             <TrashIcon />

@@ -28,6 +28,9 @@ test('a menu opened from the keyboard focuses its first item, and arrow keys mov
   await expect(menu.getByRole('menuitem', { name: 'Profile' })).toBeFocused()
   await page.keyboard.press('ArrowUp')
   await expect(menu.getByRole('menuitem', { name: 'Delete' })).toBeFocused()
+  // The disabled link is skipped too.
+  await page.keyboard.press('ArrowUp')
+  await expect(menu.getByRole('menuitem', { name: 'GitHub' })).toBeFocused()
   await page.keyboard.press('Escape')
   await expect(menu).toBeHidden()
   await expect(trigger).toBeFocused()
@@ -108,4 +111,30 @@ test('the dialog opens as a modal, focuses its first field, and closes', async (
   await trigger.click()
   await dialog.getByRole('button', { name: 'Cancel' }).click()
   await expect(dialog).toBeHidden()
+})
+
+test('a disabled link can’t be followed by a click or the keyboard', async ({ page }) => {
+  let link = page.getByRole('link', { name: 'Disabled link' }).first()
+  await expect(link).toHaveAttribute('aria-disabled', 'true')
+  await expect(link).not.toHaveAttribute('href')
+  // A click where it is goes nowhere.
+  let box = await link.boundingBox()
+  await page.mouse.click((box?.x ?? 0) + 10, (box?.y ?? 0) + 10)
+  await expect(page).toHaveURL(/\/design$/)
+  // It can't take focus (so Tab passes it), and Enter has nothing to follow. (WebKit's Tab skips
+  // links and buttons on macOS, so focus is tried directly.)
+  expect(await link.evaluate((el) => (el.focus(), document.activeElement === el))).toBe(false)
+  await page.keyboard.press('Enter')
+  await expect(page).toHaveURL(/\/design$/)
+
+  // In a menu, a click on it leaves the menu open and the page where it is.
+  let menu = page.locator('#light-menu')
+  await page.locator('#light-menu-trigger').click()
+  let item = menu.getByRole('menuitem', { name: 'Changelog (disabled)' })
+  await expect(item).toHaveAttribute('aria-disabled', 'true')
+  box = await item.boundingBox()
+  await page.mouse.click((box?.x ?? 0) + 40, (box?.y ?? 0) + 10)
+  await expect(menu).toBeVisible()
+  await expect(page).toHaveURL(/\/design$/)
+  await expect(item).not.toBeFocused()
 })

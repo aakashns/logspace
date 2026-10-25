@@ -52,8 +52,9 @@ export function DropdownMenuTrigger(props: ButtonProps & { menu: string }): Html
   )
 }
 
-// What every item is, as a selector: a disabled one can't be chosen or focused.
-const ITEMS = "'[role^=menuitem]:not(:disabled)'"
+// What every item is, as a selector: a disabled one (a button, or a link) can't be chosen or
+// focused.
+const ITEMS = "'[role^=menuitem]:not(:disabled, [aria-disabled=true])'"
 
 // Opened from the keyboard (its trigger has a focus ring), the first item takes focus, as the
 // menu button pattern says; opened by a click, the menu does, so arrow keys go to its items.
@@ -120,28 +121,29 @@ interface ItemProps {
 }
 
 // An action (a <button>, which can submit a form or run a Datastar action), or with an href, a
-// link. Items are left out of the tab order: arrow keys move between them.
+// link. Items are left out of the tab order: arrow keys move between them. A disabled link has no
+// href or tabindex, so it can't be followed or focused, and says it's disabled with aria-disabled.
 export function DropdownMenuItem(
   props: Record<string, unknown> &
     ItemProps & { variant?: 'default' | 'destructive' | undefined; href?: string | undefined },
 ): Html {
-  let { variant = 'default', inset, disabled, children, ...attributes } = props
+  let { variant = 'default', inset, disabled, href, children, ...attributes } = props
   let item = {
     role: 'menuitem',
-    tabindex: '-1',
     'data-slot': 'dropdown-menu-item',
     'data-variant': variant,
     'data-inset': inset,
   }
-  if (attributes.href !== undefined) {
+  if (href !== undefined) {
+    let link = disabled ? { 'aria-disabled': 'true' } : { href, tabindex: '-1' }
     return (
-      <a {...item} {...attributes}>
+      <a {...item} {...link} {...attributes}>
         {children}
       </a>
     )
   }
   return (
-    <button type="button" disabled={disabled} {...item} {...attributes}>
+    <button type="button" tabindex="-1" disabled={disabled} {...item} {...attributes}>
       {children}
     </button>
   )
