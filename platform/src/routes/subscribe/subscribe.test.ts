@@ -63,13 +63,14 @@ const app = makeTestApp(
 
 const commands = <A, E>(run: (commands: SiteConfigCommands['Service']) => Effect.Effect<A, E>) =>
   app.run(Effect.flatMap(SiteConfigCommands, run))
-const setUpEmail = () =>
+const setUpEmail = (hourlyLimit = '1000') =>
   commands((commands) =>
     commands.saveEmail({
       provider: 'resend',
       fromName: 'Test Site',
       from: 'news@example.com',
       replyTo: '',
+      hourlyLimit,
       sesRegion: '',
       sesEndpoint: '',
       sesAccessKeyId: '',
@@ -322,7 +323,7 @@ describe('how often codes are sent', () => {
     let soon = await ask()
     expect(soon.status).toBe(429)
     expect(await soon.text()).toContain(
-      'A code was just sent to this address. You can ask for another in 10 seconds.',
+      'A code was just requested for this address. You can ask for another in 10 seconds.',
     )
     // Another address isn't held up.
     await askForCode({ email: 'grace@example.com' })
@@ -334,11 +335,26 @@ describe('how often codes are sent', () => {
     let tooMany = await ask()
     expect(tooMany.status).toBe(429)
     expect(await tooMany.text()).toContain(
-      'Too many codes were sent to this address. You can ask for another in 60 minutes.',
+      'Too many codes were requested for this address. You can ask for another in 60 minutes.',
     )
     expect(emails.filter((email) => email.to === 'ada@example.com')).toHaveLength(5)
     later(60 * 60 * 1000)
     expect((await ask()).status).toBe(303)
+  })
+
+  it('sends no code past the site’s emails an hour, until the hour is up', async () => {
+    await setUpEmail('2')
+    await askForCode()
+    await askForCode({ email: 'grace@example.com' })
+    let limited = await ask({ email: 'alan@example.com' })
+    expect(limited.status).toBe(503)
+    expect(await limited.text()).toContain(
+      'We can’t send any more emails right now. Try again in 60 minutes.',
+    )
+    expect(emails).toHaveLength(2)
+    later(60 * 60 * 1000)
+    await askForCode({ email: 'alan@example.com' })
+    expect(emails.at(-1)?.to).toBe('alan@example.com')
   })
 
   it('keeps the last code if a new one can’t be sent, or isn’t sent yet', async () => {

@@ -164,7 +164,7 @@ the database, and nothing is kept between requests, so an edit made in the datab
 | `site/site-images.ts`   | The URLs pages link the site's icon, logos, and banner image with                                                                                       |
 | `site/queries.ts`       | `SiteConfigQueries`, and `configuredSite` for what's only served once the settings are saved                                                            |
 | `site/commands.ts`      | `SiteConfigCommands`: saving `/admin/branding` (turning uploads into the site's image files, or `SiteConfigRejected`), and the integrations' settings  |
-| `site/email.ts`         | `Email`: whether it's set up, and sending an email with Amazon SES's API (signing with AWS Signature V4) or Resend's, with a typed error for each failure |
+| `site/email.ts`         | `Email`: whether it's set up, and sending an email with Amazon SES's API (signing with AWS Signature V4) or Resend's, up to its emails per hour, with a typed error for each failure |
 | `site/turnstile.ts`     | `Turnstile`: whether it's set up, checking a widget's token with Cloudflare, with a typed error for each way that fails, and logins while it's enabled  |
 | `site/subscriptions.ts` | Whether subscribing is off, paused (email or an enabled Turnstile is missing), or open                                                                 |
 | `users/user.ts`         | Accounts (the `users` table, after better-auth's `user`), and signing up: the form's checks, and the emailed code (a `verifications` row)              |
@@ -265,7 +265,8 @@ and without JavaScript. Each test starts the app with its own temporary data and
   read only up to 16 KB.
 - **Subscribing**: the form needs Turnstile, always, and is read only up to 16 KB. An address is
   sent a code at most every 30 seconds, and 5 an hour (counted in `rate_limits`, as better-auth
-  counts requests). A code is 6 digits, stored as a SHA-256 hash, good for 10 minutes and 3 wrong
+  counts requests, whether or not it's sent), and the site sends at most its email settings'
+  emails per hour (1000 unless changed), all told. A code is 6 digits, stored as a SHA-256 hash, good for 10 minutes and 3 wrong
   tries, and saved only once it's sent. It's entered at its own page, `/subscribe/verify/<id>`, by
   its row's random id, so the address is never in a URL, and an old page, or someone else asking
   for a code for the same address, can't replace or use up another code. An address that already

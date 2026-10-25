@@ -80,7 +80,7 @@ const TurnstileLive = Turnstile.layer.pipe(
   Layer.provide([SiteConfigQueriesLive, Secrets.layer, IntegrationHttp]),
 )
 const EmailLive = Email.layer.pipe(
-  Layer.provide([SiteConfigQueriesLive, Secrets.layer, IntegrationHttp]),
+  Layer.provide([MigratedDatabase, SiteConfigQueriesLive, Secrets.layer, IntegrationHttp]),
 )
 
 // Requires AppConfig and PublicNetwork. SQL and media services are exposed for seeding and file

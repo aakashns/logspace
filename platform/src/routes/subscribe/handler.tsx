@@ -101,6 +101,14 @@ const subscribe = Effect.gen(function* () {
           { form, issues: [{ field: 'email', message: 'Expected an email address' }] },
           400,
         ),
+      EmailLimitReached: ({ retryAfter }) =>
+        subscribeForm(
+          {
+            form,
+            error: `We can’t send any more emails right now. Try again ${inMinutes(retryAfter)}.`,
+          },
+          503,
+        ),
       EmailNotSent: () => subscribeForm({ form, error: EMAIL_FAILED }, 502),
     }),
   )
@@ -113,10 +121,15 @@ const subscribe = Effect.gen(function* () {
 
 function rateLimitMessage(limited: SignUpRateLimited): string {
   if (limited.reason === 'just') {
-    return `A code was just sent to this address. You can ask for another in ${limited.retryAfter} seconds.`
+    return `A code was just requested for this address. You can ask for another in ${limited.retryAfter} seconds.`
   }
-  let minutes = Math.ceil(limited.retryAfter / 60)
-  return `Too many codes were sent to this address. You can ask for another in ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}.`
+  return `Too many codes were requested for this address. You can ask for another ${inMinutes(limited.retryAfter)}.`
+}
+
+// A wait in seconds, in whole minutes, like "in 3 minutes".
+function inMinutes(seconds: number): string {
+  let minutes = Math.ceil(seconds / 60)
+  return `in ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}`
 }
 
 const codeGone = (usedUp: boolean) =>
