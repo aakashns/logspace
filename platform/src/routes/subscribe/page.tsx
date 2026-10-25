@@ -71,16 +71,20 @@ export function SubscribePage(props: {
   )
 }
 
-// /subscribe/verify: the code emailed to `email`, and if one was refused, why.
-export function SubscribeVerifyPage(props: { email: string; error?: string | undefined }): Html {
-  let { email, error } = props
+// /subscribe/verify/<id>: the code with that id, emailed to `email`, and if one was refused, why.
+export function SubscribeVerifyPage(props: {
+  id: string
+  email: string
+  error?: string | undefined
+}): Html {
+  let { id, email, error } = props
   return (
     <section class="subscribe">
       <h1 class="page-title">Check your email</h1>
       <p>
         {`We sent a ${SIGN_UP_CODE_LENGTH}-digit code to ${email}. Enter it below to finish subscribing. It expires in ${SIGN_UP_CODE_MINUTES} minutes.`}
       </p>
-      <form method="post" action={urls.subscribeVerify()}>
+      <form method="post" action={urls.subscribeVerify(id)}>
         <FieldGroup>
           <Field invalid={error !== undefined}>
             <FieldLabel for="subscribe-code">Code</FieldLabel>
@@ -106,8 +110,7 @@ export function SubscribeVerifyPage(props: { email: string; error?: string | und
   )
 }
 
-// When there's no code to enter: it expired (or was never asked for in this browser), or it was
-// entered wrong too many times.
+// When there's no code to enter: it expired, or was used, or entered wrong too many times.
 export function SubscribeCodeGonePage(props: { usedUp: boolean }): Html {
   return (
     <section class="subscribe">
@@ -115,7 +118,7 @@ export function SubscribeCodeGonePage(props: { usedUp: boolean }): Html {
       <p>
         {props.usedUp
           ? 'That code can’t be used any more.'
-          : `Codes last ${SIGN_UP_CODE_MINUTES} minutes, in the browser that asked for one.`}{' '}
+          : `Codes last ${SIGN_UP_CODE_MINUTES} minutes, and work once.`}{' '}
         <a href={urls.subscribe()}>Ask for a new one</a>
       </p>
     </section>

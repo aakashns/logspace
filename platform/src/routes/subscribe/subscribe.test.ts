@@ -101,33 +101,26 @@ const codeRows = () =>
       sql<{ identifier: string; value: string }>`select identifier, value from verifications`,
   )
 
-const post = (path: string, fields: Record<string, string>, cookie?: string) =>
-  app.fetch(path, {
-    method: 'POST',
-    headers: cookie ? { Cookie: cookie } : {},
-    body: new URLSearchParams(fields),
-  })
-const codeCookie = (response: Response) =>
-  response.headers
-    .getSetCookie()
-    .find((cookie) => cookie.startsWith('sign_up='))
-    ?.split(';')[0]
+const post = (path: string, fields: Record<string, string>) =>
+  app.fetch(path, { method: 'POST', body: new URLSearchParams(fields) })
 const lastCode = () => capture(defined(emails.at(-1), 'an email').text, /\n\n(\d{6})\n\n/)
 
-// Asks for a code, half a minute after the last one, returning the cookie that says for which
-// address.
-const askForCode = async (fields: Record<string, string> = {}) => {
-  later(30_000)
-  let response = await post('/subscribe', {
+// Asks for a code for Ada.
+const ask = (fields: Record<string, string> = {}) =>
+  post('/subscribe', {
     name: 'Ada Lovelace',
     email: 'Ada@Example.com',
     'cf-turnstile-response': 'good-token',
     ...fields,
   })
+// Asks for a code, half a minute after the last one, returning the page to enter it at.
+const askForCode = async (fields: Record<string, string> = {}) => {
+  later(30_000)
+  let response = await ask(fields)
   expect(response.status).toBe(303)
-  return defined(codeCookie(response), 'the code’s cookie')
+  return defined(response.headers.get('Location'), 'the code’s page')
 }
-const enter = (code: string, cookie: string) => post('/subscribe/verify', { code }, cookie)
+const enter = (code: string, page: string) => post(page, { code })
 
 beforeEach(async () => {
   await app.seedDatabase()
@@ -146,7 +139,7 @@ describe('while subscribing is closed', () => {
     expect(home).not.toContain('href="/subscribe"')
     for (let response of [
       await app.fetch('/subscribe'),
-      await app.fetch('/subscribe/verify'),
+      await app.fetch('/subscribe/verify/some-code'),
       await post('/subscribe', { name: 'Ada', email: 'ada@example.com' }),
     ]) {
       expect(response.status).toBe(404)
@@ -157,10 +150,10 @@ describe('while subscribing is closed', () => {
 
   it('is paused while Turnstile is off, though the switch is on', async () => {
     await open()
-    let cookie = await askForCode()
+    let page = await askForCode()
     await setUpTurnstile(false)
     expect(await (await app.fetch('/')).text()).not.toContain('href="/subscribe"')
-    let response = await enter(lastCode(), cookie)
+    let response = await enter(lastCode(), page)
     expect(response.status).toBe(404)
     expect(await users()).toEqual([])
   })
@@ -191,19 +184,12 @@ describe('subscribing', () => {
     )
   })
 
-  it('emails a code, with the address sealed in a cookie, and the code’s hash in the database', async () => {
-    let response = await post('/subscribe', {
-      name: 'Ada Lovelace',
-      email: 'Ada@Example.com',
-      'cf-turnstile-response': 'good-token',
-    })
+  it('emails a code, entered at a page by its random id, with its hash in the database', async () => {
+    let response = await ask()
     expect(response.status).toBe(303)
-    expect(response.headers.get('Location')).toBe('/subscribe/verify')
-    let cookie = response.headers.getSetCookie().find((cookie) => cookie.startsWith('sign_up='))
-    expect(cookie).toMatch(
-      /^sign_up=v1\.[\w-]{16}\.[\w-]+; Max-Age=600; Path=\/subscribe; HttpOnly; SameSite=Lax$/,
-    )
-    expect(cookie).not.toContain('ada')
+    let page = defined(response.headers.get('Location'), 'the code’s page')
+    expect(page).toMatch(/^\/subscribe\/verify\/[0-9a-f-]{36}$/)
+    expect(response.headers.getSetCookie()).toEqual([])
     expect(tokens).toEqual(['good-token'])
 
     let [email] = emails
@@ -219,28 +205,25 @@ describe('subscribing', () => {
     expect(value).toEqual({ code: expect.any(String), name: 'Ada Lovelace', attempts: 0 })
     expect(value.code).not.toContain(code)
 
-    let page = await app.fetch('/subscribe/verify', {
-      headers: { Cookie: defined(codeCookie(response), 'a cookie') },
-    })
-    let html = await page.text()
-    expect(page.status).toBe(200)
+    let shown = await app.fetch(page)
+    let html = await shown.text()
+    expect(shown.status).toBe(200)
+    expect(shown.headers.get('Cache-Control')).toBe('no-store')
     expect(html).toContain('We sent a 6-digit code to ada@example.com.')
+    expect(html).toContain(`<form method="post" action="${page}">`)
     expect(html).toMatch(/<input[^>]* autocomplete="one-time-code"[^>]* name="code"/)
   })
 
   it('makes the account for the right code, and emails that they’re subscribed', async () => {
-    let cookie = await askForCode()
+    let page = await askForCode()
     let code = lastCode()
     // As pasted, with spaces.
-    let response = await enter(` ${code.slice(0, 3)} ${code.slice(3)} `, cookie)
+    let response = await enter(` ${code.slice(0, 3)} ${code.slice(3)} `, page)
     let html = await response.text()
     expect(response.status).toBe(200)
     expect(html).toContain('<h1 class="page-title">You’re subscribed</h1>')
     expect(html).toContain(
       'Thanks, Ada Lovelace. You’re subscribed to Test Site as ada@example.com.',
-    )
-    expect(response.headers.getSetCookie()).toContainEqual(
-      expect.stringMatching(/^sign_up=;.*Max-Age=0/),
     )
     expect(await users()).toEqual([
       { name: 'Ada Lovelace', email: 'ada@example.com', email_verified: 1 },
@@ -252,47 +235,48 @@ describe('subscribing', () => {
       text: 'Hi Ada Lovelace,\n\nYou’re now subscribed to Test Site (https://example.com), as ada@example.com.\n',
     })
     // A code works once.
-    expect((await enter(code, cookie)).status).toBe(410)
+    expect((await enter(code, page)).status).toBe(410)
   })
 
   it('allows three wrong codes, then needs a new one', async () => {
-    let cookie = await askForCode()
+    let page = await askForCode()
     let code = lastCode()
     let wrong = code === '000000' ? '111111' : '000000'
-    let first = await enter(wrong, cookie)
+    let first = await enter(wrong, page)
     expect(first.status).toBe(400)
     expect(await first.text()).toContain('That code isn’t right. You can try 2 more times.')
-    expect(await (await enter(wrong, cookie)).text()).toContain('You can try 1 more time.')
-    let last = await enter(wrong, cookie)
+    expect(await (await enter(wrong, page)).text()).toContain('You can try 1 more time.')
+    let last = await enter(wrong, page)
     expect(last.status).toBe(410)
     expect(await last.text()).toContain('Too many wrong codes')
-    expect((await enter(code, cookie)).status).toBe(410)
+    expect((await enter(code, page)).status).toBe(410)
     expect(await users()).toEqual([])
   })
 
-  it('needs the last code sent, in time, in the browser that asked for it', async () => {
-    let cookie = await askForCode()
-    let first = lastCode()
-    await askForCode()
-    let replaced = await enter(first, cookie)
-    expect(replaced.status).toBe(400)
-    expect(await replaced.text()).toContain('That code isn’t right.')
-    expect((await enter(lastCode(), 'sign_up=v1.someone-elses.cookie')).status).toBe(410)
-    expect((await post('/subscribe/verify', { code: lastCode() })).status).toBe(410)
+  it('takes each code at its own page, until it expires', async () => {
+    let first = await askForCode()
+    let firstCode = lastCode()
+    let second = await askForCode()
+    let secondCode = lastCode()
+    let mixed = await enter(secondCode, first)
+    expect(mixed.status).toBe(400)
+    expect(await mixed.text()).toContain('That code isn’t right.')
+    expect((await enter(firstCode, '/subscribe/verify/not-a-code')).status).toBe(410)
+    expect((await app.fetch('/subscribe/verify/not-a-code')).status).toBe(410)
 
     await sql((sql) => sql`update verifications set expires_at = '2000-01-01T00:00:00.000Z'`)
-    let expired = await enter(lastCode(), cookie)
+    let expired = await enter(firstCode, first)
     expect(expired.status).toBe(410)
     expect(await expired.text()).toContain('Your code expired')
-    expect((await app.fetch('/subscribe/verify', { headers: { Cookie: cookie } })).status).toBe(410)
+    expect((await app.fetch(second)).status).toBe(410)
     expect(await users()).toEqual([])
   })
 
   it('treats an address with an account as any other, keeping the account as it is', async () => {
-    let cookie = await askForCode()
-    expect((await enter(lastCode(), cookie)).status).toBe(200)
-    cookie = await askForCode({ name: 'Someone Else' })
-    let response = await enter(lastCode(), cookie)
+    let page = await askForCode()
+    expect((await enter(lastCode(), page)).status).toBe(200)
+    page = await askForCode({ name: 'Someone Else' })
+    let response = await enter(lastCode(), page)
     expect(response.status).toBe(200)
     expect(await users()).toEqual([
       { name: 'Ada Lovelace', email: 'ada@example.com', email_verified: 1 },
@@ -332,13 +316,6 @@ describe('subscribing', () => {
 describe('how often codes are sent', () => {
   beforeEach(open)
 
-  const ask = () =>
-    post('/subscribe', {
-      name: 'Ada Lovelace',
-      email: 'ada@example.com',
-      'cf-turnstile-response': 'good-token',
-    })
-
   it('sends an address a code at most every 30 seconds, and 5 an hour', async () => {
     expect((await ask()).status).toBe(303)
     later(20_000)
@@ -348,7 +325,7 @@ describe('how often codes are sent', () => {
       'A code was just sent to this address. You can ask for another in 10 seconds.',
     )
     // Another address isn't held up.
-    expect((await askForCode({ email: 'grace@example.com' })).length).toBeGreaterThan(0)
+    await askForCode({ email: 'grace@example.com' })
     for (let sent = 1; sent < 5; sent++) {
       later(30_000)
       expect((await ask()).status).toBe(303)
@@ -364,30 +341,56 @@ describe('how often codes are sent', () => {
     expect((await ask()).status).toBe(303)
   })
 
-  it('keeps the last code if a new one can’t be sent', async () => {
-    let cookie = await askForCode()
+  it('keeps the last code if a new one can’t be sent, or isn’t sent yet', async () => {
+    let page = await askForCode()
     let code = lastCode()
     resendFails = true
     later(30_000)
     let failed = await ask()
     expect(failed.status).toBe(502)
     expect(await failed.text()).toContain('We couldn’t send the email with your code.')
-    expect(codeCookie(failed)).toBeUndefined()
-    expect((await enter(code, cookie)).status).toBe(200)
+    expect(await codeRows()).toHaveLength(1)
+
+    // While a new one is being sent, the last one still works.
+    resendFails = false
+    let release = () => {}
+    resend = () => new Promise((resolve) => (release = resolve))
+    later(30_000)
+    let sending = ask()
+    while (emails.length < 3) await new Promise((resolve) => setImmediate(resolve))
+    resend = () => Promise.resolve()
+    expect((await enter(code, page)).status).toBe(200)
+    release()
+    await sending
   })
 
-  it('keeps the newest code when an older request finishes last', async () => {
+  it('leaves a code alone, whatever is done at another code’s page', async () => {
+    // A page kept from a day-old code for Ada's address.
+    let kept = await askForCode()
+    later(24 * 60 * 60 * 1000)
+    let page = await askForCode()
+    let code = lastCode()
+    // Someone else asking for a code for her address doesn't replace hers.
+    let other = await askForCode()
+    let wrong = code === '000000' ? '111111' : '000000'
+    for (let page of [kept, kept, kept, other, other, other]) {
+      expect((await enter(wrong, page)).status).not.toBe(200)
+    }
+    expect((await enter(code, page)).status).toBe(200)
+  })
+
+  it('sends each of two requests that overlap to its own page, which works', async () => {
     let release = () => {}
     resend = () => new Promise((resolve) => (release = resolve))
     let older = ask()
-    await Promise.resolve()
     while (emails.length === 0) await new Promise((resolve) => setImmediate(resolve))
     resend = () => Promise.resolve()
     let newer = await askForCode()
-    let newest = lastCode()
+    let newerCode = lastCode()
     release()
-    let olderCookie = defined(codeCookie(await older), 'the older request’s cookie')
-    expect((await enter(newest, olderCookie)).status).toBe(200)
-    expect(newer.length).toBeGreaterThan(0)
+    let olderPage = defined((await older).headers.get('Location'), 'the older request’s page')
+    expect(olderPage).not.toBe(newer)
+    expect((await app.fetch(olderPage)).status).toBe(200)
+    expect((await enter(newerCode, newer)).status).toBe(200)
   })
 })

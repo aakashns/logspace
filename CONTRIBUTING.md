@@ -106,7 +106,7 @@ folder.
 | `site-files/`         | `/site.webmanifest`, `/favicon.ico`, `/apple-touch-icon.png`, `/site/<file>` |
 | `link-images/`        | `/link-images/<file>`, link previews' images                                 |
 | `assets/`             | `/assets/<file>`, `/fonts/<file>`: Datastar and the fonts                    |
-| `subscribe/`          | `/subscribe` and `/subscribe/verify`: signing up, confirmed by an emailed code |
+| `subscribe/`          | `/subscribe` and `/subscribe/verify/<id>`: signing up, confirmed by an emailed code |
 | `admin/login/`        | `/admin/login`, `/admin/logout`                                              |
 | `admin/index/`        | `/admin`, a link to each of the four below                                   |
 | `admin/posts/`        | `/admin/posts`, the list of posts                                            |
@@ -168,7 +168,7 @@ the database, and nothing is kept between requests, so an edit made in the datab
 | `site/turnstile.ts`     | `Turnstile`: whether it's set up, checking a widget's token with Cloudflare, with a typed error for each way that fails, and logins while it's enabled  |
 | `site/subscriptions.ts` | Whether subscribing is off, paused (email or an enabled Turnstile is missing), or open                                                                 |
 | `users/user.ts`         | Accounts (the `users` table, after better-auth's `user`), and signing up: the form's checks, and the emailed code (a `verifications` row)              |
-| `users/queries.ts`      | Whether an address has a code that can still be entered                                                                                                 |
+| `users/queries.ts`      | The address a code (by its id) was sent to, while it can still be entered                                                                               |
 | `users/commands.ts`     | `UserCommands`: asking for a code (passing Turnstile, as often as an address may be sent one), and entering it, which makes the account                |
 | `site/files.ts`         | The site's image files, from storage, or the default icons that `Images` caches                                                                         |
 | `link-previews/`        | `LinkPreviews` fetches previews in the background, never on a page's time, and saves each one's image as resized WebP copies                            |
@@ -266,11 +266,10 @@ and without JavaScript. Each test starts the app with its own temporary data and
 - **Subscribing**: the form needs Turnstile, always, and is read only up to 16 KB. An address is
   sent a code at most every 30 seconds, and 5 an hour (counted in `rate_limits`, as better-auth
   counts requests). A code is 6 digits, stored as a SHA-256 hash, good for 10 minutes and 3 wrong
-  tries, and replaces the ones sent before only once it's sent. The address a browser is entering
-  a code for is in an `HttpOnly`, `SameSite=Lax` cookie sent only to `/subscribe`, sealed like the
-  stored secrets, so it's never in a URL, and the code can only be entered in the browser that
-  asked for it. An address that already has an account gets the same
-  pages and emails, so the form doesn't say who has one.
+  tries, and saved only once it's sent. It's entered at its own page, `/subscribe/verify/<id>`, by
+  its row's random id, so the address is never in a URL, and an old page, or someone else asking
+  for a code for the same address, can't replace or use up another code. An address that already
+  has an account gets the same pages and emails, so the form doesn't say who has one.
 - **Forms from other sites** are refused (`Sec-Fetch-Site`, else `Origin` against the host), as
   Remix's `cop()` did. Behind Caddy, the host is taken from `X-Forwarded-Host`, which
   Caddy overwrites, before the `Forwarded` header, which it passes through from the browser.

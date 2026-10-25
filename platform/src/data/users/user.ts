@@ -50,6 +50,9 @@ const SIGN_UP_PREFIX = 'sign-up-otp-'
 // The `key` of how many codes were sent to an address lately, in the `rate_limits` table.
 export const signUpRateLimitKey = (email: string) => `sign-up-otp:${email}`
 export const signUpIdentifier = (email: string) => SIGN_UP_PREFIX + email
+// The address a sign-up's code was sent to, from its identifier.
+export const signUpEmail = (identifier: string) =>
+  identifier.startsWith(SIGN_UP_PREFIX) ? identifier.slice(SIGN_UP_PREFIX.length) : undefined
 
 // The `value` of a sign-up's code: the code's hash (only whoever has the email knows the code),
 // the name typed, for the account it makes, and how many wrong codes have been tried.

@@ -2,13 +2,13 @@
 import { DateTime, Effect } from 'effect'
 import { SqlClient } from 'effect/sql'
 
-import { signUpIdentifier } from './user.ts'
+import { signUpEmail } from './user.ts'
 
-// Whether there's a code emailed to the address that can still be entered.
-export const hasPendingSignUp = Effect.fn('hasPendingSignUp')(function* (email: string) {
+// The address the code with that id was emailed to, while it can still be entered.
+export const pendingSignUpEmail = Effect.fn('pendingSignUpEmail')(function* (id: string) {
   let sql = yield* SqlClient.SqlClient
   let now = DateTime.formatIso(yield* DateTime.now)
-  let rows = yield* sql`select 1 from verifications
-    where identifier = ${signUpIdentifier(email)} and expires_at > ${now}`.pipe(Effect.orDie)
-  return rows.length > 0
+  let [row] = yield* sql<{ identifier: string }>`select identifier from verifications
+    where id = ${id} and expires_at > ${now}`.pipe(Effect.orDie)
+  return row ? signUpEmail(row.identifier) : undefined
 })
