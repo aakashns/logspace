@@ -17,16 +17,6 @@ import { Tooltip } from '../../../components/controls.tsx'
 import { CloseIcon, ImageIcon, VideoIcon } from '../../../components/icons.tsx'
 import { Caption, POST_STYLES, PostMedia, PostMeta } from '../../../components/post.tsx'
 import { stylesheet } from '../../../components/stylesheet.ts'
-import { Alert, ALERT_STYLES, AlertTitle } from '../../../components/ui/alert.tsx'
-import { Button } from '../../../components/ui/button.tsx'
-import {
-  DialogClose,
-  DialogContent,
-  DialogFooter,
-  DialogTrigger,
-  DIALOG_STYLES,
-} from '../../../components/ui/dialog.tsx'
-import { Textarea, TEXTAREA_STYLES } from '../../../components/ui/textarea.tsx'
 import type { PostIssue } from '../../../data/posts/post.ts'
 import {
   FULL_WIDTH_IMAGE_SIZES,
@@ -41,8 +31,7 @@ import type { ComposeValues } from './form.ts'
 import css from './page.css' with { type: 'text' }
 
 // The preview shows the post as its page does.
-export const COMPOSE_PAGE_STYLES =
-  POST_STYLES + TEXTAREA_STYLES + ALERT_STYLES + DIALOG_STYLES + stylesheet(css)
+export const COMPOSE_PAGE_STYLES = POST_STYLES + stylesheet(css)
 
 export const COMPOSER_IDS = {
   issues: 'composer-issues',
@@ -89,13 +78,18 @@ export function ComposePage(props: ComposerProps): Html {
           <div class="actions">
             {/* Opens the dialog below with command/commandfor, which needs no JavaScript. */}
             {published ? (
-              <DialogTrigger dialog={DELETE_DIALOG} variant="destructive">
+              <button
+                type="button"
+                command="show-modal"
+                commandfor={DELETE_DIALOG}
+                class="destructive-button"
+              >
                 Delete
-              </DialogTrigger>
+              </button>
             ) : null}
-            <Button type="submit" data-attr:disabled="$_uploading">
+            <button type="submit" class="button post-button" data-attr:disabled="$_uploading">
               {published ? 'Save' : 'Post'}
-            </Button>
+            </button>
           </div>
         </div>
       </form>
@@ -119,36 +113,38 @@ function CloseButton(props: { published: boolean }): Html {
   let label = props.published ? 'Revert changes' : 'Discard post'
   return (
     <Tooltip label={label}>
-      <Button
+      <button
         type="submit"
         form={COMPOSER_FORM}
         formaction={urls.admin.discardPost()}
-        variant="ghost"
-        size="icon-lg"
         aria-label={label}
+        class="nav-button"
         data-attr:disabled="$_uploading"
       >
         <CloseIcon />
-      </Button>
+      </button>
     </Tooltip>
   )
 }
 
-// Grows with what's typed, like X's. While typing, the preview follows at most every 100 ms, and
-// once more after the last keystroke; a newer preview cancels one still on its way. A modifier's
-// dot can't be in a JSX attribute's name, so the handler is spread in.
+// Grows with what's typed (see .composer-text), like X's. While typing, the preview follows at
+// most every 100 ms, and once more after the last keystroke; a newer preview cancels one still on
+// its way. A modifier's dot can't be in a JSX attribute's name, so the handler is spread in.
 function CaptionInput(props: { value: string }): Html {
   return (
-    <Textarea
+    // A textarea drops a newline right after its start tag, so one goes there, and a value that
+    // starts with a newline keeps it.
+    <textarea
       name="caption"
       rows={3}
-      value={props.value}
       aria-label="Caption"
       placeholder="What’s happening?"
       autofocus
       class="composer-text"
       {...{ 'data-on:input__throttle.100ms.trailing': `$_uploading || ${PREVIEW}` }}
-    />
+    >
+      {`\n${props.value}`}
+    </textarea>
   )
 }
 
@@ -158,11 +154,13 @@ export function ComposerIssues(props: { issues?: readonly PostIssue[] | undefine
   return (
     <div id={COMPOSER_IDS.issues}>
       {issues.length > 0 ? (
-        <Alert variant="destructive">
-          {issues.map((issue) => (
-            <AlertTitle>{issue.message}</AlertTitle>
-          ))}
-        </Alert>
+        <div role="alert" class="alert">
+          <ul>
+            {issues.map((issue) => (
+              <li>{issue.message}</li>
+            ))}
+          </ul>
+        </div>
       ) : null}
     </div>
   )
@@ -232,10 +230,9 @@ function VideoTile(props: { video: Video; file: string; poster?: string | undefi
         <RemoveButton file={file} label={`Remove ${file}`} />
       </div>
       {poster ? (
-        <div class="attachment-note">
-          <p class="muted">Poster image: {poster}</p>
-          <RemoveButton file={poster} label="Remove poster" text />
-        </div>
+        <p class="muted attachment-note">
+          Poster image: {poster} <RemoveButton file={poster} label="Remove it" text />
+        </p>
       ) : (
         <p class="muted attachment-note">
           Without a poster image, phones show a black box until the video plays. Add one with the
@@ -246,24 +243,23 @@ function VideoTile(props: { video: Video; file: string; poster?: string | undefi
   )
 }
 
-// Takes one file out of the post: a × over its tile, or with `text`, a button saying so. It needs
-// Datastar; without it, media can only be added.
+// Takes one file out of the post: a round × over its tile, or with `text`, the label as a link.
+// It needs Datastar; without it, media can only be added.
 function RemoveButton(props: { file: string; label: string; text?: boolean | undefined }): Html {
   let { file, label, text } = props
   return (
-    <Button
+    <button
+      type="button"
       name="remove"
       value={file}
-      variant={text ? 'outline' : 'secondary'}
-      size={text ? 'xs' : 'icon-sm'}
       aria-label={text ? undefined : label}
       title={text ? undefined : label}
-      class={text ? undefined : 'remove-button'}
+      class={text ? 'link-button' : 'remove-button'}
       data-on:click={UPDATE_MEDIA}
       data-indicator:_uploading
     >
       {text ? label : <CloseIcon />}
-    </Button>
+    </button>
   )
 }
 
@@ -287,9 +283,7 @@ export function ComposerTools(): Html {
   )
 }
 
-// An icon button that chooses files, which are uploaded right away. It's a label around the file
-// input, which works without JavaScript, so it takes Button's look from its data-slot attributes
-// rather than being one.
+// An icon button that chooses files, which are uploaded right away.
 function MediaPicker(props: {
   label: string
   name: string
@@ -300,7 +294,7 @@ function MediaPicker(props: {
   let { label, name, accept, multiple, children } = props
   return (
     <Tooltip label={label}>
-      <label data-slot="button" data-variant="ghost" data-size="icon-lg" class="tool-button">
+      <label class="tool-button">
         {children}
         <input
           type="file"
@@ -337,21 +331,30 @@ const DELETE_DIALOG = 'delete-post'
 // Deleting a post: a dialog to confirm, outside the composer's form, since forms can't nest.
 function DeleteDialog(props: { id: string }): Html {
   return (
-    <DialogContent
-      id={DELETE_DIALOG}
-      title="Delete this post?"
-      description="It’s removed from the site right away, along with its media files, and this can’t be undone."
-    >
+    <dialog id={DELETE_DIALOG} aria-labelledby={`${DELETE_DIALOG}-title`} class="dialog">
       <form method="post" action={urls.admin.deletePost(props.id)}>
-        <DialogFooter>
-          <DialogClose dialog={DELETE_DIALOG} variant="outline" autofocus>
-            Cancel
-          </DialogClose>
-          <Button type="submit" variant="destructive">
+        <h2 id={`${DELETE_DIALOG}-title`} class="dialog-title">
+          Delete this post?
+        </h2>
+        <p>
+          It’s removed from the site right away, along with its media files, and this can’t be
+          undone.
+        </p>
+        <div class="actions">
+          <button type="submit" class="destructive-button">
             Delete
-          </Button>
-        </DialogFooter>
+          </button>
+          <button
+            type="button"
+            command="close"
+            commandfor={DELETE_DIALOG}
+            autofocus
+            class="secondary-button"
+          >
+            Cancel
+          </button>
+        </div>
       </form>
-    </DialogContent>
+    </dialog>
   )
 }
