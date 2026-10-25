@@ -21,7 +21,6 @@ import type { EmailFailure, EmailStatus } from '../../../data/site/email.ts'
 import {
   type EmailForm,
   type EmailIssue,
-  SMTP_PORTS,
   type TurnstileIssue,
   unreadableSecretMessage,
 } from '../../../data/site/site.ts'
@@ -99,52 +98,36 @@ const STATUSES = {
 const EMAIL_STATUSES = {
   NotSetUp: { label: 'Not set up', variant: 'secondary' },
   SetUp: { label: 'Set up', variant: 'default' },
-  SecretUnreadable: { label: 'Needs its password or API key again', variant: 'destructive' },
+  SecretUnreadable: { label: 'Needs its secret again', variant: 'destructive' },
 } as const satisfies Record<EmailStatus['_tag'], { label: string; variant: string }>
-
-const SECURITIES = {
-  starttls: `STARTTLS, usually on port ${SMTP_PORTS.starttls}`,
-  tls: `TLS, usually on port ${SMTP_PORTS.tls}`,
-  none: 'None, for a server on this machine, like Mailpit',
-} as const
 
 const EMAIL_FIELDS: Record<EmailIssue['field'], string> = {
   provider: 'Send with',
   from: 'From',
   replyTo: 'Reply-to',
-  smtpHost: 'Server',
-  smtpPort: 'Port',
-  smtpSecurity: 'Security',
-  smtpUsername: 'Username',
-  smtpPassword: 'Password',
+  sesRegion: 'Region',
+  sesAccessKeyId: 'Access key ID',
+  sesSecretAccessKey: 'Secret access key',
   resendApiKey: 'API key',
 }
 
-// The settings as they're saved, as the form shows them. The password and API key are never sent
-// to the browser.
+// The settings as they're saved, as the form shows them. The secrets are never sent to the
+// browser.
 function savedEmailForm(status: EmailStatus): EmailForm {
   let empty = {
-    provider: 'smtp',
+    provider: 'ses',
     from: '',
     replyTo: '',
-    smtpHost: '',
-    smtpPort: '',
-    smtpSecurity: 'starttls',
-    smtpUsername: '',
-    smtpPassword: '',
+    sesRegion: '',
+    sesAccessKeyId: '',
+    sesSecretAccessKey: '',
     resendApiKey: '',
   }
   if (status._tag === 'NotSetUp') return empty
   let { from, replyTo, provider } = status.settings
   let form = { ...empty, provider: provider._tag, from, replyTo }
   if (provider._tag === 'resend') return form
-  return {
-    ...form,
-    smtpHost: provider.host,
-    smtpPort: String(provider.port),
-    smtpSecurity: provider.security,
-    smtpUsername: provider.username,
-  }
+  return { ...form, sesRegion: provider.region, sesAccessKeyId: provider.accessKeyId }
 }
 
 function EmailSection(props: EmailSectionProps): Html {
@@ -154,14 +137,14 @@ function EmailSection(props: EmailSectionProps): Html {
     rejected?.issues.some((issue) => issue.field === field) ? ('true' as const) : undefined
   let badge = EMAIL_STATUSES[status._tag]
   let saved = status._tag === 'NotSetUp' ? undefined : status.settings.provider._tag
-  // What's typed in the password or API key's field, if it's for the saved provider, keeps the
-  // saved one: its last characters say which it is.
-  let secretField = (field: 'smtpPassword' | 'resendApiKey', hint: string) => {
-    let provider = field === 'smtpPassword' ? 'smtp' : 'resend'
-    let what = field === 'smtpPassword' ? 'password' : 'API key'
+  // The secret's field. Left empty, for the saved provider, it keeps the saved one: its last
+  // characters say which it is.
+  let secretField = (field: 'sesSecretAccessKey' | 'resendApiKey', hint: string) => {
+    let provider = field === 'sesSecretAccessKey' ? 'ses' : 'resend'
+    let what = field === 'sesSecretAccessKey' ? 'secret access key' : 'API key'
     let id = `email-${field}`
     let placeholder =
-      status._tag === 'SetUp' && saved === provider && status.secretEnding
+      status._tag === 'SetUp' && saved === provider
         ? `${'•'.repeat(12)}${status.secretEnding}`
         : undefined
     return (
@@ -196,9 +179,8 @@ function EmailSection(props: EmailSectionProps): Html {
       open={notice !== undefined || rejected !== undefined || test !== undefined}
     >
       <p class="muted">
-        How the site sends email: through an SMTP server, which nearly every email service has, or
-        with <a href="https://resend.com">Resend</a>’s API, for servers that can’t reach SMTP’s
-        ports.
+        How the site sends email: with <a href="https://aws.amazon.com/ses/">Amazon SES</a> or{' '}
+        <a href="https://resend.com">Resend</a>.
       </p>
       {notice === 'saved' ? (
         <Alert role="status">
@@ -207,7 +189,7 @@ function EmailSection(props: EmailSectionProps): Html {
       ) : null}
       {notice === 'removed' ? (
         <Alert role="status">
-          <AlertTitle>Removed, and its password or API key forgotten.</AlertTitle>
+          <AlertTitle>Removed, and its secret forgotten.</AlertTitle>
         </Alert>
       ) : null}
       {rejected ? (
@@ -226,8 +208,8 @@ function EmailSection(props: EmailSectionProps): Html {
         <FieldGroup>
           <LabelledField label="Send with" for="email-provider">
             <NativeSelect id="email-provider" name="provider" aria-invalid={invalid('provider')}>
-              <option value="smtp" selected={form.provider !== 'resend'}>
-                An SMTP server
+              <option value="ses" selected={form.provider !== 'resend'}>
+                Amazon SES
               </option>
               <option value="resend" selected={form.provider === 'resend'}>
                 Resend
@@ -235,51 +217,24 @@ function EmailSection(props: EmailSectionProps): Html {
             </NativeSelect>
           </LabelledField>
           {/* Only the chosen provider's fields show (see page.css). */}
-          <div class="email-smtp">
+          <div class="email-ses">
             <TextField
-              label="Server"
-              name="smtpHost"
-              id="email-smtpHost"
-              value={form.smtpHost}
-              invalid={invalid('smtpHost')}
-              hint="Its host name, like smtp.example.com, from your email service."
+              label="Region"
+              name="sesRegion"
+              id="email-sesRegion"
+              value={form.sesRegion}
+              invalid={invalid('sesRegion')}
+              hint="Where your SES account sends from, like us-east-1."
             />
-            <LabelledField label="Security" for="email-smtpSecurity">
-              <NativeSelect
-                id="email-smtpSecurity"
-                name="smtpSecurity"
-                aria-invalid={invalid('smtpSecurity')}
-              >
-                {Object.entries(SECURITIES).map(([value, label]) => (
-                  <option value={value} selected={form.smtpSecurity === value}>
-                    {label}
-                  </option>
-                ))}
-              </NativeSelect>
-            </LabelledField>
-            <LabelledField
-              label="Port"
-              for="email-smtpPort"
-              hint="Leave it empty for the security’s usual port."
-            >
-              <Input
-                id="email-smtpPort"
-                name="smtpPort"
-                inputmode="numeric"
-                value={form.smtpPort}
-                aria-invalid={invalid('smtpPort')}
-                aria-describedby={hintId('email-smtpPort')}
-              />
-            </LabelledField>
             <TextField
-              label="Username"
-              name="smtpUsername"
-              id="email-smtpUsername"
-              value={form.smtpUsername}
-              invalid={invalid('smtpUsername')}
-              hint="Leave it empty if the server doesn’t need a login."
+              label="Access key ID"
+              name="sesAccessKeyId"
+              id="email-sesAccessKeyId"
+              value={form.sesAccessKeyId}
+              invalid={invalid('sesAccessKeyId')}
+              hint="An IAM user’s, allowed to send email (ses:SendEmail)."
             />
-            {secretField('smtpPassword', 'Sent only to the SMTP server.')}
+            {secretField('sesSecretAccessKey', 'That access key’s secret. Sent only to AWS.')}
           </div>
           <div class="email-resend">
             {secretField(
@@ -378,7 +333,7 @@ function emailFailureMessage(failure: EmailFailure): string {
     case 'EmailNotSetUp':
       return 'Email isn’t set up: save its settings first.'
     case 'SecretUnreadable':
-      return unreadableSecretMessage('password or API key')
+      return unreadableSecretMessage('secret access key or API key')
     case 'EmailAddressInvalid':
       return 'Enter an email address to send it to, like you@example.com.'
     case 'EmailNotSent':

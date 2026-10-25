@@ -1,8 +1,8 @@
 /*
- * /admin's links (see page.tsx): a card each, two to a row on wider screens.
+ * Link cards (see link-cards.tsx): two to a row on wider screens.
  */
 @layer components {
-  .admin-links {
+  .link-cards {
     display: grid;
     gap: 1rem;
 
@@ -12,7 +12,7 @@
   }
 
   /* The whole card is the link, and as tall as the row. */
-  .admin-link {
+  .link-card {
     display: block;
     height: 100%;
     border-radius: var(--radius-xl);

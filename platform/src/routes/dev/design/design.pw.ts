@@ -1,9 +1,9 @@
-// The components on /design that the browser and Datastar run: the dropdown menu's keyboard and
+// The components on /dev/design that the browser and Datastar run: the dropdown menu's keyboard and
 // pointer behavior, its checkbox and radio items' signals, and the dialog.
-import { test, expect } from '../../../browser/fixtures.ts'
+import { test, expect } from '../../../../browser/fixtures.ts'
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/design')
+  await page.goto('/dev/design')
   // Datastar takes the nonce off the page once it's running.
   await expect(page.locator('html')).not.toHaveAttribute('data-nonce')
 })
@@ -120,12 +120,12 @@ test('a disabled link can’t be followed by a click or the keyboard', async ({ 
   // A click where it is goes nowhere.
   let box = await link.boundingBox()
   await page.mouse.click((box?.x ?? 0) + 10, (box?.y ?? 0) + 10)
-  await expect(page).toHaveURL(/\/design$/)
+  await expect(page).toHaveURL(/\/dev\/design$/)
   // It can't take focus (so Tab passes it), and Enter has nothing to follow. (WebKit's Tab skips
   // links and buttons on macOS, so focus is tried directly.)
   expect(await link.evaluate((el) => (el.focus(), document.activeElement === el))).toBe(false)
   await page.keyboard.press('Enter')
-  await expect(page).toHaveURL(/\/design$/)
+  await expect(page).toHaveURL(/\/dev\/design$/)
 
   // In a menu, a click on it leaves the menu open and the page where it is.
   let menu = page.locator('#light-menu')
@@ -135,6 +135,6 @@ test('a disabled link can’t be followed by a click or the keyboard', async ({ 
   box = await item.boundingBox()
   await page.mouse.click((box?.x ?? 0) + 40, (box?.y ?? 0) + 10)
   await expect(menu).toBeVisible()
-  await expect(page).toHaveURL(/\/design$/)
+  await expect(page).toHaveURL(/\/dev\/design$/)
   await expect(item).not.toBeFocused()
 })

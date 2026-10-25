@@ -18,9 +18,7 @@ describe('/admin', () => {
     let html = await response.text()
     expect(response.status).toBe(200)
     expect(html).toMatch(/<title>Manage Site · Test Site<\/title>/)
-    let links = [
-      ...html.matchAll(/<a href="([^"]+)" class="admin-link">.*?<h2[^>]*>([^<]+)<\/h2>/g),
-    ]
+    let links = [...html.matchAll(/<a href="([^"]+)" class="link-card">.*?<h2[^>]*>([^<]+)<\/h2>/g)]
     expect(links.map(([, href, title]) => [href, title])).toEqual([
       ['/admin/posts', 'Manage Posts'],
       ['/admin/branding', 'Branding'],

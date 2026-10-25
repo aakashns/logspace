@@ -20,8 +20,15 @@ export const urls = {
   // One of a post's files, from media storage.
   postFile: (id: string, file: string) =>
     `/posts/${encodeURIComponent(id)}/${encodeURIComponent(file)}`,
-  // The components in components/ui, outside production.
-  design: () => '/design',
+  // Tools for working on the app, outside production: a page leading to the rest, the components
+  // in components/ui, and the site's fake of Amazon SES, which takes email as SES's API does and
+  // shows what it's taken.
+  dev: {
+    index: () => '/dev',
+    design: () => '/dev/design',
+    emails: () => '/dev/emails',
+    ses: () => '/dev/ses/v2/email/outbound-emails',
+  },
   admin: {
     index: () => '/admin',
     login: () => '/admin/login',

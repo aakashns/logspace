@@ -62,29 +62,24 @@ export type TurnstileSettings = typeof TurnstileSettings.Type
 export const TURNSTILE_SECRET_PURPOSE = 'turnstile.secretKey'
 
 // Email, which the site sends from `from` (named as the site's title), with replies going to
-// `replyTo` if it's set. It's sent through an SMTP server, which nearly every email service has,
-// or Resend's API, over HTTPS, for servers whose host blocks SMTP's ports. The SMTP password and
-// Resend's API key are sealed (see ../../lib/secrets.ts) for EMAIL_SECRET_PURPOSES.
-export const SMTP_SECURITIES = ['starttls', 'tls', 'none'] as const
-export type SmtpSecurity = (typeof SMTP_SECURITIES)[number]
-export const SmtpProvider = Schema.TaggedStruct('smtp', {
-  host: Schema.String,
-  port: Schema.Int,
-  security: Schema.Literals(SMTP_SECURITIES),
-  // Without a username, it sends without logging in.
-  username: Schema.String,
-  password: Schema.optionalKey(SealedSecret),
+// `replyTo` if it's set, through Amazon SES's or Resend's API, over HTTPS. SES is sent to with an
+// IAM user's access key, and Resend with an API key. The secret access key and the API key are
+// sealed (see ../../lib/secrets.ts) for EMAIL_SECRET_PURPOSES.
+export const SesProvider = Schema.TaggedStruct('ses', {
+  region: Schema.String,
+  accessKeyId: Schema.String,
+  secretAccessKey: SealedSecret,
 })
 export const ResendProvider = Schema.TaggedStruct('resend', { apiKey: SealedSecret })
 export const EmailSettings = Schema.Struct({
   from: Schema.String,
   replyTo: Schema.String,
-  provider: Schema.Union([SmtpProvider, ResendProvider]),
+  provider: Schema.Union([SesProvider, ResendProvider]),
 })
 export type EmailSettings = typeof EmailSettings.Type
 export type EmailProvider = EmailSettings['provider']['_tag']
 export const EMAIL_SECRET_PURPOSES = {
-  smtp: 'email.smtpPassword',
+  ses: 'email.sesSecretAccessKey',
   resend: 'email.resendApiKey',
 } as const satisfies Record<EmailProvider, string>
 
@@ -210,17 +205,15 @@ export function checkTurnstileKeys(keys: TurnstileKeys, saved: SavedSecret): Tur
   return issues
 }
 
-// The email form, as typed (trimmed). Only the chosen provider's fields are used, and a password
-// or API key left empty keeps the saved one.
+// The email form, as typed (trimmed). Only the chosen provider's fields are used, and a secret
+// access key or API key left empty keeps the saved one.
 export interface EmailForm {
   readonly provider: string
   readonly from: string
   readonly replyTo: string
-  readonly smtpHost: string
-  readonly smtpPort: string
-  readonly smtpSecurity: string
-  readonly smtpUsername: string
-  readonly smtpPassword: string
+  readonly sesRegion: string
+  readonly sesAccessKeyId: string
+  readonly sesSecretAccessKey: string
   readonly resendApiKey: string
 }
 
@@ -230,27 +223,27 @@ export interface EmailIssue {
   readonly message: string
 }
 
-// The email settings a valid form saves, with the password or API key typed, which is empty to
-// keep the saved one.
+// The email settings a valid form saves, with the secret typed, which is empty to keep the saved
+// one.
 export type CheckedEmailForm = {
   readonly from: string
   readonly replyTo: string
   readonly provider:
-    Omit<typeof SmtpProvider.Type, 'password'> | Omit<typeof ResendProvider.Type, 'apiKey'>
+    Omit<typeof SesProvider.Type, 'secretAccessKey'> | Omit<typeof ResendProvider.Type, 'apiKey'>
   readonly secret: string
 }
 
-// An address alone, like "news@example.com", without a name. "localhost" and other names
-// without a dot are allowed, for a server on the same machine.
+// An address alone, like "news@example.com", without a name.
 const EMAIL_ADDRESS = /^[^\s@<>()[\]\\,;:"]+@[^\s@<>()[\]\\,;:"]+$/
 export const isEmailAddress = (value: string) => value.length <= 254 && EMAIL_ADDRESS.test(value)
-const HOST = /^[\w.-]{1,253}$/
+// Like us-east-1 or ap-southeast-2.
+const AWS_REGION = /^[a-z]{2}(-[a-z]+)+-\d{1,2}$/
+const AWS_ACCESS_KEY_ID = /^[A-Z0-9]{16,128}$/
+const AWS_SECRET_ACCESS_KEY = /^[\w/+=]{20,128}$/
 const RESEND_API_KEY = /^re_[\w-]{8,200}$/
-// Each kind of security's usual port, for a port left empty.
-export const SMTP_PORTS = { starttls: 587, tls: 465, none: 25 } as const
 
-// Checks the email form. `saved` is whether the provider chosen has a saved password or API key,
-// which one left empty keeps.
+// Checks the email form. `saved` is whether the provider chosen has a saved secret, which one
+// left empty keeps.
 export function checkEmailForm(
   form: EmailForm,
   saved: SavedSecret,
@@ -262,56 +255,49 @@ export function checkEmailForm(
   if (form.replyTo && !isEmailAddress(form.replyTo)) {
     issues.push({ field: 'replyTo', message: address })
   }
-  let secret = (field: 'smtpPassword' | 'resendApiKey', what: string) => {
-    if (form[field] || saved === 'readable') return
-    issues.push({
-      field,
-      message: saved === 'unreadable' ? unreadableSecretMessage(what) : `Enter the ${what}`,
+  // The secret typed, checked, or the saved one if it opens.
+  let secret = (field: 'sesSecretAccessKey' | 'resendApiKey', what: string, format: RegExp) => {
+    if (form[field] && !format.test(form[field])) {
+      issues.push({ field, message: `Expected the ${what}, as it was given to you` })
+    } else if (!form[field] && saved !== 'readable') {
+      issues.push({
+        field,
+        message: saved === 'unreadable' ? unreadableSecretMessage(what) : `Enter the ${what}`,
+      })
+    }
+    return form[field]
+  }
+  if (form.provider === 'ses') {
+    if (!AWS_REGION.test(form.sesRegion)) {
+      issues.push({ field: 'sesRegion', message: 'Expected an AWS region, like us-east-1' })
+    }
+    if (!AWS_ACCESS_KEY_ID.test(form.sesAccessKeyId)) {
+      issues.push({
+        field: 'sesAccessKeyId',
+        message: 'Expected an access key ID, like AKIAIOSFODNN7EXAMPLE',
+      })
+    }
+    let typed = secret('sesSecretAccessKey', 'secret access key', AWS_SECRET_ACCESS_KEY)
+    if (issues.length > 0) return Result.fail(issues)
+    return Result.succeed({
+      from: form.from,
+      replyTo: form.replyTo,
+      provider: { _tag: 'ses', region: form.sesRegion, accessKeyId: form.sesAccessKeyId },
+      secret: typed,
     })
   }
-  let provider: CheckedEmailForm['provider'] | undefined
-  if (form.provider === 'smtp') {
-    let security = SMTP_SECURITIES.find((value) => value === form.smtpSecurity)
-    if (!security) issues.push({ field: 'smtpSecurity', message: 'Choose a kind of security' })
-    if (!form.smtpHost) issues.push({ field: 'smtpHost', message: 'Enter the server’s address' })
-    else if (!HOST.test(form.smtpHost)) {
-      issues.push({ field: 'smtpHost', message: 'Expected a host name, like smtp.example.com' })
-    }
-    let port = form.smtpPort ? Number(form.smtpPort) : SMTP_PORTS[security ?? 'starttls']
-    if (!Number.isInteger(port) || port < 1 || port > 65535) {
-      issues.push({ field: 'smtpPort', message: 'Expected a port, from 1 to 65535' })
-    }
-    if (form.smtpUsername) secret('smtpPassword', 'password')
-    else if (form.smtpPassword) {
-      issues.push({ field: 'smtpUsername', message: 'Enter the username for the password' })
-    }
-    if (security) {
-      provider = {
-        _tag: 'smtp',
-        host: form.smtpHost,
-        port,
-        security,
-        username: form.smtpUsername,
-      }
-    }
-  } else if (form.provider === 'resend') {
-    if (form.resendApiKey && !RESEND_API_KEY.test(form.resendApiKey)) {
-      issues.push({
-        field: 'resendApiKey',
-        message: 'Expected an API key from Resend, which starts with “re_”',
-      })
-    } else secret('resendApiKey', 'API key')
-    provider = { _tag: 'resend' }
-  } else issues.push({ field: 'provider', message: 'Choose how to send email' })
-  if (issues.length > 0 || !provider) return Result.fail(issues)
-  let typed = provider._tag === 'smtp' ? form.smtpPassword : form.resendApiKey
-  return Result.succeed({
-    from: form.from,
-    replyTo: form.replyTo,
-    provider,
-    // A password without a username isn't used.
-    secret: provider._tag === 'smtp' && !provider.username ? '' : typed,
-  })
+  if (form.provider === 'resend') {
+    let typed = secret('resendApiKey', 'API key', RESEND_API_KEY)
+    if (issues.length > 0) return Result.fail(issues)
+    return Result.succeed({
+      from: form.from,
+      replyTo: form.replyTo,
+      provider: { _tag: 'resend' },
+      secret: typed,
+    })
+  }
+  issues.push({ field: 'provider', message: 'Choose how to send email' })
+  return Result.fail(issues)
 }
 
 // For a saved secret, like 'secret key', that doesn't open.

@@ -31,7 +31,9 @@ import { LoginRoutes } from './routes/admin/login/handler.tsx'
 import { PostListRoutes } from './routes/admin/posts/handler.tsx'
 import { SubscriberRoutes } from './routes/admin/subscribers/handler.tsx'
 import { AssetRoutes } from './routes/assets/handler.ts'
-import { DesignRoutes } from './routes/design/handler.tsx'
+import { DesignRoutes } from './routes/dev/design/handler.tsx'
+import { DevEmailRoutes } from './routes/dev/emails/handler.tsx'
+import { DevIndexRoutes } from './routes/dev/index/handler.tsx'
 import { FeedRoutes } from './routes/feeds/handler.ts'
 import { IndexRoutes } from './routes/index/handler.tsx'
 import { LinkImageRoutes } from './routes/link-images/handler.ts'
@@ -125,7 +127,9 @@ export const AppRoutes = Layer.mergeAll(
   BrandingRoutes,
   IntegrationRoutes,
   SubscriberRoutes,
+  DevIndexRoutes,
   DesignRoutes,
+  DevEmailRoutes,
   AppMiddleware,
 )
 

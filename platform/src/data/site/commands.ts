@@ -65,11 +65,9 @@ export class EmailSettingsRejected extends Schema.TaggedError<EmailSettingsRejec
           'provider',
           'from',
           'replyTo',
-          'smtpHost',
-          'smtpPort',
-          'smtpSecurity',
-          'smtpUsername',
-          'smtpPassword',
+          'sesRegion',
+          'sesAccessKeyId',
+          'sesSecretAccessKey',
           'resendApiKey',
         ]),
         message: Schema.String,
@@ -97,8 +95,8 @@ export class SiteConfigCommands extends Context.Service<
       keys: TurnstileKeys,
       enabled: boolean,
     ) => Effect.Effect<void, TurnstileKeysRejected>
-    // Saves how the site sends email, sealing the password or API key. One left empty keeps the
-    // saved one.
+    // Saves how the site sends email, sealing its secret access key or API key. One left empty
+    // keeps the saved one.
     readonly saveEmail: (form: EmailForm) => Effect.Effect<void, EmailSettingsRejected>
     // Disconnects an integration, forgetting its settings. Removing one that isn't set up does
     // nothing.
@@ -163,14 +161,14 @@ export class SiteConfigCommands extends Context.Service<
       })
 
       let saveEmail = Effect.fn('SiteConfigCommands.saveEmail')(function* (form: EmailForm) {
-        let purpose = EMAIL_SECRET_PURPOSES[form.provider === 'resend' ? 'resend' : 'smtp']
-        // The password or API key saved for the provider chosen, if it's the saved one.
+        let purpose = EMAIL_SECRET_PURPOSES[form.provider === 'resend' ? 'resend' : 'ses']
+        // The secret saved for the provider chosen, if it's the saved one.
         let saved = (yield* queries.saved).email?.provider
         let sealed =
           saved?._tag !== form.provider
             ? undefined
-            : saved._tag === 'smtp'
-              ? saved.password
+            : saved._tag === 'ses'
+              ? saved.secretAccessKey
               : saved.apiKey
         let state: SavedSecret = sealed
           ? yield* secrets.open(sealed, purpose).pipe(
@@ -185,18 +183,16 @@ export class SiteConfigCommands extends Context.Service<
           return yield* new EmailSettingsRejected({ issues: checked.failure })
         }
         let { secret, provider, ...addresses } = checked.success
-        // Without a new one, the checks passed only because the saved one opens, or because
-        // there's no username to use one with.
+        // Without a new one, the checks passed only because the saved one opens.
         let kept = secret ? yield* secrets.seal(secret, purpose) : sealed
-        let email: EmailSettings
-        if (provider._tag === 'smtp') {
-          email = {
-            ...addresses,
-            provider: provider.username && kept ? { ...provider, password: kept } : provider,
-          }
-        } else if (kept) {
-          email = { ...addresses, provider: { ...provider, apiKey: kept } }
-        } else return yield* Effect.die('An API key was checked but not found')
+        if (!kept) return yield* Effect.die('A secret was checked but not found')
+        let email: EmailSettings = {
+          ...addresses,
+          provider:
+            provider._tag === 'ses'
+              ? { ...provider, secretAccessKey: kept }
+              : { ...provider, apiKey: kept },
+        }
         yield* write(['email'], { email })
       })
 

@@ -1,0 +1,13 @@
+/* /dev (see page.tsx): its title, a line about it, and the cards. */
+@layer components {
+  .dev-index {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding-block: 2rem;
+  }
+
+  .dev-intro {
+    color: var(--muted-foreground);
+  }
+}

@@ -1,0 +1,43 @@
+/* /dev/emails (see page.tsx): a card for each email, its headers above its text. */
+@layer components {
+  .dev-emails {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding-block: 2rem;
+  }
+
+  .dev-emails-intro {
+    color: var(--muted-foreground);
+
+    & code {
+      overflow-wrap: anywhere;
+    }
+  }
+
+  .dev-emails-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .dev-email-headers {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.25rem 1rem;
+    font-size: 0.875rem;
+
+    & dt {
+      color: var(--muted-foreground);
+    }
+    & dd {
+      overflow-wrap: anywhere;
+    }
+  }
+
+  .dev-email-text {
+    margin-top: 1rem;
+    white-space: pre-wrap;
+    font: inherit;
+  }
+}

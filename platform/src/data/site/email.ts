@@ -1,31 +1,47 @@
-// Email, set up at /admin/integrations: whether it's set up, and sending a message, through an
-// SMTP server (with nodemailer, which talks to it over its own socket) or Resend's API.
-// https://nodemailer.com/smtp/ and https://resend.com/docs/api-reference/emails/send-email
-import { Context, Duration, Effect, Layer, Schema } from 'effect'
+// Email, set up at /admin/integrations: whether it's set up, and sending a message, with Amazon
+// SES's API or Resend's, over HTTPS. SES's requests are signed with AWS Signature Version 4.
+// https://docs.aws.amazon.com/ses/latest/APIReference-V2/API_SendEmail.html
+// https://resend.com/docs/api-reference/emails/send-email
+import { createHash, createHmac } from 'node:crypto'
+import { Context, DateTime, Duration, Effect, Layer, Schema } from 'effect'
 import { HttpClient, HttpClientRequest } from 'effect/http'
-import nodemailer from 'nodemailer'
 
+import { AppConfig } from '../../lib/config.ts'
 import { Secrets, SecretUnreadable } from '../../lib/secrets.ts'
+import { urls } from '../../lib/urls.ts'
 import { SiteConfigQueries } from './queries.ts'
 import {
   EMAIL_SECRET_PURPOSES,
+  type EmailProvider,
   type EmailSettings,
   isEmailAddress,
-  type SmtpProvider,
+  type SesProvider,
 } from './site.ts'
 
 const RESEND_URL = 'https://api.resend.com/emails'
 const TIMEOUT = Duration.seconds(30)
+const PROVIDER_NAMES = { ses: 'Amazon SES', resend: 'Resend' } as const satisfies Record<
+  EmailProvider,
+  string
+>
 
-// Email as /admin/integrations shows it. The password or API key's last characters say which one
-// is saved, without showing it.
+// Where SES's API takes an email, in a region.
+export const sesUrl = (region: string) =>
+  new URL(`https://email.${region}.amazonaws.com/v2/email/outbound-emails`)
+
+// AWS's example key, from its documentation, which AWS never accepts. Outside production, SES set
+// up with it sends to the site's own fake of SES, which shows what it's sent at /dev/emails (see
+// ../../routes/dev/emails/).
+export const EXAMPLE_AWS_KEY = {
+  accessKeyId: 'AKIAIOSFODNN7EXAMPLE',
+  secretAccessKey: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+}
+
+// Email as /admin/integrations shows it. The secret's last characters say which one is saved,
+// without showing it.
 export type EmailStatus =
   | { readonly _tag: 'NotSetUp' }
-  | {
-      readonly _tag: 'SetUp'
-      readonly settings: EmailSettings
-      readonly secretEnding: string | undefined
-    }
+  | { readonly _tag: 'SetUp'; readonly settings: EmailSettings; readonly secretEnding: string }
   | { readonly _tag: 'SecretUnreadable'; readonly settings: EmailSettings }
 
 export interface EmailMessage {
@@ -43,27 +59,89 @@ export class EmailAddressInvalid extends Schema.TaggedError<EmailAddressInvalid>
   {},
 ) {}
 
-// The server or Resend didn't take it, with why, in its words, for the admin setting it up.
+// SES or Resend didn't take it, with why, in its words, for the admin setting it up.
 export class EmailNotSent extends Schema.TaggedError<EmailNotSent>()('EmailNotSent', {
   message: Schema.String,
 }) {}
 
 export type EmailFailure = EmailNotSetUp | SecretUnreadable | EmailAddressInvalid | EmailNotSent
 
-// The parts of Resend's answer that are used: the email's id, or why it was refused.
-const ResendResponse = Schema.Struct({
-  id: Schema.optionalKey(Schema.String),
+// Why SES or Resend refused it: SES says `message` (or `Message`), with the kind of error in a
+// header, and Resend says `message`.
+const RefusalAnswer = Schema.Struct({
   message: Schema.optionalKey(Schema.String),
+  Message: Schema.optionalKey(Schema.String),
 })
-const decodeResendResponse = Schema.decodeUnknownEffect(ResendResponse)
+const decodeRefusal = Schema.decodeUnknownEffect(RefusalAnswer)
 
-const unreadable = (status: number) =>
-  Effect.fail(new EmailNotSent({ message: `Resend’s answer (HTTP ${status}) couldn’t be read.` }))
+// The site's name and address, as the From header has them: the name quoted, or for SES, which
+// takes only ASCII there, encoded (RFC 2047) when it isn't.
+function mailbox(name: string, address: string, provider: EmailProvider): string {
+  let plain = name.replace(/[\r\n]+/g, ' ').trim()
+  if (!plain) return address
+  if (provider === 'ses' && !/^[\x20-\x7e]*$/.test(plain)) {
+    return `=?UTF-8?B?${Buffer.from(plain).toString('base64')}?= <${address}>`
+  }
+  return `"${plain.replace(/[\\"]/g, '\\$&')}" <${address}>`
+}
 
-const notSent = (cause: unknown) =>
-  new EmailNotSent({
-    message: cause instanceof Error && cause.message ? cause.message : 'The email wasn’t sent.',
-  })
+// RFC 3986's encoding, as AWS signs with.
+const encode = (value: string) =>
+  encodeURIComponent(value).replace(
+    /[!'()*]/g,
+    (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
+  )
+const sha256 = (data: string) => createHash('sha256').update(data).digest('hex')
+const hmac = (key: string | Buffer, data: string) => createHmac('sha256', key).update(data).digest()
+
+// The headers that sign a request to AWS (Signature Version 4): `x-amz-date` and `authorization`,
+// with the ones given, all lowercase. The host is signed too, but left for fetch to send.
+// https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_sigv-create-signed-request.html
+export function signAwsRequest(request: {
+  method: string
+  url: URL
+  headers: Record<string, string>
+  body: string
+  region: string
+  service: string
+  accessKeyId: string
+  secretAccessKey: string
+  now: Date
+}): Record<string, string> {
+  let { method, url, body, region, service, accessKeyId, secretAccessKey, now } = request
+  let time = now.toISOString().replace(/[-:]|\.\d{3}/g, '')
+  let date = time.slice(0, 8)
+  let headers: Record<string, string> = { ...request.headers, 'x-amz-date': time }
+  let signed: Record<string, string> = { ...headers, host: url.host }
+  let names = Object.keys(signed).sort()
+  let query = [...url.searchParams]
+    .map(([key, value]) => `${encode(key)}=${encode(value)}`)
+    .sort()
+    .join('&')
+  let canonical = [
+    method,
+    url.pathname.split('/').map(encode).join('/'),
+    query,
+    names.map((name) => `${name}:${signed[name]?.trim()}\n`).join(''),
+    names.join(';'),
+    sha256(body),
+  ].join('\n')
+  let scope = `${date}/${region}/${service}/aws4_request`
+  let key = hmac(hmac(hmac(hmac(`AWS4${secretAccessKey}`, date), region), service), 'aws4_request')
+  let signature = createHmac('sha256', key)
+    .update(['AWS4-HMAC-SHA256', time, scope, sha256(canonical)].join('\n'))
+    .digest('hex')
+  return {
+    ...headers,
+    authorization: `AWS4-HMAC-SHA256 Credential=${accessKeyId}/${scope}, SignedHeaders=${names.join(';')}, Signature=${signature}`,
+  }
+}
+
+interface Fields {
+  readonly from: string
+  readonly replyTo: string
+  readonly message: EmailMessage
+}
 
 export class Email extends Context.Service<
   Email,
@@ -79,128 +157,131 @@ export class Email extends Context.Service<
       let queries = yield* SiteConfigQueries
       let secrets = yield* Secrets
       let client = yield* HttpClient.HttpClient
+      let { mode, hostname, port } = yield* AppConfig
+      // This server, for its fake of SES, at an address it listens on.
+      let host = ['::', '0.0.0.0'].includes(hostname)
+        ? '127.0.0.1'
+        : hostname.includes(':')
+          ? `[${hostname}]`
+          : hostname
+      let fakeSes = new URL(urls.dev.ses(), `http://${host}:${port}`)
 
       let secretOf = (provider: EmailSettings['provider']) =>
-        provider._tag === 'smtp'
-          ? provider.password && secrets.open(provider.password, EMAIL_SECRET_PURPOSES.smtp)
+        provider._tag === 'ses'
+          ? secrets.open(provider.secretAccessKey, EMAIL_SECRET_PURPOSES.ses)
           : secrets.open(provider.apiKey, EMAIL_SECRET_PURPOSES.resend)
 
       let status = Effect.gen(function* () {
         let settings = (yield* queries.saved).email
         if (!settings) return { _tag: 'NotSetUp' } as const
-        let secret = secretOf(settings.provider)
-        if (!secret) return { _tag: 'SetUp', settings, secretEnding: undefined } as const
-        return yield* secret.pipe(
+        return yield* secretOf(settings.provider).pipe(
           Effect.match({
-            onSuccess: (opened) =>
-              ({ _tag: 'SetUp', settings, secretEnding: opened.slice(-4) }) as const,
+            onSuccess: (secret) =>
+              ({ _tag: 'SetUp', settings, secretEnding: secret.slice(-4) }) as const,
             onFailure: () => ({ _tag: 'SecretUnreadable', settings }) as const,
           }),
         )
       }).pipe(Effect.withSpan('Email.status'))
 
-      // One connection for each email, closed once it's sent.
-      let sendSmtp = (
-        provider: typeof SmtpProvider.Type,
-        password: string | undefined,
-        from: { name: string; address: string },
-        replyTo: string,
-        message: EmailMessage,
-      ) =>
-        Effect.acquireUseRelease(
-          Effect.sync(() =>
-            nodemailer.createTransport({
-              host: provider.host,
-              port: provider.port,
-              secure: provider.security === 'tls',
-              requireTLS: provider.security === 'starttls',
-              ignoreTLS: provider.security === 'none',
-              ...(provider.username && password
-                ? { auth: { user: provider.username, pass: password } }
-                : {}),
-              connectionTimeout: 10_000,
-              greetingTimeout: 10_000,
-              socketTimeout: 20_000,
-            }),
-          ),
-          (transport) =>
-            Effect.tryPromise({
-              try: () =>
-                transport.sendMail({
-                  from,
-                  to: message.to,
-                  ...(replyTo ? { replyTo } : {}),
-                  subject: message.subject,
-                  text: message.text,
-                }),
-              catch: notSent,
-            }),
-          (transport) => Effect.sync(() => transport.close()),
-        )
-
-      let sendResend = (
-        apiKey: string,
-        from: { name: string; address: string },
-        replyTo: string,
-        message: EmailMessage,
-      ) =>
-        client
-          .execute(
-            HttpClientRequest.post(RESEND_URL).pipe(
-              HttpClientRequest.bearerToken(apiKey),
-              HttpClientRequest.bodyJsonUnsafe({
-                // A quoted name, escaped as JSON escapes it, which is how email does too.
-                from: from.name ? `${JSON.stringify(from.name)} <${from.address}>` : from.address,
-                to: [message.to],
-                ...(replyTo ? { reply_to: replyTo } : {}),
-                subject: message.subject,
-                text: message.text,
+      // Sends the request, succeeding if it's accepted, or failing with why not.
+      let deliver = (provider: EmailProvider, request: HttpClientRequest.HttpClientRequest) => {
+        let name = PROVIDER_NAMES[provider]
+        return client.execute(request).pipe(
+          Effect.catchTag('HttpClientError', () =>
+            Effect.fail(
+              new EmailNotSent({
+                message: `Couldn’t reach ${name}. Check the server’s connection to the internet.`,
               }),
             ),
-          )
-          .pipe(
-            Effect.catchTag('HttpClientError', () =>
-              Effect.fail(
-                new EmailNotSent({
-                  message: 'Couldn’t reach Resend. Check the server’s connection to the internet.',
-                }),
-              ),
-            ),
-            Effect.flatMap((response) =>
-              response.json.pipe(
-                Effect.flatMap(decodeResendResponse),
-                Effect.flatMap((answer) =>
-                  response.status >= 200 && response.status < 300
-                    ? Effect.void
-                    : Effect.fail(
-                        new EmailNotSent({
-                          message:
-                            answer.message ?? `Resend answered with HTTP ${response.status}.`,
-                        }),
-                      ),
+          ),
+          Effect.flatMap((response) => {
+            if (response.status >= 200 && response.status < 300) return Effect.void
+            // Like "MessageRejected:http://internal.amazon.com/coral/…".
+            let kind = response.headers['x-amzn-errortype']?.split(':')[0]
+            return response.json.pipe(
+              Effect.flatMap(decodeRefusal),
+              Effect.map((answer) => answer.message ?? answer.Message),
+              Effect.orElseSucceed(() => undefined),
+              Effect.flatMap((said) =>
+                Effect.fail(
+                  new EmailNotSent({
+                    message:
+                      [kind, said].filter(Boolean).join(': ') ||
+                      `${name} answered with HTTP ${response.status}.`,
+                  }),
                 ),
-                Effect.catchTags({
-                  HttpClientError: () => unreadable(response.status),
-                  SchemaError: () => unreadable(response.status),
-                }),
               ),
-            ),
-          )
+            )
+          }),
+        )
+      }
+
+      // Signed for SES, even when it goes to the fake, which checks it as SES would.
+      let sesRequest = (
+        provider: typeof SesProvider.Type,
+        secretAccessKey: string,
+        fields: Fields,
+        now: Date,
+      ) => {
+        let url = sesUrl(provider.region)
+        let body = JSON.stringify({
+          FromEmailAddress: fields.from,
+          Destination: { ToAddresses: [fields.message.to] },
+          ...(fields.replyTo ? { ReplyToAddresses: [fields.replyTo] } : {}),
+          Content: {
+            Simple: {
+              Subject: { Data: fields.message.subject, Charset: 'UTF-8' },
+              Body: { Text: { Data: fields.message.text, Charset: 'UTF-8' } },
+            },
+          },
+        })
+        let headers = signAwsRequest({
+          method: 'POST',
+          url,
+          headers: { 'content-type': 'application/json' },
+          body,
+          region: provider.region,
+          service: 'ses',
+          accessKeyId: provider.accessKeyId,
+          secretAccessKey,
+          now,
+        })
+        let fake = mode !== 'production' && provider.accessKeyId === EXAMPLE_AWS_KEY.accessKeyId
+        return HttpClientRequest.post(fake ? fakeSes : url).pipe(
+          HttpClientRequest.bodyText(body, 'application/json'),
+          HttpClientRequest.setHeaders(headers),
+        )
+      }
+
+      let resendRequest = (apiKey: string, fields: Fields) =>
+        HttpClientRequest.post(RESEND_URL).pipe(
+          HttpClientRequest.bearerToken(apiKey),
+          HttpClientRequest.bodyJsonUnsafe({
+            from: fields.from,
+            to: [fields.message.to],
+            ...(fields.replyTo ? { reply_to: fields.replyTo } : {}),
+            subject: fields.message.subject,
+            text: fields.message.text,
+          }),
+        )
 
       let send = Effect.fn('Email.send')(function* (message: EmailMessage) {
         let saved = yield* queries.saved
         let settings = saved.email
         if (!settings) return yield* new EmailNotSetUp()
         if (!isEmailAddress(message.to)) return yield* new EmailAddressInvalid()
-        let secret = secretOf(settings.provider)
-        let opened = secret ? yield* secret : undefined
-        let from = { name: saved.siteTitle ?? '', address: settings.from }
         let { provider, replyTo } = settings
-        yield* (
-          provider._tag === 'smtp'
-            ? sendSmtp(provider, opened, from, replyTo, message)
-            : sendResend(opened ?? '', from, replyTo, message)
-        ).pipe(
+        let secret = yield* secretOf(provider)
+        let fields = {
+          from: mailbox(saved.siteTitle ?? '', settings.from, provider._tag),
+          replyTo,
+          message,
+        }
+        let request =
+          provider._tag === 'ses'
+            ? sesRequest(provider, secret, fields, DateTime.toDateUtc(yield* DateTime.now))
+            : resendRequest(secret, fields)
+        yield* deliver(provider._tag, request).pipe(
           Effect.timeoutOrElse({
             duration: TIMEOUT,
             orElse: () =>

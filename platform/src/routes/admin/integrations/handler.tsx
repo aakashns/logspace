@@ -142,22 +142,20 @@ const saveEmail = loggedIn((session) =>
       provider: formText(form, 'provider'),
       from: formText(form, 'from'),
       replyTo: formText(form, 'replyTo'),
-      smtpHost: formText(form, 'smtpHost'),
-      smtpPort: formText(form, 'smtpPort'),
-      smtpSecurity: formText(form, 'smtpSecurity'),
-      smtpUsername: formText(form, 'smtpUsername'),
-      smtpPassword: formText(form, 'smtpPassword'),
+      sesRegion: formText(form, 'sesRegion'),
+      sesAccessKeyId: formText(form, 'sesAccessKeyId'),
+      sesSecretAccessKey: formText(form, 'sesSecretAccessKey'),
       resendApiKey: formText(form, 'resendApiKey'),
     }
     return yield* (yield* SiteConfigCommands).saveEmail(typed).pipe(
       Effect.flatMap(() => doneRedirect(session, 'emailSaved')),
-      // The password and API key typed aren't shown again.
+      // The secret typed isn't shown again.
       Effect.catchTag('EmailSettingsRejected', (rejected) =>
         integrationsPage(
           {
             email: {
               rejected: {
-                form: { ...typed, smtpPassword: '', resendApiKey: '' },
+                form: { ...typed, sesSecretAccessKey: '', resendApiKey: '' },
                 issues: rejected.issues,
               },
             },

@@ -76,12 +76,12 @@
   }
 
   /* Only the chosen provider's fields, without JavaScript. (Browsers without :has() show both.) */
-  .email-smtp,
+  .email-ses,
   .email-resend {
     display: contents;
   }
-  .email-form:has(option[value='resend']:checked) .email-smtp,
-  .email-form:has(option[value='smtp']:checked) .email-resend {
+  .email-form:has(option[value='resend']:checked) .email-ses,
+  .email-form:has(option[value='ses']:checked) .email-resend {
     display: none;
   }
 }
