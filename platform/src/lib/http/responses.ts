@@ -21,6 +21,14 @@ export const notFound = () => textResponse('Not Found', 404)
 export const redirect = (location: string, status: 302 | 303 = 302) =>
   HttpServerResponse.redirect(location, { status })
 
+// Keeps a page that's for one person, like the admin's or a sign-up's, out of caches and search
+// results.
+export const privately = (response: HttpServerResponse.HttpServerResponse) =>
+  HttpServerResponse.setHeaders(response, {
+    'Cache-Control': 'no-store',
+    'X-Robots-Tag': 'noindex',
+  })
+
 // A stored file, as GET and HEAD get it: in full, or the byte range a video player asks for, or
 // a 304 when the browser's copy is current. With the fs backend the body is the file on disk,
 // which Bun sends without reading it into memory.

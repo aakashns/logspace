@@ -6,10 +6,10 @@ import { SiteConfigQueries } from '../../../data/site/queries.ts'
 import { isSiteConfigured } from '../../../data/site/site.ts'
 import { redirect } from '../../../lib/http/responses.ts'
 import { urls } from '../../../lib/urls.ts'
-import { adminPage, loggedIn } from '../admin.tsx'
+import { adminOnly, adminPage } from '../admin.tsx'
 import { ADMIN_INDEX_STYLES, AdminIndexPage } from './page.tsx'
 
-const index = loggedIn(() =>
+const index = adminOnly(() =>
   Effect.gen(function* () {
     // The site's required settings come first.
     if (!isSiteConfigured(yield* (yield* SiteConfigQueries).saved)) {

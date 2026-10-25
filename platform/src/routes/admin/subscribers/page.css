@@ -1,0 +1,12 @@
+/*
+ * /admin/subscribers (see page.tsx).
+ */
+@layer components {
+  .subscriptions-form {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+    max-width: 32rem;
+  }
+}

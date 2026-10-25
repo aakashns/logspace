@@ -138,3 +138,28 @@ test('a disabled link can’t be followed by a click or the keyboard', async ({ 
   await expect(page).toHaveURL(/\/dev\/design$/)
   await expect(item).not.toBeFocused()
 })
+
+test('an input OTP shows what’s typed or pasted, a character a box, marking the next one', async ({
+  page,
+}) => {
+  let input = page.locator('#light-code')
+  let slots = page
+    .locator('[data-scheme="light"] [data-slot="input-otp"]')
+    .first()
+    .locator('[data-slot="input-otp-slot"]')
+  await input.focus()
+  await expect(slots.nth(0)).toHaveClass(/active/)
+  await page.keyboard.type('12')
+  await expect(slots).toHaveText(['1', '2', '', '', '', ''])
+  await expect(slots.nth(2)).toHaveClass(/active/)
+  await expect(slots.nth(0)).not.toHaveClass(/active/)
+  await page.keyboard.press('Backspace')
+  await expect(slots).toHaveText(['1', '', '', '', '', ''])
+  await input.fill('987654')
+  await expect(slots).toHaveText(['9', '8', '7', '6', '5', '4'])
+  await expect(slots.nth(5)).toHaveClass(/active/)
+  // It takes no more than its length.
+  await input.press('End')
+  await page.keyboard.type('3')
+  await expect(input).toHaveValue('987654')
+})

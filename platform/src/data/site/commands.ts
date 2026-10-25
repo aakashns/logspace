@@ -6,6 +6,7 @@ import { SqlClient } from 'effect/sql'
 import { ICON_FILES, Images, type ProcessedSiteImage } from '../../lib/images.ts'
 import { MediaStorage, mediaKeys } from '../../lib/media-storage.ts'
 import { Secrets } from '../../lib/secrets.ts'
+import { Email } from './email.ts'
 import { SiteConfigQueries } from './queries.ts'
 import {
   checkEmailForm,
@@ -28,6 +29,8 @@ import {
   type SiteText,
   type TurnstileKeys,
 } from './site.ts'
+import { SUBSCRIPTIONS_BLOCKERS, subscriptionsStatus } from './subscriptions.ts'
+import { Turnstile } from './turnstile.ts'
 
 // The site's settings weren't saved, for these reasons (shown above the config form). It's
 // expected: the page that sent the command shows why.
@@ -78,6 +81,14 @@ export class EmailSettingsRejected extends Schema.TaggedError<EmailSettingsRejec
   },
 ) {}
 
+// Subscriptions weren't switched on: these are missing (see subscriptions.ts).
+export class SubscriptionsNotReady extends Schema.TaggedError<SubscriptionsNotReady>()(
+  'SubscriptionsNotReady',
+  {
+    missing: Schema.Array(Schema.Literals(SUBSCRIPTIONS_BLOCKERS)),
+  },
+) {}
+
 // The settings /admin/branding saves.
 const BRANDING_SETTINGS = [...TEXT_SETTINGS, ...SITE_IMAGE_KINDS] as const
 
@@ -100,6 +111,8 @@ export class SiteConfigCommands extends Context.Service<
     // Saves how the site sends email, sealing its secret access key or API key. One left empty
     // keeps the saved one.
     readonly saveEmail: (form: EmailForm) => Effect.Effect<void, EmailSettingsRejected>
+    // Switches subscribing on or off. It's switched on only while nothing it needs is missing.
+    readonly saveSubscriptions: (enabled: boolean) => Effect.Effect<void, SubscriptionsNotReady>
     // Disconnects an integration, forgetting its settings. Removing one that isn't set up does
     // nothing.
     readonly removeIntegration: (integration: Integration) => Effect.Effect<void>
@@ -116,6 +129,10 @@ export class SiteConfigCommands extends Context.Service<
       let images = yield* Images
       let queries = yield* SiteConfigQueries
       let secrets = yield* Secrets
+      let services = Context.make(SiteConfigQueries, queries).pipe(
+        Context.add(Email, yield* Email),
+        Context.add(Turnstile, yield* Turnstile),
+      )
       let mutations = yield* Semaphore.make(1)
 
       // Replaces these settings with the config's, removing those it leaves out.
@@ -136,7 +153,7 @@ export class SiteConfigCommands extends Context.Service<
       }
 
       let save = Effect.fn('SiteConfigCommands.save')(function* (config: SiteConfig) {
-        yield* write([...BRANDING_SETTINGS, ...INTEGRATIONS], config)
+        yield* write([...BRANDING_SETTINGS, ...INTEGRATIONS, 'subscriptions'], config)
       })
 
       let saveTurnstile = Effect.fn('SiteConfigCommands.saveTurnstile')(function* (
@@ -196,6 +213,18 @@ export class SiteConfigCommands extends Context.Service<
               : { ...provider, apiKey: kept },
         }
         yield* write(['email'], { email })
+      })
+
+      let saveSubscriptions = Effect.fn('SiteConfigCommands.saveSubscriptions')(function* (
+        enabled: boolean,
+      ) {
+        if (enabled) {
+          let status = yield* Effect.provideContext(subscriptionsStatus, services)
+          if (status._tag === 'Off' && status.missing.length > 0) {
+            return yield* new SubscriptionsNotReady({ missing: status.missing })
+          }
+        }
+        yield* write(['subscriptions'], { subscriptions: { enabled } })
       })
 
       let removeIntegration = Effect.fn('SiteConfigCommands.removeIntegration')(function* (
@@ -285,6 +314,8 @@ export class SiteConfigCommands extends Context.Service<
         saveTurnstile: (keys, enabled) =>
           mutations.withPermit(Effect.uninterruptible(saveTurnstile(keys, enabled))),
         saveEmail: (form) => mutations.withPermit(Effect.uninterruptible(saveEmail(form))),
+        saveSubscriptions: (enabled) =>
+          mutations.withPermit(Effect.uninterruptible(saveSubscriptions(enabled))),
         removeIntegration: (integration) =>
           mutations.withPermit(Effect.uninterruptible(removeIntegration(integration))),
         save: (...args) => mutations.withPermit(Effect.uninterruptible(save(...args))),

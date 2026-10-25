@@ -1,6 +1,7 @@
 // `logspace turnstile on|off`: whether logging in to /admin requires Cloudflare Turnstile, the
 // Enabled checkbox in /admin/integrations. Off is the way back in when Turnstile locks the admin
-// out. The server reads it at every login, so it needn't restart.
+// out, and pauses subscribing, which always requires it. The server reads it on every request,
+// so it needn't restart.
 import { Console, Effect } from 'effect'
 import { SqlClient } from 'effect/sql'
 
@@ -27,6 +28,6 @@ export const turnstile = Effect.fn('turnstile')(function* (state: 'on' | 'off') 
   yield* Console.log(
     state === 'on'
       ? 'Turnstile is on: logging in to /admin requires passing it.'
-      : 'Turnstile is off: logging in to /admin needs only the password.',
+      : 'Turnstile is off: logging in to /admin needs only the password. Subscribing, if it’s on, is paused.',
   )
 }, reportFailures)

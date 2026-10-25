@@ -1,7 +1,7 @@
 // Reading a submitted form, within the limits on uploads (below). Bun parses it
 // natively; the limits are checked against Content-Length before a byte of the body is read, and
-// against the parsed files for a body sent without one. The login form, which anyone can send,
-// gets a much smaller limit (see LOGIN_FORM_LIMIT).
+// against the parsed files for a body sent without one. Forms anyone can send, like the admin
+// login, get a much smaller limit (see SMALL_FORM_LIMIT).
 import { Effect, Schema, Stream } from 'effect'
 import { HttpServerRequest } from 'effect/http'
 
@@ -63,9 +63,9 @@ const readAtMost = Effect.fnUntraced(function* (body: ReadableStream<Uint8Array>
   return size > limit ? undefined : Buffer.concat(chunks)
 })
 
-// The most a login form can be: a password and Turnstile's token (at most 2 KB), with room to
-// spare.
-export const LOGIN_FORM_LIMIT = 16 * 1024
+// The most a form of a few short fields can be, like the admin login (a password and Turnstile’s
+// token, at most 2 KB), with room to spare.
+export const SMALL_FORM_LIMIT = 16 * 1024
 
 // A form's text field, trimmed (a pasted key often has spaces or a line break around it), or ''
 // for a missing one or a file.

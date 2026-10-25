@@ -19,6 +19,7 @@ import protectContentAccess from '../../db/migrations/0007_protect_content_acces
 import dropDrafts from '../../db/migrations/0008_drop_drafts.sql' with { type: 'text' }
 import datesInUtc from '../../db/migrations/0009_dates_in_utc.sql' with { type: 'text' }
 import dropArticles from '../../db/migrations/0010_drop_articles.sql' with { type: 'text' }
+import createUsers from '../../db/migrations/0011_create_users.sql' with { type: 'text' }
 import { AppConfig } from './config.ts'
 
 const MIGRATIONS = [
@@ -32,6 +33,7 @@ const MIGRATIONS = [
   { id: '0008', name: 'drop_drafts', sql: dropDrafts },
   { id: '0009', name: 'dates_in_utc', sql: datesInUtc },
   { id: '0010', name: 'drop_articles', sql: dropArticles },
+  { id: '0011', name: 'create_users', sql: createUsers },
 ]
 
 const JOURNAL = 'data_table_migrations'

@@ -37,6 +37,9 @@
     & h1 + p {
       margin-top: 0.5rem;
     }
+    & [data-slot='button'] {
+      margin-top: 1.25rem;
+    }
     & p {
       line-height: 1.7;
     }

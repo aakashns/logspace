@@ -28,6 +28,8 @@ describe('/dev/design', () => {
       'button',
       'badge',
       'input',
+      'input-otp',
+      'input-otp-slot',
       'textarea',
       'native-select',
       'field',

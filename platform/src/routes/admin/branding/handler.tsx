@@ -14,9 +14,9 @@ import {
 import { readForm } from '../../../lib/http/forms.ts'
 import { requestUrl } from '../../../lib/http/pages.ts'
 import { redirect } from '../../../lib/http/responses.ts'
-import { AdminAuth } from '../../../lib/http/session.ts'
+import { AdminAuth } from '../../../lib/http/admin-session.ts'
 import { urls } from '../../../lib/urls.ts'
-import { adminPage, loggedIn } from '../admin.tsx'
+import { adminOnly, adminPage } from '../admin.tsx'
 import { BRANDING_PAGE_STYLES, BrandingPage } from './page.tsx'
 
 const brandingPage = (props: {
@@ -33,7 +33,7 @@ const brandingPage = (props: {
     )
   })
 
-const showBranding = loggedIn((session) =>
+const showBranding = adminOnly((session) =>
   Effect.gen(function* () {
     let auth = yield* AdminAuth
     let saved = yield* (yield* SiteConfigQueries).saved
@@ -54,7 +54,7 @@ const showBranding = loggedIn((session) =>
   }),
 )
 
-const saveBranding = loggedIn((session) =>
+const saveBranding = adminOnly((session) =>
   Effect.gen(function* () {
     let form = yield* readForm()
     let values = readConfigForm(form)

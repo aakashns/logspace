@@ -8,7 +8,7 @@ import { THEME_COOKIE_NAME } from '../../components/controls.tsx'
 import type { PageContext } from '../../components/document.tsx'
 import { SiteConfigQueries } from '../../data/site/queries.ts'
 import { Assets } from './assets.ts'
-import { ADMIN_HINT_COOKIE } from './session.ts'
+import { ADMIN_HINT_COOKIE } from './admin-session.ts'
 
 // The request's URL, as the browser sent it (with TRUST_PROXY, its protocol and host are the
 // ones the proxy forwarded, see middleware.ts).

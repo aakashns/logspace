@@ -22,7 +22,7 @@ const MAX_AGE = 60 * 60 * 24 * 30
 const MIN_SECRET_LENGTH = 16
 const MAX_SESSIONS = 100
 
-export const Session = Schema.Struct({
+export const AdminSession = Schema.Struct({
   // A new id on login guards against session fixation.
   id: Schema.String,
   // The password's fingerprint, once logged in.
@@ -30,30 +30,37 @@ export const Session = Schema.Struct({
   // A note for the next page, like "the settings were saved", which reading clears.
   flash: Schema.optionalKey(Schema.String),
 })
-export type Session = typeof Session.Type
+export type AdminSession = typeof AdminSession.Type
 
 // The cookie's payload, base64url JSON.
-const decodePayload = Schema.decodeUnknownOption(Schema.fromJsonString(Session))
+const decodePayload = Schema.decodeUnknownOption(Schema.fromJsonString(AdminSession))
 
 // Someone who isn't logged in as admin asked for an admin page.
-export class NotLoggedIn extends Schema.TaggedError<NotLoggedIn>()('NotLoggedIn', {}) {}
+export class NotLoggedInAsAdmin extends Schema.TaggedError<NotLoggedInAsAdmin>()(
+  'NotLoggedInAsAdmin',
+  {},
+) {}
 
 export class AdminAuth extends Context.Service<
   AdminAuth,
   {
     readonly enabled: boolean
     // The request's session, or a new empty one.
-    readonly session: Effect.Effect<Session, never, HttpServerRequest.HttpServerRequest>
+    readonly session: Effect.Effect<AdminSession, never, HttpServerRequest.HttpServerRequest>
     // The request's session if it's logged in as admin.
-    readonly requireLogin: Effect.Effect<Session, NotLoggedIn, HttpServerRequest.HttpServerRequest>
+    readonly requireLogin: Effect.Effect<
+      AdminSession,
+      NotLoggedInAsAdmin,
+      HttpServerRequest.HttpServerRequest
+    >
     // A new logged-in session.
-    readonly logIn: (input: unknown) => Effect.Effect<Session | undefined>
+    readonly logIn: (input: unknown) => Effect.Effect<AdminSession | undefined>
     readonly logOut: Effect.Effect<void, never, HttpServerRequest.HttpServerRequest>
     // Sets the session's cookie on a response, or with undefined, clears it. The hint cookie is
     // set while it's logged in, and cleared with it.
     readonly saveSession: (
       response: HttpServerResponse.HttpServerResponse,
-      session: Session | undefined,
+      session: AdminSession | undefined,
     ) => HttpServerResponse.HttpServerResponse
   }
 >()('logspace/AdminAuth') {
@@ -69,7 +76,7 @@ export class AdminAuth extends Context.Service<
       let fingerprint = createHmac('sha256', secret).update(password).digest('base64url')
       let sign = (payload: string) => createHmac('sha256', secret).update(payload).digest()
 
-      let read = (cookie: string | undefined): Session | undefined => {
+      let read = (cookie: string | undefined): AdminSession | undefined => {
         if (!enabled || !cookie) return undefined
         let [payload, signature, extra] = cookie.split('.')
         if (!payload || !signature || extra !== undefined) return undefined
@@ -90,7 +97,7 @@ export class AdminAuth extends Context.Service<
             and auth = ${fingerprint} and expires_at > ${now}`.pipe(Effect.orDie)
           if (rows.length > 0) return decoded
         }
-        return Session.make({ id: crypto.randomUUID() })
+        return AdminSession.make({ id: crypto.randomUUID() })
       })
 
       let logIn = Effect.fn('AdminAuth.logIn')(function* (input: unknown) {
@@ -117,7 +124,7 @@ export class AdminAuth extends Context.Service<
         requireLogin: Effect.flatMap(session, (session) =>
           enabled && session.auth === fingerprint
             ? Effect.succeed(session)
-            : Effect.fail(new NotLoggedIn()),
+            : Effect.fail(new NotLoggedInAsAdmin()),
         ),
         logIn,
         logOut: Effect.flatMap(session, (current) =>

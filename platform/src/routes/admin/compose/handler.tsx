@@ -26,7 +26,7 @@ import {
 import { param, requestUrl } from '../../../lib/http/pages.ts'
 import { fileResponse, notFound, redirect } from '../../../lib/http/responses.ts'
 import { urls } from '../../../lib/urls.ts'
-import { adminPage, loggedIn, message } from '../admin.tsx'
+import { adminOnly, adminPage, message } from '../admin.tsx'
 import { composePost, composeValues, readComposeForm, type ComposeValues } from './form.ts'
 import {
   COMPOSE_PAGE_STYLES,
@@ -104,9 +104,11 @@ const composePage = (
     }),
   )
 
-const compose = loggedIn(() => composePage({ id: newPostId(), caption: '', photos: [] }, undefined))
+const compose = adminOnly(() =>
+  composePage({ id: newPostId(), caption: '', photos: [] }, undefined),
+)
 
-const editPost = loggedIn(() =>
+const editPost = adminOnly(() =>
   Effect.gen(function* () {
     let published = yield* (yield* PostQueries).findRecord(yield* param('id'))
     if (!published) return yield* postNotFound
@@ -117,7 +119,7 @@ const editPost = loggedIn(() =>
 // Files chosen are saved right away, and the media and preview are shown with them. The toolbar
 // is sent again too, so its file inputs start empty. A file taken out is only left out of the
 // form: saving the post removes it, and so does closing the composer (discardComposer).
-const updateComposerMedia = loggedIn(() =>
+const updateComposerMedia = adminOnly(() =>
   Effect.gen(function* () {
     let { values, uploads, issues, published } = yield* readComposer
     let rejected = yield* (yield* PostCommands).upload(values.id, uploads).pipe(
@@ -158,7 +160,7 @@ const COMPOSER_TOO_LARGE =
   `${megabytes(MAX_UPLOAD_TOTAL_SIZE)} at once. Choose fewer or smaller files.`
 
 // The preview, for what's typed. The composer doesn't ask for one while files are uploading.
-const previewComposer = loggedIn(() =>
+const previewComposer = adminOnly(() =>
   Effect.gen(function* () {
     let { values, published } = yield* readComposer
     return patch([
@@ -172,7 +174,7 @@ const previewComposer = loggedIn(() =>
 // Then the browser goes to the post, or it's shown what's wrong. A post with nothing in it isn't
 // saved, unless files chosen with it were refused, which the composer says instead. A new post's
 // form posted twice saves the same post again.
-const saveComposer = loggedIn(() =>
+const saveComposer = adminOnly(() =>
   Effect.gen(function* () {
     let { values, uploads, issues, published } = yield* readComposer
     let post = yield* composed(values, published)
@@ -191,7 +193,7 @@ const saveComposer = loggedIn(() =>
 
 // The composer's ×: what it uploaded goes, and the browser goes back to the list of posts. A tab
 // closed instead leaves its uploads in storage, unserved.
-const discardComposer = loggedIn(() =>
+const discardComposer = adminOnly(() =>
   Effect.gen(function* () {
     let id = (yield* readForm()).get('post_id')
     yield* (yield* PostCommands).discard(typeof id === 'string' ? id.trim() : '')
@@ -199,7 +201,7 @@ const discardComposer = loggedIn(() =>
   }),
 )
 
-const deletePost = loggedIn(() =>
+const deletePost = adminOnly(() =>
   Effect.gen(function* () {
     return yield* (yield* PostCommands).delete(yield* param('id')).pipe(
       Effect.as(redirect(urls.admin.posts(), 303)),
@@ -209,7 +211,7 @@ const deletePost = loggedIn(() =>
 )
 
 // A post's file for the composer, whether it's published or not.
-const postFile = loggedIn(() =>
+const postFile = adminOnly(() =>
   Effect.gen(function* () {
     let id = yield* param('id')
     let name = yield* param('file')

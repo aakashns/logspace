@@ -8,6 +8,7 @@ import { getPriorityImage } from '../../data/posts/presentation.ts'
 import { PostQueries } from '../../data/posts/queries.ts'
 import { configuredSite } from '../../data/site/queries.ts'
 import { getBannerSrcset, getSiteImageHref } from '../../data/site/site-images.ts'
+import { subscriptionsStatus } from '../../data/site/subscriptions.ts'
 import { pageContext, pageResponse } from '../../lib/http/pages.ts'
 import { urls } from '../../lib/urls.ts'
 import { BANNER_IMAGE_SIZES, HOME_PAGE_STYLES, HomePage } from './page.tsx'
@@ -17,6 +18,7 @@ const home = Effect.gen(function* () {
   let site = yield* configuredSite
   let posts = yield* (yield* PostQueries).all
   let previews = yield* LinkPreviews
+  let subscriptions = yield* subscriptionsStatus
   let { bannerImage } = site
   let bannerSrcset = bannerImage && getBannerSrcset(bannerImage)
   let items = yield* Effect.forEach(posts, (post) =>
@@ -39,7 +41,7 @@ const home = Effect.gen(function* () {
           : posts[0] && getPriorityImage(posts[0])
       }
     >
-      <HomePage site={site} items={items} />
+      <HomePage site={site} items={items} subscribe={subscriptions._tag === 'Open'} />
     </Document>,
   )
 })

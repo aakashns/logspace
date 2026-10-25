@@ -2,7 +2,7 @@
  * The login form (see page.tsx).
  */
 @layer components {
-  .login-form {
+  .admin-login-form {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
