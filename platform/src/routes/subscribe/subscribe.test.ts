@@ -437,4 +437,28 @@ describe('how often codes are sent', () => {
     later(30_000)
     expect((await ask()).status).toBe(429)
   })
+
+  for (let first of ['older', 'newer'] as const) {
+    it(`counts neither of two overlapping codes that aren’t sent, the ${first} failing first`, async () => {
+      let releases: (() => void)[] = []
+      resend = () => new Promise((resolve) => releases.push(resolve))
+      let requests = [ask()]
+      while (emails.length < 1) await new Promise((resolve) => setImmediate(resolve))
+      later(30_000)
+      requests.push(ask())
+      while (emails.length < 2) await new Promise((resolve) => setImmediate(resolve))
+      resendFails = true
+      for (let index of first === 'older' ? [0, 1] : [1, 0]) {
+        defined(releases[index], 'a held email')()
+        expect((await defined(requests[index], 'a request')).status).toBe(502)
+      }
+      resendFails = false
+      resend = () => Promise.resolve()
+      // All 5 of the hour's codes are left, and none was just sent.
+      expect((await ask()).status).toBe(303)
+      for (let sent = 2; sent <= 5; sent++) await askForCode()
+      later(30_000)
+      expect((await ask()).status).toBe(429)
+    })
+  }
 })
