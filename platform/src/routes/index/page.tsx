@@ -2,8 +2,10 @@ import type { Html } from '#jsx/jsx-runtime'
 import { POST_STYLES } from '../../components/post.tsx'
 import { stylesheet } from '../../components/stylesheet.ts'
 
+import { Button } from '../../components/ui/button.tsx'
 import { getBannerSrcset, getSiteImageHref } from '../../data/site/site-images.ts'
 import type { SiteConfig } from '../../data/site/site.ts'
+import { urls } from '../../lib/urls.ts'
 import { Feed, type FeedItem } from './feed.tsx'
 import css from './page.css' with { type: 'text' }
 
@@ -13,9 +15,13 @@ export const HOME_PAGE_STYLES = POST_STYLES + stylesheet(css)
 // wider screens (see .banner in page.css).
 export const BANNER_IMAGE_SIZES = '(min-width: 38rem) 38rem, 100vw'
 
-// The banner and introduction set at /admin/branding, then the feed. Any of the banner and the
-// introduction's two parts can be left out.
-export function HomePage(props: { site: SiteConfig; items: readonly FeedItem[] }): Html {
+// The banner and introduction set at /admin/branding, with a Subscribe button while subscribing
+// is open, then the feed. Any of the banner and the introduction's parts can be left out.
+export function HomePage(props: {
+  site: SiteConfig
+  items: readonly FeedItem[]
+  subscribe: boolean
+}): Html {
   let { bannerImage, bannerImageAlt, heroHeading, heroSubheading, siteUrl } = props.site
   let srcset = bannerImage && getBannerSrcset(bannerImage)
   return (
@@ -32,10 +38,11 @@ export function HomePage(props: { site: SiteConfig; items: readonly FeedItem[] }
           class="banner"
         />
       ) : null}
-      {heroHeading || heroSubheading ? (
+      {heroHeading || heroSubheading || props.subscribe ? (
         <section class="intro">
           {heroHeading ? <h1>{heroHeading}</h1> : null}
           {heroSubheading ? <p>{heroSubheading}</p> : null}
+          {props.subscribe ? <Button href={urls.subscribe()}>Subscribe</Button> : null}
         </section>
       ) : null}
       <Feed items={props.items} siteUrl={siteUrl} />

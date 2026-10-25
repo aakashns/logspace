@@ -86,6 +86,12 @@ export const EMAIL_SECRET_PURPOSES = {
   resend: 'email.resendApiKey',
 } as const satisfies Record<EmailProvider, string>
 
+// Whether people can subscribe, the switch at /admin/subscribers. It can be turned on only while
+// email is set up and Turnstile enabled, and subscribing is paused while either isn't (see
+// subscriptions.ts).
+export const SubscriptionSettings = Schema.Struct({ enabled: Schema.Boolean })
+export type SubscriptionSettings = typeof SubscriptionSettings.Type
+
 // The services the site connects to, set at /admin/integrations, each saved as one setting. One
 // that's never been saved isn't set up.
 export const INTEGRATIONS = ['turnstile', 'email'] as const
@@ -95,7 +101,9 @@ export interface SiteIntegrations {
   readonly email?: EmailSettings
 }
 
-export type SiteConfig = SiteText & SiteImages & SiteIntegrations
+export type SiteConfig = SiteText &
+  SiteImages &
+  SiteIntegrations & { readonly subscriptions?: SubscriptionSettings }
 
 export const REQUIRED_SETTINGS = ['siteTitle', 'siteUrl', 'siteDescription'] as const
 export type RequiredSetting = (typeof REQUIRED_SETTINGS)[number]
@@ -359,6 +367,8 @@ export function fromConfigRows(rows: ReadonlyMap<string, string>): SavedSiteConf
   if (turnstile) config.turnstile = turnstile
   let email = Option.getOrUndefined(decodeEmail(rows.get('email') ?? ''))
   if (email) config.email = email
+  let subscriptions = Option.getOrUndefined(decodeSubscriptions(rows.get('subscriptions') ?? ''))
+  if (subscriptions) config.subscriptions = subscriptions
   return config
 }
 
@@ -366,3 +376,4 @@ export function fromConfigRows(rows: ReadonlyMap<string, string>): SavedSiteConf
 const decodeSiteImage = Schema.decodeUnknownOption(Schema.fromJsonString(SiteImage))
 const decodeTurnstile = Schema.decodeUnknownOption(Schema.fromJsonString(TurnstileSettings))
 const decodeEmail = Schema.decodeUnknownOption(Schema.fromJsonString(EmailSettings))
+const decodeSubscriptions = Schema.decodeUnknownOption(Schema.fromJsonString(SubscriptionSettings))

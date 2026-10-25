@@ -46,6 +46,7 @@ import {
   FIELD_STYLES,
   Label,
 } from '../../../components/ui/field.tsx'
+import { INPUT_OTP_STYLES, InputOTP } from '../../../components/ui/input-otp.tsx'
 import { Input, INPUT_STYLES } from '../../../components/ui/input.tsx'
 import { Kbd, KbdGroup, KBD_STYLES } from '../../../components/ui/kbd.tsx'
 import { NativeSelect, NATIVE_SELECT_STYLES } from '../../../components/ui/native-select.tsx'
@@ -58,6 +59,7 @@ import css from './page.css' with { type: 'text' }
 export const DESIGN_PAGE_STYLES =
   BADGE_STYLES +
   INPUT_STYLES +
+  INPUT_OTP_STYLES +
   TEXTAREA_STYLES +
   NATIVE_SELECT_STYLES +
   FIELD_STYLES +
@@ -108,6 +110,7 @@ function Showcase(props: { scheme: Scheme }): Html {
       <Badges />
       <Inputs scheme={s} />
       <Choices scheme={s} />
+      <Codes scheme={s} />
       <Cards scheme={s} />
       <Menus scheme={s} />
       <Dialogs scheme={s} />
@@ -313,6 +316,31 @@ function Choices(props: { scheme: Scheme }): Html {
         <div class="design-row">
           <Label>A Label on its own</Label>
         </div>
+      </FieldGroup>
+    </Section>
+  )
+}
+
+function Codes(props: { scheme: Scheme }): Html {
+  let id = (name: string) => `${props.scheme}-${name}`
+  return (
+    <Section title="Input OTP">
+      <FieldGroup>
+        <Field>
+          <FieldLabel for={id('code')}>Verification code</FieldLabel>
+          <InputOTP id={id('code')} signal={`_${props.scheme}Code`} length={6} />
+          <FieldDescription>Six digits, emailed to you.</FieldDescription>
+        </Field>
+        <Field invalid>
+          <FieldLabel for={id('wrong-code')}>Invalid</FieldLabel>
+          <InputOTP
+            id={id('wrong-code')}
+            signal={`_${props.scheme}WrongCode`}
+            length={6}
+            aria-invalid="true"
+          />
+          <FieldError>That code isn’t right.</FieldError>
+        </Field>
       </FieldGroup>
     </Section>
   )

@@ -14,6 +14,7 @@ import { SiteConfigCommands } from './data/site/commands.ts'
 import { Email } from './data/site/email.ts'
 import { SiteConfigQueries } from './data/site/queries.ts'
 import { Turnstile } from './data/site/turnstile.ts'
+import { UserCommands } from './data/users/commands.ts'
 import { AppConfig } from './lib/config.ts'
 import { DatabaseLive, runMigrations } from './lib/database.ts'
 import { Assets } from './lib/http/assets.ts'
@@ -39,6 +40,7 @@ import { IndexRoutes } from './routes/index/handler.tsx'
 import { LinkImageRoutes } from './routes/link-images/handler.ts'
 import { PostRoutes } from './routes/post/handler.tsx'
 import { SiteFileRoutes } from './routes/site-files/handler.ts'
+import { SubscribeRoutes } from './routes/subscribe/handler.tsx'
 
 // No consumer gets the connection until its schema is ready. The migrate CLI uses DatabaseLive
 // directly so a dry run doesn't apply migrations.
@@ -74,6 +76,13 @@ const IntegrationHttp = FetchHttpClient.layer.pipe(
   ),
 )
 
+const TurnstileLive = Turnstile.layer.pipe(
+  Layer.provide([SiteConfigQueriesLive, Secrets.layer, IntegrationHttp]),
+)
+const EmailLive = Email.layer.pipe(
+  Layer.provide([SiteConfigQueriesLive, Secrets.layer, IntegrationHttp]),
+)
+
 // Requires AppConfig and PublicNetwork. SQL and media services are exposed for seeding and file
 // queries; the remaining outputs are the APIs used by routes and the server's shutdown hook.
 export const AppServices = Layer.mergeAll(
@@ -93,10 +102,15 @@ export const AppServices = Layer.mergeAll(
       Images.layer,
       SiteConfigQueriesLive,
       Secrets.layer,
+      EmailLive,
+      TurnstileLive,
     ]),
   ),
-  Turnstile.layer.pipe(Layer.provide([SiteConfigQueriesLive, Secrets.layer, IntegrationHttp])),
-  Email.layer.pipe(Layer.provide([SiteConfigQueriesLive, Secrets.layer, IntegrationHttp])),
+  TurnstileLive,
+  EmailLive,
+  UserCommands.layer.pipe(
+    Layer.provide([MigratedDatabase, SiteConfigQueriesLive, EmailLive, TurnstileLive]),
+  ),
   PostMedia.layer.pipe(Layer.provide([MediaStorage.layer, Images.layer, PostQueriesLive])),
   LinkPreviews.layer.pipe(
     Layer.provide([
@@ -120,6 +134,7 @@ export const AppRoutes = Layer.mergeAll(
   SiteFileRoutes,
   LinkImageRoutes,
   AssetRoutes,
+  SubscribeRoutes,
   AdminLoginRoutes,
   AdminIndexRoutes,
   PostListRoutes,

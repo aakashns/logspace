@@ -20,6 +20,10 @@ export const urls = {
   // One of a post's files, from media storage.
   postFile: (id: string, file: string) =>
     `/posts/${encodeURIComponent(id)}/${encodeURIComponent(file)}`,
+  // Subscribing, which signs up for an account: the form, then the page for the code emailed,
+  // which posts to itself. Which code it's for is in a cookie, so the address isn't in a URL.
+  subscribe: () => '/subscribe',
+  subscribeVerify: () => '/subscribe/verify',
   // Tools for working on the app, outside production: a page leading to the rest, the components
   // in components/ui, and the site's fake of Amazon SES, which takes email as SES's API does and
   // shows what it's taken.

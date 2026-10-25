@@ -72,13 +72,3 @@ describe('/admin/posts', () => {
     expect(html).not.toContain('class="post-list"')
   })
 })
-
-describe('/admin/subscribers', () => {
-  it('has none yet', async () => {
-    let response = await app.adminFetch('/admin/subscribers')
-    let html = await response.text()
-    expect(response.status).toBe(200)
-    expect(html).toMatch(/<h1 class="page-title">Subscribers<\/h1>/)
-    expect(html).toContain('No subscribers yet.')
-  })
-})

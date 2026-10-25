@@ -468,8 +468,9 @@ function TurnstileSection(props: TurnstileSectionProps): Html {
             <FieldContent>
               <FieldLabel for="turnstile-enabled">Enabled</FieldLabel>
               <FieldDescription id="turnstile-enabled-description">
-                Logging in requires passing it. If it ever locks you out, run{' '}
-                <code>logspace turnstile off</code> on the server.
+                Logging in to /admin requires passing it, and so does subscribing, which is paused
+                while it’s off. If it ever locks you out, run <code>logspace turnstile off</code> on
+                the server.
               </FieldDescription>
             </FieldContent>
           </Field>

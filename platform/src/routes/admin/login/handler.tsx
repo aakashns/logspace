@@ -10,10 +10,10 @@ import {
   readForm,
   UPLOAD_TOO_LARGE_MESSAGE,
 } from '../../../lib/http/forms.ts'
-import { redirect } from '../../../lib/http/responses.ts'
+import { privately, redirect } from '../../../lib/http/responses.ts'
 import { AdminAuth } from '../../../lib/http/admin-session.ts'
 import { urls } from '../../../lib/urls.ts'
-import { adminPage, message, privately } from '../admin.tsx'
+import { adminPage, message } from '../admin.tsx'
 import { ADMIN_LOGIN_PAGE_STYLES, AdminLoginPage } from './page.tsx'
 
 const WRONG_PASSWORD = 'That password isn’t right.'

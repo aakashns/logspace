@@ -6,7 +6,7 @@ import { HttpServerResponse } from 'effect/http'
 import type { Child } from '#jsx/jsx-runtime'
 import { MalformedForm, UPLOAD_TOO_LARGE_MESSAGE, UploadTooLarge } from '../../lib/http/forms.ts'
 import { pageContext, pageResponse, requestUrl } from '../../lib/http/pages.ts'
-import { redirect, textResponse } from '../../lib/http/responses.ts'
+import { privately, redirect, textResponse } from '../../lib/http/responses.ts'
 import { AdminAuth, type AdminSession } from '../../lib/http/admin-session.ts'
 import { urls } from '../../lib/urls.ts'
 import { AdminMessage, AdminPage } from './layout.tsx'
@@ -43,13 +43,6 @@ export const adminPage = (
 
 export const message = (title: string, text: Child, status: number) =>
   adminPage(title, <AdminMessage title={title}>{text}</AdminMessage>, { status })
-
-// Keeps these pages out of caches and search results.
-export const privately = (response: HttpServerResponse.HttpServerResponse) =>
-  HttpServerResponse.setHeaders(response, {
-    'Cache-Control': 'no-store',
-    'X-Robots-Tag': 'noindex',
-  })
 
 // An admin page that needs the admin login: anyone else is sent to the admin login page, before a byte of what
 // they sent is read. A form over the upload limits gets a page saying so.

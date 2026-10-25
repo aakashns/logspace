@@ -106,13 +106,14 @@ folder.
 | `site-files/`         | `/site.webmanifest`, `/favicon.ico`, `/apple-touch-icon.png`, `/site/<file>` |
 | `link-images/`        | `/link-images/<file>`, link previews' images                                 |
 | `assets/`             | `/assets/<file>`, `/fonts/<file>`: Datastar and the fonts                    |
+| `subscribe/`          | `/subscribe` and `/subscribe/verify`: signing up, confirmed by an emailed code |
 | `admin/login/`        | `/admin/login`, `/admin/logout`                                              |
 | `admin/index/`        | `/admin`, a link to each of the four below                                   |
 | `admin/posts/`        | `/admin/posts`, the list of posts                                            |
 | `admin/compose/`      | `/admin/posts/new`, `/admin/posts/<id>/edit`, and what the composer posts to |
 | `admin/branding/`     | `/admin/branding`, the site's title, URL, introduction, and images           |
 | `admin/integrations/` | `/admin/integrations`, a section for each service: Turnstile, and email      |
-| `admin/subscribers/`  | `/admin/subscribers`, empty for now                                          |
+| `admin/subscribers/`  | `/admin/subscribers`, the switch for subscribing                             |
 | `dev/`                | `/dev`, outside production: tools for working on the app (below)             |
 
 `dev/` has a folder for each of its pages, like `admin/`: `index/` for `/dev`, a card linking to
@@ -138,8 +139,8 @@ into a post by `form.ts`. Every expression is a one-line constant string. Values
 share are passed in `data-*` attributes and read with `el.dataset`, so nothing a user typed can
 end up in an expression. Everything else works without JavaScript: navigation is links, forms are
 forms, and the delete dialog uses `command`/`commandfor`. The one other script is Cloudflare's
-Turnstile widget, on `/admin/integrations` once it has a site key and on `/admin/login` while it's
-enabled; it puts its token in a plain form.
+Turnstile widget, on `/admin/integrations` once it has a site key, on `/admin/login` while it's
+enabled, and on `/subscribe`; it puts its token in a plain form.
 
 #### 4. Data: `data/`
 
@@ -165,6 +166,10 @@ the database, and nothing is kept between requests, so an edit made in the datab
 | `site/commands.ts`      | `SiteConfigCommands`: saving `/admin/branding` (turning uploads into the site's image files, or `SiteConfigRejected`), and the integrations' settings  |
 | `site/email.ts`         | `Email`: whether it's set up, and sending an email with Amazon SES's API (signing with AWS Signature V4) or Resend's, with a typed error for each failure |
 | `site/turnstile.ts`     | `Turnstile`: whether it's set up, checking a widget's token with Cloudflare, with a typed error for each way that fails, and logins while it's enabled  |
+| `site/subscriptions.ts` | Whether subscribing is off, paused (email or an enabled Turnstile is missing), or open                                                                 |
+| `users/user.ts`         | Accounts (the `users` table, after better-auth's `user`), and signing up: the form's checks, and the emailed code (a `verifications` row)              |
+| `users/queries.ts`      | The address a sign-up's code was sent to, while it can be entered                                                                                       |
+| `users/commands.ts`     | `UserCommands`: asking for a code (passing Turnstile), and entering it, which makes the account                                                         |
 | `site/files.ts`         | The site's image files, from storage, or the default icons that `Images` caches                                                                         |
 | `link-previews/`        | `LinkPreviews` fetches previews in the background, never on a page's time, and saves each one's image as resized WebP copies                            |
 
@@ -186,8 +191,8 @@ theme, and the navbar's) and its own styles, which its handler passes: `page.tsx
 with `POST_STYLES` if it shows posts, and the pages under `/admin` add the admin layout's.
 
 `components/ui/` is [shadcn/ui](https://ui.shadcn.com)'s components in its base-nova style, as
-plain HTML: Button, Input, Textarea, NativeSelect, Field and Label, Checkbox, Switch, Card,
-Badge, Separator, Kbd, Alert, Dialog, and DropdownMenu. Each sets shadcn's `data-slot`, which its
+plain HTML: Button, Input, InputOTP, Textarea, NativeSelect, Field and Label, Checkbox, Switch,
+Card, Badge, Separator, Kbd, Alert, Dialog, and DropdownMenu. Each sets shadcn's `data-slot`, which its
 CSS (in the `ui` layer, under a page's own) styles with the theme's tokens, and exports its
 styles for the pages that use it (like `BUTTON_STYLES`). Form controls are native ones, the
 dialog is a `<dialog>` opened with `command`/`commandfor`, and the dropdown menu is a popover
@@ -229,7 +234,8 @@ called directly with `app.run(effect)`. `test/content/` has the posts they start
 #### Browser tests
 
 `*.pw.ts` (like `src/routes/admin/compose/compose.pw.ts`) drive the composer, and the dropdown
-menu and dialog on `/dev/design`, and the email settings' fields, in Chromium and WebKit with Playwright, which also needs Node.js 20 or newer: publishing each kind of post, with
+menu, dialog, and input OTP on `/dev/design`, the email settings' fields, and the subscriptions
+switch, in Chromium and WebKit with Playwright, which also needs Node.js 20 or newer: publishing each kind of post, with
 and without JavaScript. Each test starts the app with its own temporary data and port
 (`browser/fixtures.ts`). Install the browsers once with `bun run test:browser:install`, then run
 `bun run test:browser`. CI doesn't run them.
@@ -257,6 +263,12 @@ and without JavaScript. Each test starts the app with its own temporary data and
   At most 100 sessions are retained, with expired/old-credential rows removed on login. Login is
   checked before an upload's body is read, and the login form itself, which anyone can send, is
   read only up to 16 KB.
+- **Subscribing**: the form needs Turnstile, always, and is read only up to 16 KB. Its code is 6
+  digits, stored as a SHA-256 hash, good for 10 minutes and 3 wrong tries, and replaced by asking
+  again. Which code a browser is entering is in an `HttpOnly`, `SameSite=Lax` cookie sent only to
+  `/subscribe` (the code's random id), so the address is never in a URL, and the code can only be
+  entered in the browser that asked for it. An address that already has an account gets the same
+  pages and emails, so the form doesn't say who has one.
 - **Forms from other sites** are refused (`Sec-Fetch-Site`, else `Origin` against the host), as
   Remix's `cop()` did. Behind Caddy, the host is taken from `X-Forwarded-Host`, which
   Caddy overwrites, before the `Forwarded` header, which it passes through from the browser.
