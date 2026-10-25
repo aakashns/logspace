@@ -1,10 +1,10 @@
 import type { Child, Html } from '#jsx/jsx-runtime'
 
-import { PhosphorIcon } from '../../components/icons.tsx'
-import { stylesheet } from '../../components/stylesheet.ts'
-import { Alert, ALERT_STYLES, AlertDescription, AlertTitle } from '../../components/ui/alert.tsx'
-import { Badge, BADGE_STYLES } from '../../components/ui/badge.tsx'
-import { Button } from '../../components/ui/button.tsx'
+import { PhosphorIcon } from '../../../components/icons.tsx'
+import { stylesheet } from '../../../components/stylesheet.ts'
+import { Alert, ALERT_STYLES, AlertDescription, AlertTitle } from '../../../components/ui/alert.tsx'
+import { Badge, BADGE_STYLES } from '../../../components/ui/badge.tsx'
+import { Button } from '../../../components/ui/button.tsx'
 import {
   Card,
   CardAction,
@@ -14,15 +14,15 @@ import {
   CardHeader,
   CardTitle,
   CARD_STYLES,
-} from '../../components/ui/card.tsx'
-import { Checkbox, CHECKBOX_STYLES } from '../../components/ui/checkbox.tsx'
+} from '../../../components/ui/card.tsx'
+import { Checkbox, CHECKBOX_STYLES } from '../../../components/ui/checkbox.tsx'
 import {
   DialogClose,
   DialogContent,
   DialogFooter,
   DialogTrigger,
   DIALOG_STYLES,
-} from '../../components/ui/dialog.tsx'
+} from '../../../components/ui/dialog.tsx'
 import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
@@ -33,7 +33,7 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
   DROPDOWN_MENU_STYLES,
-} from '../../components/ui/dropdown-menu.tsx'
+} from '../../../components/ui/dropdown-menu.tsx'
 import {
   Field,
   FieldContent,
@@ -45,13 +45,13 @@ import {
   FieldSet,
   FIELD_STYLES,
   Label,
-} from '../../components/ui/field.tsx'
-import { Input, INPUT_STYLES } from '../../components/ui/input.tsx'
-import { Kbd, KbdGroup, KBD_STYLES } from '../../components/ui/kbd.tsx'
-import { NativeSelect, NATIVE_SELECT_STYLES } from '../../components/ui/native-select.tsx'
-import { Separator, SEPARATOR_STYLES } from '../../components/ui/separator.tsx'
-import { Switch, SWITCH_STYLES } from '../../components/ui/switch.tsx'
-import { Textarea, TEXTAREA_STYLES } from '../../components/ui/textarea.tsx'
+} from '../../../components/ui/field.tsx'
+import { Input, INPUT_STYLES } from '../../../components/ui/input.tsx'
+import { Kbd, KbdGroup, KBD_STYLES } from '../../../components/ui/kbd.tsx'
+import { NativeSelect, NATIVE_SELECT_STYLES } from '../../../components/ui/native-select.tsx'
+import { Separator, SEPARATOR_STYLES } from '../../../components/ui/separator.tsx'
+import { Switch, SWITCH_STYLES } from '../../../components/ui/switch.tsx'
+import { Textarea, TEXTAREA_STYLES } from '../../../components/ui/textarea.tsx'
 import css from './page.css' with { type: 'text' }
 
 // Every page has Button's (see document.tsx).
@@ -73,7 +73,7 @@ export const DESIGN_PAGE_STYLES =
 
 type Scheme = 'light' | 'dark'
 
-// /design: every component in components/ui, side by side in the light and dark themes.
+// /dev/design: every component in components/ui, side by side in the light and dark themes.
 export function DesignPage(): Html {
   return (
     <div class="design">

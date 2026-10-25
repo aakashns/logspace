@@ -11,6 +11,7 @@ import { PostCommands } from './data/posts/commands.ts'
 import { PostMedia } from './data/posts/media.ts'
 import { PostQueries } from './data/posts/queries.ts'
 import { SiteConfigCommands } from './data/site/commands.ts'
+import { Email } from './data/site/email.ts'
 import { SiteConfigQueries } from './data/site/queries.ts'
 import { Turnstile } from './data/site/turnstile.ts'
 import { AppConfig } from './lib/config.ts'
@@ -30,7 +31,9 @@ import { LoginRoutes } from './routes/admin/login/handler.tsx'
 import { PostListRoutes } from './routes/admin/posts/handler.tsx'
 import { SubscriberRoutes } from './routes/admin/subscribers/handler.tsx'
 import { AssetRoutes } from './routes/assets/handler.ts'
-import { DesignRoutes } from './routes/design/handler.tsx'
+import { DesignRoutes } from './routes/dev/design/handler.tsx'
+import { DevEmailRoutes } from './routes/dev/emails/handler.tsx'
+import { DevIndexRoutes } from './routes/dev/index/handler.tsx'
 import { FeedRoutes } from './routes/feeds/handler.ts'
 import { IndexRoutes } from './routes/index/handler.tsx'
 import { LinkImageRoutes } from './routes/link-images/handler.ts'
@@ -53,9 +56,10 @@ const PostQueriesLive = PostQueries.layer.pipe(
 )
 const SiteConfigQueriesLive = SiteConfigQueries.layer.pipe(Layer.provide(MigratedDatabase))
 
-// Cloudflare's address, for Turnstile, fetched with PublicNetwork's fetch, which the tests
-// replace. It's one fixed address, so it doesn't need the checks link previews' fetches do.
-const CloudflareHttp = FetchHttpClient.layer.pipe(
+// The services integrations use, at fixed addresses (Cloudflare's for Turnstile, Resend's for
+// email), fetched with PublicNetwork's fetch, which the tests replace. They're not addresses
+// anyone types, so they don't need the checks link previews' fetches do.
+const IntegrationHttp = FetchHttpClient.layer.pipe(
   Layer.provide(
     Layer.effect(
       FetchHttpClient.Fetch,
@@ -91,7 +95,8 @@ export const AppServices = Layer.mergeAll(
       Secrets.layer,
     ]),
   ),
-  Turnstile.layer.pipe(Layer.provide([SiteConfigQueriesLive, Secrets.layer, CloudflareHttp])),
+  Turnstile.layer.pipe(Layer.provide([SiteConfigQueriesLive, Secrets.layer, IntegrationHttp])),
+  Email.layer.pipe(Layer.provide([SiteConfigQueriesLive, Secrets.layer, IntegrationHttp])),
   PostMedia.layer.pipe(Layer.provide([MediaStorage.layer, Images.layer, PostQueriesLive])),
   LinkPreviews.layer.pipe(
     Layer.provide([
@@ -122,7 +127,9 @@ export const AppRoutes = Layer.mergeAll(
   BrandingRoutes,
   IntegrationRoutes,
   SubscriberRoutes,
+  DevIndexRoutes,
   DesignRoutes,
+  DevEmailRoutes,
   AppMiddleware,
 )
 
