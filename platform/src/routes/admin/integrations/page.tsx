@@ -113,8 +113,8 @@ const EMAIL_FIELDS: Record<EmailIssue['field'], string> = {
   resendApiKey: 'API key',
 }
 
-// The settings as they're saved, as the form shows them. The secrets are never sent to the
-// browser.
+// The settings as they're saved, as the form shows them, or before they are, with SES's endpoint
+// in us-east-1 filled in, to change. The secrets are never sent to the browser.
 function savedEmailForm(status: EmailStatus): EmailForm {
   let empty = {
     provider: 'ses',
@@ -122,7 +122,7 @@ function savedEmailForm(status: EmailStatus): EmailForm {
     from: '',
     replyTo: '',
     sesRegion: '',
-    sesEndpoint: '',
+    sesEndpoint: 'https://email.us-east-1.amazonaws.com',
     sesAccessKeyId: '',
     sesSecretAccessKey: '',
     resendApiKey: '',

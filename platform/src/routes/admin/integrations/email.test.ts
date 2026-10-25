@@ -134,6 +134,8 @@ describe('email settings', () => {
     let html = await page()
     expect(html).toContain('<h2 id="email-heading">Email</h2>')
     expect(html).toContain('Not set up')
+    // SES's endpoint in us-east-1, to change.
+    expect(html).toContain('name="sesEndpoint" value="https://email.us-east-1.amazonaws.com"')
     expect(html).toContain('action="/admin/integrations/email"')
     expect(html).not.toContain('Send a test email')
     expect(html).not.toContain('formaction="/admin/integrations/email/remove"')
