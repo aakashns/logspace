@@ -54,8 +54,7 @@ export function IntegrationsPage(props: { turnstile: TurnstileSectionProps }): H
       <BackLink />
       <h1 class="page-title">Integrations</h1>
       <p class="muted">
-        Services the site connects to. Their secret keys are stored encrypted with the server’s
-        AUTH_SESSION_SECRET, and never shown again once saved.
+        Services the site connects to. Secret keys are encrypted and not shown once entered.
       </p>
       <TurnstileSection {...props.turnstile} />
       <Separator />
