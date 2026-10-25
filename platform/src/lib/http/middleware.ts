@@ -96,9 +96,10 @@ function checkCrossOrigin(request: HttpServerRequest.HttpServerRequest) {
 }
 
 // Paths served whether or not the site is configured, with everything under them: the admin
-// pages, and what they need to look right.
+// pages, what they need to look right, and outside production, the tools for working on the app.
 const ALWAYS_SERVED = [
   '/admin',
+  '/dev',
   '/assets',
   '/fonts',
   '/site',

@@ -56,18 +56,32 @@
     }
   }
 
-  /* The widget, and checking its answer, below the keys. */
-  .turnstile-try {
+  /* Trying it out, below the settings: Turnstile's widget, or sending a test email. */
+  .integration-try {
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
     padding-top: 1rem;
   }
 
-  .turnstile-form {
+  .integration-try-form {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
     gap: 0.75rem;
+
+    & [data-slot='field'] {
+      align-self: stretch;
+    }
+  }
+
+  /* Only the chosen provider's fields, without JavaScript. (Browsers without :has() show both.) */
+  .email-ses,
+  .email-resend {
+    display: contents;
+  }
+  .email-form:has(option[value='resend']:checked) .email-ses,
+  .email-form:has(option[value='ses']:checked) .email-resend {
+    display: none;
   }
 }

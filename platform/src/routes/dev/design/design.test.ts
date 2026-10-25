@@ -1,7 +1,7 @@
-// /design: the components in components/ui, outside production only.
+// /dev/design: the components in components/ui, outside production only.
 import { afterAll, beforeEach, describe, expect, it } from 'bun:test'
 
-import { makeTestApp } from '../../../test/app.ts'
+import { makeTestApp } from '../../../../test/app.ts'
 
 const app = makeTestApp()
 const production = makeTestApp({ mode: 'production' })
@@ -15,9 +15,9 @@ afterAll(async () => {
   await production.dispose()
 })
 
-describe('/design', () => {
+describe('/dev/design', () => {
   it('shows every component in both themes', async () => {
-    let response = await app.fetch('/design')
+    let response = await app.fetch('/dev/design')
     let html = await response.text()
     expect(response.status).toBe(200)
     expect(html).toContain('<meta name="robots" content="noindex">')
@@ -45,7 +45,7 @@ describe('/design', () => {
   })
 
   it('wires each menu to its trigger, for screen readers and positioning', async () => {
-    let html = await (await app.fetch('/design')).text()
+    let html = await (await app.fetch('/dev/design')).text()
     expect(html).toContain(
       '<button type="button" data-slot="button" data-variant="outline" data-size="default" id="light-menu-trigger" popovertarget="light-menu" aria-haspopup="menu" aria-controls="light-menu" style="anchor-name: --light-menu">',
     )
@@ -62,7 +62,7 @@ describe('/design', () => {
   })
 
   it('renders a disabled link without its href, so it can’t be followed', async () => {
-    let html = await (await app.fetch('/design')).text()
+    let html = await (await app.fetch('/dev/design')).text()
     expect(html).toContain(
       '<a data-slot="button" data-variant="outline" data-size="default" role="link" aria-disabled="true">Disabled link</a>',
     )
@@ -74,7 +74,7 @@ describe('/design', () => {
   })
 
   it('isn’t served in production', async () => {
-    let response = await production.fetch('/design')
+    let response = await production.fetch('/dev/design')
     expect(response.status).toBe(404)
   })
 })

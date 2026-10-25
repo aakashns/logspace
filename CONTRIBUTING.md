@@ -12,7 +12,8 @@ bun run dev:demo
 
 That starts a throwaway site with the test posts and prints its address and admin password. Its
 data is in a temporary folder, deleted when you stop it (Ctrl-C), and it needs no configuration.
-The server restarts on changes; reload the browser.
+The server restarts on changes; reload the browser. Its email is set up to send to the site's own
+fake of Amazon SES, and shows at `/dev/emails`.
 
 To keep a site of your own between runs, create `platform/.env` (ignored by Git), using your own
 secrets and absolute paths outside the checkout:
@@ -110,9 +111,16 @@ folder.
 | `admin/posts/`        | `/admin/posts`, the list of posts                                            |
 | `admin/compose/`      | `/admin/posts/new`, `/admin/posts/<id>/edit`, and what the composer posts to |
 | `admin/branding/`     | `/admin/branding`, the site's title, URL, introduction, and images           |
-| `admin/integrations/` | `/admin/integrations`, a section for each service the site connects to       |
+| `admin/integrations/` | `/admin/integrations`, a section for each service: Turnstile, and email      |
 | `admin/subscribers/`  | `/admin/subscribers`, empty for now                                          |
-| `design/`             | `/design`, outside production: every component in `components/ui/`          |
+| `dev/`                | `/dev`, outside production: tools for working on the app (below)             |
+
+`dev/` has a folder for each of its pages, like `admin/`: `index/` for `/dev`, a card linking to
+the others; `design/` for `/dev/design`, every component in `components/ui/`; and `emails/` for
+`/dev/emails`, what the site sent to its fake of Amazon SES. The fake is an SES endpoint at
+`/dev/ses`, which takes email as SES's API does, checking each request's signature, with AWS's
+example access key (`AKIAIOSFODNN7EXAMPLE`, and its secret); `/dev/emails` lists the settings that
+send to it. `dev/dev.tsx` keeps them all out of production.
 
 Each has the same files: `handler.tsx`, its handlers with its route table at the bottom;
 `page.tsx` and `page.css`, what it shows; and its tests. `admin/admin.tsx`, `admin/layout.tsx`,
@@ -154,7 +162,8 @@ the database, and nothing is kept between requests, so an edit made in the datab
 | `site/site.ts`          | The site's settings (branding, and integrations like `TurnstileSettings`, each one setting saved as JSON), and their checks                             |
 | `site/site-images.ts`   | The URLs pages link the site's icon, logos, and banner image with                                                                                       |
 | `site/queries.ts`       | `SiteConfigQueries`, and `configuredSite` for what's only served once the settings are saved                                                            |
-| `site/commands.ts`      | `SiteConfigCommands`: saving `/admin/branding` (turning uploads into the site's image files, or `SiteConfigRejected`), and Turnstile's keys             |
+| `site/commands.ts`      | `SiteConfigCommands`: saving `/admin/branding` (turning uploads into the site's image files, or `SiteConfigRejected`), and the integrations' settings  |
+| `site/email.ts`         | `Email`: whether it's set up, and sending an email with Amazon SES's API (signing with AWS Signature V4) or Resend's, with a typed error for each failure |
 | `site/turnstile.ts`     | `Turnstile`: whether it's set up, checking a widget's token with Cloudflare, with a typed error for each way that fails, and logins while it's enabled  |
 | `site/files.ts`         | The site's image files, from storage, or the default icons that `Images` caches                                                                         |
 | `link-previews/`        | `LinkPreviews` fetches previews in the background, never on a page's time, and saves each one's image as resized WebP copies                            |
@@ -183,7 +192,7 @@ CSS (in the `ui` layer, under a page's own) styles with the theme's tokens, and 
 styles for the pages that use it (like `BUTTON_STYLES`). Form controls are native ones, the
 dialog is a `<dialog>` opened with `command`/`commandfor`, and the dropdown menu is a popover
 placed with CSS anchor positioning; Datastar only adds the menu's arrow keys and focus, and its
-checkbox and radio items' signals. `bun run dev` serves them all, in both themes, at `/design`.
+checkbox and radio items' signals. `bun run dev` serves them all, in both themes, at `/dev/design`.
 Every page's buttons, inputs, and messages are these, except the composer's, which has its own
 (but for its delete dialog); a page's own CSS only places them. Lines and
 boxes are kept to what's needed: the admin pages' lists and sections are set apart by space, not
@@ -220,7 +229,7 @@ called directly with `app.run(effect)`. `test/content/` has the posts they start
 #### Browser tests
 
 `*.pw.ts` (like `src/routes/admin/compose/compose.pw.ts`) drive the composer, and the dropdown
-menu and dialog on `/design`, in Chromium and WebKit with Playwright, which also needs Node.js 20 or newer: publishing each kind of post, with
+menu and dialog on `/dev/design`, and the email settings' fields, in Chromium and WebKit with Playwright, which also needs Node.js 20 or newer: publishing each kind of post, with
 and without JavaScript. Each test starts the app with its own temporary data and port
 (`browser/fixtures.ts`). Install the browsers once with `bun run test:browser:install`, then run
 `bun run test:browser`. CI doesn't run them.
@@ -234,7 +243,7 @@ and without JavaScript. Each test starts the app with its own temporary data and
   Pages also send `frame-ancestors 'none'`, `base-uri 'self'`, `object-src 'none'`, and
   `form-action 'self'`. Only a page with the Turnstile widget also allows scripts and frames
   from `https://challenges.cloudflare.com`, still with Trusted Types required.
-- **Stored secrets**: an integration's secret key is sealed with AES-256-GCM, with a key derived
+- **Stored secrets**: an integration's secret key (or email's secret access key or API key) is sealed with AES-256-GCM, with a key derived
   (HKDF) from `AUTH_SESSION_SECRET` and the setting it's for, so a copy of the database alone
   doesn't give it away, and it's never sent back to the browser (only its last four characters).
   Changing `AUTH_SESSION_SECRET` makes saved secrets unreadable; the admin is asked to enter them

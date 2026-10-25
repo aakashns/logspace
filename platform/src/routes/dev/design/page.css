@@ -1,5 +1,5 @@
 /*
- * /design (see page.tsx): two panels side by side where there's room, each forcing its theme with
+ * /dev/design (see page.tsx): two panels side by side where there's room, each forcing its theme with
  * `color-scheme`, which every light-dark() color in the theme follows.
  */
 @layer components {

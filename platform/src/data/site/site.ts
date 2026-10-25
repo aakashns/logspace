@@ -61,12 +61,38 @@ export const TurnstileSettings = Schema.Struct({
 export type TurnstileSettings = typeof TurnstileSettings.Type
 export const TURNSTILE_SECRET_PURPOSE = 'turnstile.secretKey'
 
+// Email, which the site sends from `fromName` (if it's set) and `from`, with replies going to
+// `replyTo` if it's set, through Amazon SES's or Resend's API. SES is sent to at `endpoint`, like
+// https://email.us-east-1.amazonaws.com (or the site's fake of SES, at /dev/ses, in development),
+// with an IAM user's access key. Resend is sent to with an API key. The secret access key and the
+// API key are sealed (see ../../lib/secrets.ts) for EMAIL_SECRET_PURPOSES.
+export const SesProvider = Schema.TaggedStruct('ses', {
+  region: Schema.String,
+  endpoint: Schema.String,
+  accessKeyId: Schema.String,
+  secretAccessKey: SealedSecret,
+})
+export const ResendProvider = Schema.TaggedStruct('resend', { apiKey: SealedSecret })
+export const EmailSettings = Schema.Struct({
+  fromName: Schema.String,
+  from: Schema.String,
+  replyTo: Schema.String,
+  provider: Schema.Union([SesProvider, ResendProvider]),
+})
+export type EmailSettings = typeof EmailSettings.Type
+export type EmailProvider = EmailSettings['provider']['_tag']
+export const EMAIL_SECRET_PURPOSES = {
+  ses: 'email.sesSecretAccessKey',
+  resend: 'email.resendApiKey',
+} as const satisfies Record<EmailProvider, string>
+
 // The services the site connects to, set at /admin/integrations, each saved as one setting. One
 // that's never been saved isn't set up.
-export const INTEGRATIONS = ['turnstile'] as const
+export const INTEGRATIONS = ['turnstile', 'email'] as const
 export type Integration = (typeof INTEGRATIONS)[number]
 export interface SiteIntegrations {
   readonly turnstile?: TurnstileSettings
+  readonly email?: EmailSettings
 }
 
 export type SiteConfig = SiteText & SiteImages & SiteIntegrations
@@ -177,13 +203,142 @@ export function checkTurnstileKeys(keys: TurnstileKeys, saved: SavedSecret): Tur
   } else if (saved === 'none') {
     issues.push({ field: 'secretKey', message: 'Enter the widget’s secret key' })
   } else if (saved === 'unreadable') {
-    issues.push({ field: 'secretKey', message: UNREADABLE_SECRET_MESSAGE })
+    issues.push({ field: 'secretKey', message: unreadableSecretMessage('secret key') })
   }
   return issues
 }
 
-export const UNREADABLE_SECRET_MESSAGE =
-  'The saved secret key can’t be read, likely because AUTH_SESSION_SECRET changed since it was saved. Enter it again.'
+// The email form, as typed (trimmed). Only the chosen provider's fields are used, and a secret
+// access key or API key left empty keeps the saved one.
+export interface EmailForm {
+  readonly provider: string
+  readonly fromName: string
+  readonly from: string
+  readonly replyTo: string
+  readonly sesRegion: string
+  readonly sesEndpoint: string
+  readonly sesAccessKeyId: string
+  readonly sesSecretAccessKey: string
+  readonly resendApiKey: string
+}
+
+// A problem with the email form.
+export interface EmailIssue {
+  readonly field: keyof EmailForm
+  readonly message: string
+}
+
+// The email settings a valid form saves, with the secret typed, which is empty to keep the saved
+// one.
+export type CheckedEmailForm = {
+  readonly fromName: string
+  readonly from: string
+  readonly replyTo: string
+  readonly provider:
+    Omit<typeof SesProvider.Type, 'secretAccessKey'> | Omit<typeof ResendProvider.Type, 'apiKey'>
+  readonly secret: string
+}
+
+// An address alone, like "news@example.com", without a name.
+const EMAIL_ADDRESS = /^[^\s@<>()[\]\\,;:"]+@[^\s@<>()[\]\\,;:"]+$/
+export const isEmailAddress = (value: string) => value.length <= 254 && EMAIL_ADDRESS.test(value)
+// Like us-east-1 or ap-southeast-2.
+const AWS_REGION = /^[a-z]{2}(-[a-z]+)+-\d{1,2}$/
+const AWS_ACCESS_KEY_ID = /^[A-Z0-9]{16,128}$/
+const AWS_SECRET_ACCESS_KEY = /^[\w/+=]{20,128}$/
+const RESEND_API_KEY = /^re_[\w-]{8,200}$/
+
+// The address of an SES API, with no trailing slash: an http or https URL, with a path if it
+// needs one, but no query, fragment, or credentials.
+function sesEndpoint(value: string): string | undefined {
+  let url = URL.parse(value)
+  if (!url || !['http:', 'https:'].includes(url.protocol)) return undefined
+  if (url.search || url.hash || url.username || url.password) return undefined
+  return url.href.replace(/\/$/, '')
+}
+
+// Checks the email form. `saved` is whether the provider chosen has a saved secret, which one
+// left empty keeps.
+export function checkEmailForm(
+  form: EmailForm,
+  saved: SavedSecret,
+): Result.Result<CheckedEmailForm, EmailIssue[]> {
+  let issues: EmailIssue[] = []
+  let address = 'Expected an email address, like news@example.com'
+  // It goes in a header, so it's one line.
+  if (form.fromName.length > 100 || /\p{Cc}/u.test(form.fromName)) {
+    issues.push({
+      field: 'fromName',
+      message: 'Expected a name on one line, of up to 100 characters',
+    })
+  }
+  if (!form.from) issues.push({ field: 'from', message: 'Enter the address to send from' })
+  else if (!isEmailAddress(form.from)) issues.push({ field: 'from', message: address })
+  if (form.replyTo && !isEmailAddress(form.replyTo)) {
+    issues.push({ field: 'replyTo', message: address })
+  }
+  // The secret typed, checked, or the saved one if it opens.
+  let secret = (field: 'sesSecretAccessKey' | 'resendApiKey', what: string, format: RegExp) => {
+    if (form[field] && !format.test(form[field])) {
+      issues.push({ field, message: `Expected the ${what}, as it was given to you` })
+    } else if (!form[field] && saved !== 'readable') {
+      issues.push({
+        field,
+        message: saved === 'unreadable' ? unreadableSecretMessage(what) : `Enter the ${what}`,
+      })
+    }
+    return form[field]
+  }
+  if (form.provider === 'ses') {
+    if (!AWS_REGION.test(form.sesRegion)) {
+      issues.push({ field: 'sesRegion', message: 'Expected an AWS region, like us-east-1' })
+    }
+    let endpoint = sesEndpoint(form.sesEndpoint)
+    if (endpoint === undefined) {
+      issues.push({
+        field: 'sesEndpoint',
+        message: 'Expected the address of an SES API, like https://email.us-east-1.amazonaws.com',
+      })
+    }
+    if (!AWS_ACCESS_KEY_ID.test(form.sesAccessKeyId)) {
+      issues.push({
+        field: 'sesAccessKeyId',
+        message: 'Expected an access key ID, like AKIAIOSFODNN7EXAMPLE',
+      })
+    }
+    let typed = secret('sesSecretAccessKey', 'secret access key', AWS_SECRET_ACCESS_KEY)
+    if (issues.length > 0 || endpoint === undefined) return Result.fail(issues)
+    return Result.succeed({
+      fromName: form.fromName,
+      from: form.from,
+      replyTo: form.replyTo,
+      provider: {
+        _tag: 'ses',
+        region: form.sesRegion,
+        endpoint,
+        accessKeyId: form.sesAccessKeyId,
+      },
+      secret: typed,
+    })
+  }
+  if (form.provider === 'resend') {
+    let typed = secret('resendApiKey', 'API key', RESEND_API_KEY)
+    if (issues.length > 0) return Result.fail(issues)
+    return Result.succeed({
+      fromName: form.fromName,
+      from: form.from,
+      replyTo: form.replyTo,
+      provider: { _tag: 'resend' },
+      secret: typed,
+    })
+  }
+  issues.push({ field: 'provider', message: 'Choose how to send email' })
+  return Result.fail(issues)
+}
+
+// For a saved secret, like 'secret key', that doesn't open.
+export const unreadableSecretMessage = (what: string) =>
+  `The saved ${what} can’t be read, likely because AUTH_SESSION_SECRET changed since it was saved. Enter it again.`
 
 // The config as it's saved, from the `config` table's rows. A setting that's never been saved
 // has its default, and an image or integration whose row is mangled is left out, like a missing
@@ -202,9 +357,12 @@ export function fromConfigRows(rows: ReadonlyMap<string, string>): SavedSiteConf
   }
   let turnstile = Option.getOrUndefined(decodeTurnstile(rows.get('turnstile') ?? ''))
   if (turnstile) config.turnstile = turnstile
+  let email = Option.getOrUndefined(decodeEmail(rows.get('email') ?? ''))
+  if (email) config.email = email
   return config
 }
 
 // A saved image setting, or none if it isn't valid JSON for one.
 const decodeSiteImage = Schema.decodeUnknownOption(Schema.fromJsonString(SiteImage))
 const decodeTurnstile = Schema.decodeUnknownOption(Schema.fromJsonString(TurnstileSettings))
+const decodeEmail = Schema.decodeUnknownOption(Schema.fromJsonString(EmailSettings))
