@@ -5,6 +5,7 @@ import { Effect } from 'effect'
 import { capture, makeTestApp } from '../../../test/app.ts'
 import { PostCommands } from '../../data/posts/commands.ts'
 import { PostQueries } from '../../data/posts/queries.ts'
+import { newPostEmail } from '../admin/compose/email.tsx'
 
 const app = makeTestApp()
 const posts = () => app.run(Effect.flatMap(PostQueries, (queries) => queries.all))
@@ -122,11 +123,14 @@ describe('the home page', () => {
     let caption = 'Hi <b data-on:click="alert(1)">there</b> data-on:click="alert(2)"'
     await app.run(
       Effect.flatMap(PostCommands, (commands) =>
-        commands.save({
-          post: { id, type: 'text', date: '2000-01-01T00:00:00Z', caption },
-          uploads: [],
-          issues: [],
-        }),
+        commands.save(
+          {
+            post: { id, type: 'text', date: '2000-01-01T00:00:00Z', caption },
+            uploads: [],
+            issues: [],
+          },
+          newPostEmail,
+        ),
       ),
     )
     let html = await (await app.fetch(`/posts/${id}`)).text()

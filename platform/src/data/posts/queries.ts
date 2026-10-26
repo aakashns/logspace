@@ -17,7 +17,11 @@ export class PostQueries extends Context.Service<
   {
     // Every post, newest first.
     readonly all: Effect.Effect<readonly Post[]>
-    readonly find: (id: string) => Effect.Effect<Post | undefined>
+    // A post, with its files at `fileUrl`: the site's own URLs, or full ones, for an email.
+    readonly find: (
+      id: string,
+      fileUrl?: (id: string, file: string) => string,
+    ) => Effect.Effect<Post | undefined>
     // A post as it's stored, for the composer to edit.
     readonly findRecord: (id: string) => Effect.Effect<PostRecord | undefined>
     // The size and version of one of a post's images, if it's one.
@@ -42,7 +46,11 @@ export class PostQueries extends Context.Service<
         }`
 
       // Posts presented with their images' sizes and versions.
-      let present = (rows: readonly PostRow[], imageRows: readonly ImageRow[]) => {
+      let present = (
+        rows: readonly PostRow[],
+        imageRows: readonly ImageRow[],
+        fileUrl = urls.postFile,
+      ) => {
         let images = new Map(
           imageRows.map(({ post_id, name, width, height, version }) => [
             mediaKeys.postFile(post_id, name),
@@ -51,7 +59,7 @@ export class PostQueries extends Context.Service<
         )
         return rows.map((row) => {
           let record = fromPostRow(row)
-          return toPost(record, (file) => images.get(mediaKeys.postFile(record.id, file)))
+          return toPost(record, (file) => images.get(mediaKeys.postFile(record.id, file)), fileUrl)
         })
       }
 
@@ -67,11 +75,14 @@ export class PostQueries extends Context.Service<
       let selectPost = (id: string) =>
         sql<PostRow>`select ${sql.literal(POST_COLUMNS)} from posts where id = ${id}`
 
-      let find = Effect.fn('PostQueries.find')(function* (id: string) {
+      let find = Effect.fn('PostQueries.find')(function* (
+        id: string,
+        fileUrl?: (id: string, file: string) => string,
+      ) {
         let [rows, imageRows] = yield* Effect.all([selectPost(id), selectImages(id)], {
           concurrency: 'unbounded',
         }).pipe(Effect.orDie)
-        return present(rows, imageRows)[0]
+        return present(rows, imageRows, fileUrl)[0]
       })
 
       let findRecord = Effect.fn('PostQueries.findRecord')(function* (id: string) {

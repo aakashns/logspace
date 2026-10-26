@@ -27,6 +27,7 @@ import { param, requestUrl } from '../../../lib/http/pages.ts'
 import { fileResponse, notFound, redirect } from '../../../lib/http/responses.ts'
 import { urls } from '../../../lib/urls.ts'
 import { adminOnly, adminPage, message } from '../admin.tsx'
+import { newPostEmail } from './email.tsx'
 import { composePost, composeValues, readComposeForm, type ComposeValues } from './form.ts'
 import {
   COMPOSE_PAGE_STYLES,
@@ -182,7 +183,7 @@ const saveComposer = adminOnly(() =>
       let empty = [{ message: 'Write something, or add photos or a video.' }]
       return yield* composePage(values, published, empty)
     }
-    return yield* (yield* PostCommands).save({ post, uploads, issues }).pipe(
+    return yield* (yield* PostCommands).save({ post, uploads, issues }, newPostEmail).pipe(
       Effect.as(redirect(urls.post(values.id), 303)),
       Effect.catchTag('PostRejected', (rejected) =>
         composePage(values, published, rejected.issues),

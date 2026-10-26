@@ -143,7 +143,7 @@ export function Document(props: DocumentProps): Html {
             <header class="navbar">
               <div class="navbar-content">
                 <a href={urls.home()} class="navbar-title">
-                  <SiteLogo site={site} height="1.2rem" />
+                  <SiteLogo site={site} height="1.2rem" origin="" />
                 </a>
                 <div class="nav-actions">
                   {page.admin ? <ComposeLink /> : null}

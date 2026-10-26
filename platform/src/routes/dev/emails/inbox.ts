@@ -11,6 +11,7 @@ export interface ReceivedEmail {
   readonly replyTo: readonly string[]
   readonly subject: string
   readonly text: string
+  readonly html?: string | undefined
 }
 
 export class DevInbox extends Context.Service<

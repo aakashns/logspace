@@ -1,9 +1,15 @@
 // Saving and deleting posts: the write side for posts. Media storage and the database can't
-// change together, so each command says what's left when one step fails.
+// change together, so each command says what's left when one step fails. A new post is emailed
+// to everyone subscribed.
 import { Context, DateTime, Effect, Layer, Schema } from 'effect'
 import { SqlClient } from 'effect/sql'
 
 import { MediaStorage, mediaKeys } from '../../lib/media-storage.ts'
+import { urls } from '../../lib/urls.ts'
+import { Email, type EmailMessage } from '../site/email.ts'
+import { configuredSite, SiteConfigQueries } from '../site/queries.ts'
+import type { SiteConfig } from '../site/site.ts'
+import { allUsers } from '../users/queries.ts'
 import { makePostFiles } from './files.ts'
 import {
   getPostFileNames,
@@ -12,6 +18,8 @@ import {
   type PostIssue,
   type PostRecord,
 } from './post.ts'
+import type { Post } from './presentation.ts'
+import { PostQueries } from './queries.ts'
 import { fromPostRow, POST_COLUMNS, toPostRow, type PostRow } from './rows.ts'
 
 // What these commands can refuse to do. These are expected: the composer shows why.
@@ -37,11 +45,19 @@ export interface PostSubmission {
   readonly issues: readonly PostIssue[]
 }
 
+// The email telling subscribers about a new post, with its files' full URLs, which the composer
+// makes (see ../../routes/admin/compose/email.tsx).
+export type NewPostEmail = (post: Post, site: SiteConfig) => Omit<EmailMessage, 'to'>
+
 export class PostCommands extends Context.Service<
   PostCommands,
   {
-    // Publishes the post, or saves it over the published one with its id.
-    readonly save: (submission: PostSubmission) => Effect.Effect<PostRecord, PostRejected>
+    // Publishes the post, or saves it over the published one with its id. A new one is emailed
+    // to everyone subscribed, as `email` makes it, in the background.
+    readonly save: (
+      submission: PostSubmission,
+      email: NewPostEmail,
+    ) => Effect.Effect<PostRecord, PostRejected>
     // Saves files chosen in the composer as the post's, before it's saved.
     readonly upload: (
       id: string,
@@ -59,6 +75,11 @@ export class PostCommands extends Context.Service<
       let sql = yield* SqlClient.SqlClient
       let files = yield* makePostFiles()
       let storage = yield* MediaStorage
+      let queries = yield* PostQueries
+      let siteConfig = yield* SiteConfigQueries
+      let mail = yield* Email
+      // Where emails are sent from, which outlives the request that published the post.
+      let scope = yield* Effect.scope
 
       let saveUploads = (id: string, uploads: PostSubmission['uploads']) =>
         Effect.forEach(uploads, ({ name, file }) => files.save(id, name, file), { discard: true })
@@ -101,20 +122,57 @@ export class PostCommands extends Context.Service<
         )
       })
 
+      // Emails post `id` to each subscriber, one after another. An address that can't be sent to
+      // is skipped; once nothing can be (email isn't set up, or the hour's emails are sent), the
+      // rest aren't sent.
+      let announce = Effect.fnUntraced(
+        function* (id: string, email: NewPostEmail) {
+          let users = yield* allUsers
+          if (users.length === 0) return
+          let site = yield* configuredSite
+          let post = yield* queries.find(id, (id, file) => site.siteUrl + urls.postFile(id, file))
+          if (!post) return
+          let message = email(post, site)
+          yield* Effect.forEach(
+            users,
+            (user) =>
+              mail
+                .send({ ...message, to: user.email })
+                .pipe(Effect.catchTag(['EmailAddressInvalid', 'EmailNotSent'], () => Effect.void)),
+            { discard: true },
+          )
+        },
+        (effect) =>
+          effect.pipe(
+            Effect.catchCause((cause) => Effect.logWarning('New post not emailed to all', cause)),
+            Effect.provideService(SqlClient.SqlClient, sql),
+            Effect.provideService(SiteConfigQueries, siteConfig),
+          ),
+      )
+
       // Uploads are saved before the post is checked, so a rejected submission doesn't need its
       // files chosen again. Once the post is stored, the files it doesn't name go. If storing the
       // post fails, its files are left as they were; if removing them fails, they're left,
       // unserved.
-      let save = Effect.fn('PostCommands.save')(function* (submission: PostSubmission) {
+      let save = Effect.fn('PostCommands.save')(function* (
+        submission: PostSubmission,
+        email: NewPostEmail,
+      ) {
         let { id } = submission.post
         // An invalid id is one of the post's issues; no files are saved under it.
         if (isPostId(id)) yield* saveUploads(id, submission.uploads)
         let record = yield* check(submission)
         let { id: _, ...row } = toPostRow(record)
         let updated_at = DateTime.formatIso(yield* DateTime.now)
-        yield* sql`insert into posts ${sql.insert({ id, ...row })}
-          on conflict (id) do update set ${sql.update({ ...row, updated_at })}`.pipe(Effect.orDie)
+        // Whether it's new, in the transaction that saves it, so a form posted twice emails once.
+        let isNew = yield* Effect.gen(function* () {
+          let existing = yield* sql`select id from posts where id = ${id}`
+          yield* sql`insert into posts ${sql.insert({ id, ...row })}
+            on conflict (id) do update set ${sql.update({ ...row, updated_at })}`
+          return existing.length === 0
+        }).pipe(sql.withTransaction, Effect.orDie)
         yield* cleanUp(id)
+        if (isNew) yield* Effect.forkIn(announce(id, email), scope)
         return record
       })
 

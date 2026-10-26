@@ -58,4 +58,14 @@
     white-space: pre-wrap;
     font: inherit;
   }
+
+  .dev-email-html {
+    display: inline-block;
+    margin-top: 1rem;
+    color: var(--link);
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
 }

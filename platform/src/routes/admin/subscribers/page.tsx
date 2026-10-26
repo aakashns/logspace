@@ -68,7 +68,7 @@ export function SubscribersPage(props: {
             <FieldLabel for="subscriptions-enabled">Enable subscriptions</FieldLabel>
             <FieldDescription id="subscriptions-enabled-description">
               The home page shows a Subscribe button. Subscribing makes an account, once the address
-              is confirmed with a code sent to it.
+              is confirmed with a code sent to it. Each new post is emailed to everyone subscribed.
             </FieldDescription>
           </FieldContent>
           {/* Changing it saves it. Without JavaScript, the Save button below does. */}

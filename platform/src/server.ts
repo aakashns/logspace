@@ -94,7 +94,16 @@ export const AppServices = Layer.mergeAll(
   Assets.layer,
   Secrets.layer,
   AdminAuth.layer.pipe(Layer.provide(MigratedDatabase)),
-  PostCommands.layer.pipe(Layer.provide([MigratedDatabase, MediaStorage.layer, Images.layer])),
+  PostCommands.layer.pipe(
+    Layer.provide([
+      MigratedDatabase,
+      MediaStorage.layer,
+      Images.layer,
+      PostQueriesLive,
+      SiteConfigQueriesLive,
+      EmailLive,
+    ]),
+  ),
   SiteConfigCommands.layer.pipe(
     Layer.provide([
       MigratedDatabase,
