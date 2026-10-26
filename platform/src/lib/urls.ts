@@ -24,6 +24,11 @@ export const urls = {
   // by the id of its row (random, and not the address), which posts to itself.
   subscribe: () => '/subscribe',
   subscribeVerify: (id: string) => `/subscribe/verify/${encodeURIComponent(id)}`,
+  // Push notifications of new posts: what the home page's bell posts a browser's subscription
+  // to, and to forget it, and the service worker that shows them.
+  pushNotifications: () => '/push-notifications',
+  removePushNotifications: () => '/push-notifications/remove',
+  pushWorker: () => '/push-notifications/worker.js',
   // Tools for working on the app, outside production: a page leading to the rest, the components
   // in components/ui, and the site's fake of Amazon SES, which takes email as SES's API does and
   // shows what it's taken.
@@ -43,6 +48,10 @@ export const urls = {
     branding: () => '/admin/branding',
     integrations: () => '/admin/integrations',
     subscribers: () => '/admin/subscribers',
+    savePushNotifications: () => '/admin/subscribers/push-notifications',
+    // A browser that gets push notifications, by its id (not its endpoint).
+    deletePushSubscriber: (id: string) =>
+      `/admin/subscribers/push/${encodeURIComponent(id)}/delete`,
     deleteSubscriber: (id: string) => `/admin/subscribers/${encodeURIComponent(id)}/delete`,
     // What Turnstile's section of /admin/integrations posts to: its keys, to disconnect it, and
     // to check its widget with Cloudflare.

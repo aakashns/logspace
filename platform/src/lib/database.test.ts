@@ -65,8 +65,9 @@ describe('migrations', () => {
       '0009_dates_in_utc',
       '0010_drop_articles',
       '0011_create_users',
+      '0012_create_push_subscriptions',
     ])
-    expect(await migrate(file)).toHaveLength(11)
+    expect(await migrate(file)).toHaveLength(12)
     expect(await migrate(file)).toEqual([])
 
     let db = new Database(file, { readonly: true })
@@ -137,6 +138,12 @@ describe('migrations', () => {
         id: '0011',
         name: 'create_users',
         checksum: 'b15a4cd63fae32ee4e76b87f3452bdee13498960d5625c2797d3009ec133f5ac',
+        batch: 1,
+      },
+      {
+        id: '0012',
+        name: 'create_push_subscriptions',
+        checksum: 'fa01ae69d701240075c312b69cc93eaec866bec0b346c2634a589058f1218a5e',
         batch: 1,
       },
     ])
