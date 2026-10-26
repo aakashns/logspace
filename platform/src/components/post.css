@@ -58,12 +58,12 @@
   }
 
   /*
-   * The row's shape, kept while it's open. One photo keeps its own; more share a 3:4 frame they're
-   * cropped to fill, or with a pointer (a desktop), where 3:4 is taller than the screen, a black
-   * square they fit inside.
+   * The row's shape, kept while it's open. One photo keeps its own (or is cropped square, if its
+   * size couldn't be read); more share a 3:4 frame they're cropped to fill, or with a pointer (a
+   * desktop), where 3:4 is taller than the screen, a black square they fit inside.
    */
   .carousel-frame {
-    aspect-ratio: var(--aspect-ratio, auto);
+    aspect-ratio: var(--aspect-ratio, 1);
     /* Without this, the photos would stretch it to their own shape. */
     min-height: 0;
 
