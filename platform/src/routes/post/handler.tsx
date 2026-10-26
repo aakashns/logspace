@@ -36,7 +36,7 @@ const showPost = Effect.gen(function* () {
     <Document
       page={page}
       meta={getPostMeta(post)}
-      preloadImage={getPriorityImage(post, true)}
+      preloadImage={getPriorityImage(post)}
       styles={POST_PAGE_STYLES}
     >
       <PostPage post={post} siteUrl={site.siteUrl} preview={preview} />
