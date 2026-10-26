@@ -2,7 +2,7 @@
 // browser a notification through its push service, encrypted for it and signed with the site's key
 // (see ../../lib/web-push.ts). Who's sent what is commands.ts's.
 import { Clock, Context, Duration, Effect, Layer, Redacted, Schema } from 'effect'
-import { HttpClient, HttpClientRequest } from 'effect/http'
+import { FetchHttpClient, HttpClient, HttpClientRequest } from 'effect/http'
 
 import { AppConfig, MIN_SECRET_LENGTH } from '../../lib/config.ts'
 import { derivePushKeys, encryptPushMessage, vapidAuthorization } from '../../lib/web-push.ts'
@@ -99,7 +99,25 @@ export class PushDelivery extends Context.Service<
           }),
           HttpClientRequest.bodyUint8Array(body, 'application/octet-stream'),
         )
-        let response = yield* client.execute(request).pipe(
+        // The deadline covers reading a refusal too, so a push service that stalls partway can't
+        // hold the send. Redirects aren't followed: the site sends only to the push service the
+        // subscription is with.
+        return yield* Effect.gen(function* () {
+          let response = yield* client.execute(request)
+          if (response.status >= 200 && response.status < 300) return
+          let answer = yield* response.text.pipe(Effect.orElseSucceed(() => ''))
+          let refusal = decodeAppleRefusal(answer)
+          let reason = (refusal._tag === 'Some' ? refusal.value.reason : answer.trim()).slice(
+            0,
+            MAX_REASON_LENGTH,
+          )
+          let said = `${name} answered ${response.status}${reason ? `: ${reason}` : '.'}`
+          if (response.status === 404 || response.status === 410) {
+            return yield* new PushSubscriptionGone({ message: said })
+          }
+          return yield* new PushNotSent({ message: said })
+        }).pipe(
+          Effect.provideService(FetchHttpClient.RequestInit, { redirect: 'manual' }),
           Effect.timeoutOrElse({
             duration: TIMEOUT,
             orElse: () => Effect.fail(new PushNotSent({ message: `${name} didn’t answer.` })),
@@ -108,16 +126,6 @@ export class PushDelivery extends Context.Service<
             Effect.fail(new PushNotSent({ message: `Couldn’t reach ${name}.` })),
           ),
         )
-        if (response.status >= 200 && response.status < 300) return
-        let answer = yield* response.text.pipe(Effect.orElseSucceed(() => ''))
-        let refusal = decodeAppleRefusal(answer)
-        let reason =
-          refusal._tag === 'Some' ? refusal.value.reason : answer.trim().slice(0, MAX_REASON_LENGTH)
-        let said = `${name} answered ${response.status}${reason ? `: ${reason}` : '.'}`
-        if (response.status === 404 || response.status === 410) {
-          return yield* new PushSubscriptionGone({ message: said })
-        }
-        return yield* new PushNotSent({ message: said })
       })
 
       return PushDelivery.of({ status, publicKey: keys.publicKey, send })

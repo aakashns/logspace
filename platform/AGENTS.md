@@ -33,8 +33,8 @@ bun run build && bun scripts/smoke-test.ts dist/logspace
   pages that show it). Its expressions are short constant strings (an action like `@post(...)`, a
   signal); anything more is the server's job, not JavaScript in the markup. Write a script of
   your own only when neither can do it, like push notifications' (`public/push-*.js`): a file in
-  `public/`, embedded and served with a page's nonce, never inline. Pass values in `data-*` attributes, and
-  put `data-ignore` on any HTML made from what someone wrote
+  `public/`, embedded and served with a page's nonce, never inline. Pass values in `data-*`
+  attributes, and put `data-ignore` on any HTML made from what someone wrote
 - Markup unescaped is `raw()`, only for HTML the app made (captions, CSS, JSON-LD)
 - Embed any file the app reads with an `import … with { type: 'file' }` (or `'text'`), so the
   binary has it

@@ -12,7 +12,7 @@ import { decryptPushMessage } from '../../../test/web-push.ts'
 import { PostCommands } from '../../data/posts/commands.ts'
 import { PushCommands } from '../../data/push/commands.ts'
 import {
-  MAX_PUSH_FAILURES,
+  MAX_PUSH_SUBSCRIPTIONS,
   PUSH_SUBSCRIPTIONS_PER_HOUR,
   pushRateLimitKey,
 } from '../../data/push/push.ts'
@@ -24,6 +24,7 @@ interface Sent {
   readonly url: string
   readonly headers: Headers
   readonly body: Uint8Array
+  readonly redirect: RequestRedirect | undefined
 }
 let sent: Sent[] = []
 let answers = new Map<string, () => Response>()
@@ -36,6 +37,7 @@ const network = {
     let message = {
       url: url.href,
       headers: new Headers(init.headers),
+      redirect: init.redirect,
       body: new Uint8Array(await new Response(init.body).arrayBuffer()),
     }
     sent.push(message)
@@ -49,6 +51,7 @@ const app = makeTestApp({}, { network })
 const proxied = makeTestApp({ trustProxy: true }, { network })
 
 const SITE_KEY = derivePushKeys(Redacted.value(TEST_CONFIG.sessionSecret))
+const HOUR = 60 * 60 * 1000
 
 beforeEach(async () => {
   await app.seedDatabase()
@@ -251,6 +254,11 @@ describe('subscribing', () => {
       'https://127.0.0.1/push',
       `https://fcm.googleapis.com/fcm/send/${'a'.repeat(1024)}`,
       'not a url',
+      // Another way of writing an endpoint, so not the one the browser has.
+      'https://web.push.apple.com/abc#again',
+      'https://web.push.apple.com/abc#',
+      'https://WEB.push.apple.com/abc',
+      'https://web.push.apple.com:443/abc',
     ]) {
       let response = await subscribe({ endpoint, keys })
       expect(response.status, endpoint).toBe(400)
@@ -375,6 +383,63 @@ describe('subscribing', () => {
     expect((await from('2001:db8:1:3::1')).status).toBe(201)
   })
 
+  it('forgets every address’s count an hour after its last subscription', async () => {
+    await switchOn()
+    await app.run(
+      Effect.flatMap(SqlClient.SqlClient, (sql) =>
+        sql`insert into rate_limits ${sql.insert([
+          { key: pushRateLimitKey('192.0.2.9'), count: 3, last_request: Date.now() - 2 * HOUR },
+          { key: pushRateLimitKey('192.0.2.10'), count: 3, last_request: Date.now() },
+          { key: 'sign-up-otp:ada@example.com', count: 1, last_request: Date.now() - 2 * HOUR },
+        ])}`.pipe(Effect.orDie),
+      ),
+    )
+    await subscribe(makeBrowser().subscription)
+    let keys = await app.run(
+      Effect.flatMap(SqlClient.SqlClient, (sql) =>
+        sql<{ key: string }>`select key from rate_limits order by key`.pipe(Effect.orDie),
+      ),
+    )
+    expect(keys.map((row) => row.key)).toEqual([
+      pushRateLimitKey('192.0.2.10'),
+      pushRateLimitKey(undefined),
+      'sign-up-otp:ada@example.com',
+    ])
+  })
+
+  it(`takes at most ${MAX_PUSH_SUBSCRIPTIONS} browsers, counting only those made with the site’s key`, async () => {
+    await switchOn()
+    let { keys } = makeBrowser().subscription
+    let fill = (key: string) =>
+      app.run(
+        Effect.flatMap(SqlClient.SqlClient, (sql) =>
+          Effect.gen(function* () {
+            yield* sql`delete from push_subscriptions`
+            for (let i = 0; i < MAX_PUSH_SUBSCRIPTIONS; i += 500) {
+              yield* sql`insert into push_subscriptions ${sql.insert(
+                Array.from({ length: 500 }, (_, j) => ({
+                  endpoint: `https://web.push.apple.com/filler-${i + j}`,
+                  p256dh: keys.p256dh,
+                  auth: keys.auth,
+                  application_server_key: key,
+                  created_at: '2026-01-01T00:00:00.000Z',
+                })),
+              )}`
+            }
+          }).pipe(Effect.orDie),
+        ),
+      )
+    await fill(SITE_KEY.publicKey)
+    let response = await subscribe(makeBrowser().subscription)
+    expect(response.status).toBe(503)
+    expect(await response.json()).toEqual({
+      message: 'This site can’t send notifications to any more browsers.',
+    })
+    // After AUTH_SESSION_SECRET changed, the old ones don't take anyone's place.
+    await fill('an-old-key')
+    expect((await subscribe(makeBrowser().subscription)).status).toBe(201)
+  })
+
   it('counts addresses by the network they’re likely one of', () => {
     expect(pushRateLimitKey('192.0.2.7')).toBe('push-subscription:192.0.2.7')
     expect(pushRateLimitKey('::ffff:192.0.2.7')).toBe('push-subscription:192.0.2.7')
@@ -485,7 +550,7 @@ describe('a new post', () => {
     expect(sent).toEqual([])
   })
 
-  it('keeps why a push service didn’t take it, and drops subscriptions that are gone or keep failing', async () => {
+  it('keeps why a push service didn’t take it, and drops only subscriptions that are gone', async () => {
     await switchOn()
     let taken = makeBrowser('https://web.push.apple.com/a-taken')
     let gone = makeBrowser('https://web.push.apple.com/b-gone')
@@ -537,20 +602,44 @@ describe('a new post', () => {
 
     // The admin sees which browser it is, and why.
     let admin = await (await app.adminFetch('/admin/subscribers')).text()
-    expect(admin).toContain(
-      '2 browsers get</span> a notification of each new post.'.replace('</span>', ''),
-    )
+    expect(admin).toContain('2 browsers get a notification of each new post.')
     expect(admin).toContain('Apple (Safari)')
     expect(admin).toContain('Not sent')
     expect(admin).toMatch(
       /<span class="push-error" data-ignore>Apple’s push service answered 429: TooManyRequests<\/span>/,
     )
 
-    for (let i = 2; i < MAX_PUSH_FAILURES; i++) await notify()
+    // A push service that's down or throttling for a while doesn't lose its browsers, which get
+    // the next post once it's back.
+    for (let i = 0; i < 9; i++) await notify()
     admin = await (await app.adminFetch('/admin/subscribers')).text()
-    expect(admin).toContain(`${MAX_PUSH_FAILURES - 1} in a row. Apple’s push service answered 429`)
-    expect(await notify()).toEqual({ sent: 1, failed: 0, removed: 1 })
-    expect((await rows()).map((row) => row.endpoint)).toEqual([taken.subscription.endpoint])
+    expect(admin).toContain('10 in a row. Apple’s push service answered 429')
+    answers.delete(failing.subscription.endpoint)
+    expect(await notify()).toEqual({ sent: 2, failed: 0, removed: 0 })
+    expect((await rows()).map((row) => [row.endpoint, row.failures])).toEqual([
+      [taken.subscription.endpoint, 0],
+      [failing.subscription.endpoint, 0],
+    ])
+  })
+
+  it('counts failures as they come back, when several posts’ notifications are out at once', async () => {
+    await switchOn()
+    let browser = makeBrowser()
+    await subscribe(browser.subscription)
+    answers.set(browser.subscription.endpoint, () => new Response('', { status: 503 }))
+    let fibers = await app.run(
+      Effect.flatMap(PushCommands, (push) =>
+        Effect.all([push.notifyNewPost('xf6ddthtoo'), push.notifyNewPost('drdp3ei6fd')]),
+      ),
+    )
+    for (let fiber of fibers) await app.run(Fiber.join(defined(fiber, 'a fan-out')))
+    expect((await rows()).map((row) => row.failures)).toEqual([2])
+  })
+
+  it('isn’t sent anywhere a push service redirects to', async () => {
+    await switchOn()
+    await subscribe(makeBrowser().subscription)
+    expect(sent.map((message) => message.redirect)).toEqual(['manual'])
   })
 })
 

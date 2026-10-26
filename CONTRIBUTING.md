@@ -285,9 +285,13 @@ and without JavaScript. Each test starts the app with its own temporary data and
   Google's, Mozilla's, and Microsoft's), over HTTPS, so a subscription can't make it send requests
   anywhere else, and takes a subscription only once its push service has taken a notification
   that says it's on. An address (or IPv6 /64) can make 20 an hour, the site sends to at most
-  10,000 browsers, and the bell's requests are read only up to 4 KB. One a push service says is
-  gone, or that's refused 5 notifications in a row, is dropped. A subscription's endpoint is all
-  it takes to unsubscribe it, and `/admin/subscribers` never shows it.
+  10,000 browsers, and the bell's requests are read only up to 4 KB. An endpoint is taken only
+  as the URL parser writes it, without a fragment, so one browser can't subscribe twice. Sends
+  don't follow redirects, and one a push service says is gone is dropped (one that fails
+  otherwise is kept, for the next post). A subscription's endpoint is all it takes to unsubscribe
+  it, and `/admin/subscribers` never shows it. Sending is best effort: a post's notifications
+  aren't retried, and changing `AUTH_SESSION_SECRET` drops every subscription until its browser
+  visits the home page again.
 - **Subscribing**: the form needs Turnstile, always, and is read only up to 16 KB. An address is
   sent a code at most every 30 seconds, and 5 an hour (counted in `rate_limits`, as better-auth
   counts requests, whether or not it's sent), and the site sends at most its email settings'

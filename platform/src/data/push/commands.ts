@@ -2,8 +2,11 @@
 // subscribes (as often as its address may, and once the site's sent it a notification that says
 // so, which shows its subscription works) or unsubscribes, and each new post is sent to every
 // browser subscribed. What happened to each one's last notification is kept, for
-// /admin/subscribers; one its push service says is gone, or that hasn't taken MAX_PUSH_FAILURES in
-// a row, is dropped.
+// /admin/subscribers; one its push service says is gone is dropped, and one that wasn't taken for
+// another reason (an outage, or being throttled) is kept, for the next post.
+//
+// Sending is best effort, in the background: a post's notifications aren't retried, and those
+// not sent yet when the server stops aren't sent.
 import { Clock, Context, DateTime, Effect, Fiber, Layer, Schema, Semaphore } from 'effect'
 import { SqlClient } from 'effect/sql'
 
@@ -13,10 +16,10 @@ import { isSiteConfigured } from '../site/site.ts'
 import { PushDelivery, type PushNotSent, type PushSubscriptionGone } from './delivery.ts'
 import {
   checkPushSubscription,
-  MAX_PUSH_FAILURES,
   MAX_PUSH_SUBSCRIPTIONS,
   NEW_POST_TTL_SECONDS,
   newPostMessage,
+  PUSH_RATE_LIMIT_PREFIX,
   PUSH_SUBSCRIPTIONS_PER_HOUR,
   type PushMessage,
   type PushSubscriptionJson,
@@ -72,7 +75,6 @@ interface SubscriptionRow {
   readonly p256dh: string
   readonly auth: string
   readonly application_server_key: string
-  readonly failures: number
 }
 
 export class PushCommands extends Context.Service<
@@ -115,12 +117,15 @@ export class PushCommands extends Context.Service<
       })
 
       // Counts a new subscription from the address, or says why it can't be made: the address
-      // made too many lately, or the site has as many as it takes. The count goes an hour after
-      // its last.
+      // made too many lately, or the site has as many as it takes (counting only those it can
+      // send to, made with its key). An address's count goes an hour after its last. Subscriptions
+      // waiting on their first notification aren't counted, so a burst of them can pass the
+      // limit by a few, which is fine for a bound on work.
       let countSubscription = (address: string | undefined, endpoint: string, now: number) =>
         Effect.gen(function* () {
           let key = pushRateLimitKey(address)
-          yield* sql`delete from rate_limits where key = ${key} and last_request <= ${now - HOUR}`
+          yield* sql`delete from rate_limits
+            where key like ${`${PUSH_RATE_LIMIT_PREFIX}%`} and last_request <= ${now - HOUR}`
           let [row] = yield* sql<{ count: number; last_request: number }>`
             select count, last_request from rate_limits where key = ${key}`
           if (row && row.count >= PUSH_SUBSCRIPTIONS_PER_HOUR) {
@@ -129,7 +134,8 @@ export class PushCommands extends Context.Service<
             })
           }
           let [total] = yield* sql<{ count: number }>`
-            select count(*) as count from push_subscriptions where endpoint != ${endpoint}`
+            select count(*) as count from push_subscriptions
+            where endpoint != ${endpoint} and application_server_key = ${delivery.publicKey}`
           if ((total?.count ?? 0) >= MAX_PUSH_SUBSCRIPTIONS) {
             return new PushSubscriptionsFull({ limit: MAX_PUSH_SUBSCRIPTIONS })
           }
@@ -150,7 +156,7 @@ export class PushCommands extends Context.Service<
         }
         let target = checked.success
         let [saved] = yield* sql<SubscriptionRow>`
-          select endpoint, p256dh, auth, application_server_key, failures
+          select endpoint, p256dh, auth, application_server_key
           from push_subscriptions where endpoint = ${target.endpoint}`.pipe(Effect.orDie)
         if (
           saved &&
@@ -203,8 +209,9 @@ export class PushCommands extends Context.Service<
         yield* sql`delete from push_subscriptions where endpoint = ${endpoint}`.pipe(Effect.orDie)
       })
 
-      // Keeps what happened to a subscription's notification: taken, or not, and why, which drops
-      // it once its push service says it's gone or MAX_PUSH_FAILURES in a row weren't taken.
+      // Keeps what happened to a subscription's notification: taken, or not, and why, counting
+      // those not taken in a row in the database, as several posts' notifications can be on
+      // their way at once. One whose push service says it's gone is dropped.
       let record = (row: SubscriptionRow, error: PushSubscriptionGone | PushNotSent | undefined) =>
         Effect.gen(function* () {
           let now = DateTime.formatIso(yield* currentTime)
@@ -214,13 +221,12 @@ export class PushCommands extends Context.Service<
               where endpoint = ${row.endpoint}`
             return 'sent' as const
           }
-          let failures = row.failures + 1
-          if (error._tag === 'PushSubscriptionGone' || failures >= MAX_PUSH_FAILURES) {
+          if (error._tag === 'PushSubscriptionGone') {
             yield* sql`delete from push_subscriptions where endpoint = ${row.endpoint}`
             return 'removed' as const
           }
           yield* sql`update push_subscriptions
-            set last_sent_at = ${now}, last_error = ${error.message}, failures = ${failures}
+            set last_sent_at = ${now}, last_error = ${error.message}, failures = failures + 1
             where endpoint = ${row.endpoint}`
           return 'failed' as const
         }).pipe(Effect.orDie)
@@ -233,7 +239,7 @@ export class PushCommands extends Context.Service<
           let stale = yield* sql`delete from push_subscriptions
             where application_server_key != ${delivery.publicKey} returning endpoint`
           let rows = yield* sql<SubscriptionRow>`
-            select endpoint, p256dh, auth, application_server_key, failures
+            select endpoint, p256dh, auth, application_server_key
             from push_subscriptions`
           let outcomes = yield* Effect.forEach(
             rows,

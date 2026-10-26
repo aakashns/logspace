@@ -50,11 +50,18 @@ export function getPushService(endpoint: string): PushService | undefined {
 export const MAX_ENDPOINT_LENGTH = 1024
 
 // Checks a subscription a browser sent, saying what's wrong with it if it isn't one the site takes.
+// Its endpoint is the subscription's identity, so only its one way of being written is taken
+// (as URL writes it, with no fragment), so the same one can't be subscribed again as another.
 export function checkPushSubscription(
   subscription: PushSubscriptionJson,
 ): Result.Result<PushTarget, string> {
   let { endpoint, keys } = subscription
-  if (endpoint.length > MAX_ENDPOINT_LENGTH || !getPushService(endpoint)) {
+  if (
+    endpoint.length > MAX_ENDPOINT_LENGTH ||
+    endpoint.includes('#') ||
+    URL.parse(endpoint)?.href !== endpoint ||
+    !getPushService(endpoint)
+  ) {
     return Result.fail('The subscription isn’t with a push service this site sends to.')
   }
   if (!isPushPublicKey(keys.p256dh) || !isPushAuthSecret(keys.auth)) {
@@ -81,6 +88,9 @@ export interface PushMessage {
 export const NEW_POST_TTL_SECONDS = 7 * 24 * 60 * 60
 export const WELCOME_TTL_SECONDS = 5 * 60
 
+// Short enough that a message is always far under what push services take (see
+// MAX_PUSH_PLAINTEXT_BYTES).
+const MAX_TITLE_LENGTH = 100
 const MAX_BODY_LENGTH = 160
 // Wide enough for a notification's large image on a 2x screen.
 const IMAGE_WIDTH = 800
@@ -94,7 +104,7 @@ const siteIcon = (site: SiteConfig) => new URL(getIconHref(site, 'icon-192.png')
 // sending to it works.
 export function welcomeMessage(site: SiteConfig): PushMessage {
   return {
-    title: site.siteTitle,
+    title: clamp(site.siteTitle, MAX_TITLE_LENGTH),
     body: 'Notifications are on. You’ll get one for each new post.',
     url: new URL(urls.home(), site.siteUrl).href,
     icon: siteIcon(site),
@@ -113,7 +123,7 @@ export function newPostMessage(post: Post, site: SiteConfig): PushMessage {
         ? post.video.poster
         : undefined
   return {
-    title: site.siteTitle,
+    title: clamp(site.siteTitle, MAX_TITLE_LENGTH),
     body: clamp(text, MAX_BODY_LENGTH) || describeMedia(post),
     url: new URL(urls.post(post.id), site.siteUrl).href,
     icon: siteIcon(site),
@@ -159,8 +169,9 @@ export interface PushSubscriber {
 export const MAX_PUSH_SUBSCRIPTIONS = 10_000
 // How many new subscriptions one address can make an hour.
 export const PUSH_SUBSCRIPTIONS_PER_HOUR = 20
-// A subscription's notifications not taken in a row before the site stops sending it any.
-export const MAX_PUSH_FAILURES = 5
+
+// What the `key`s below start with.
+export const PUSH_RATE_LIMIT_PREFIX = 'push-subscription:'
 
 // The `key` of how many subscriptions an address made lately, in the `rate_limits` table. An IPv6
 // address is counted by its /64, which is usually one home or phone; an IPv4 address the server
@@ -169,7 +180,7 @@ export const MAX_PUSH_FAILURES = 5
 export function pushRateLimitKey(address: string | undefined): string {
   let mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(address ?? '')?.[1]
   let counted = mapped ?? (address?.includes(':') ? ipv6Prefix(address) : address)
-  return `push-subscription:${counted ?? 'unknown'}`
+  return `${PUSH_RATE_LIMIT_PREFIX}${counted || 'unknown'}`
 }
 
 // The first four groups of an IPv6 address, written out, like 2001:0db8:0000:0000.

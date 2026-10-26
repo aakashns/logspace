@@ -73,10 +73,14 @@ function show(next) {
   tooltip.textContent = LABELS[next]
 }
 
+// Blocked notifications may have been allowed in the browser's settings since the page loaded.
 function toggle() {
   if (state === 'on') turnOff()
   else if (state === 'off') turnOn()
-  else if (state === 'blocked') openDialog('push-blocked')
+  else if (state === 'blocked') {
+    if (Notification.permission === 'denied') openDialog('push-blocked')
+    else turnOn()
+  }
 }
 
 // On loading, whether this browser is subscribed, which the site's told again, in case it
