@@ -65,7 +65,7 @@ describe('migrations', () => {
       '0009_dates_in_utc',
       '0010_drop_articles',
       '0011_create_users',
-      '0012_create_push_subscriptions',
+      '0013_drop_push_subscriptions',
     ])
     expect(await migrate(file)).toHaveLength(12)
     expect(await migrate(file)).toEqual([])
@@ -141,9 +141,9 @@ describe('migrations', () => {
         batch: 1,
       },
       {
-        id: '0012',
-        name: 'create_push_subscriptions',
-        checksum: 'fa01ae69d701240075c312b69cc93eaec866bec0b346c2634a589058f1218a5e',
+        id: '0013',
+        name: 'drop_push_subscriptions',
+        checksum: '10ae64fb0e93e9686f09212376017f9dac565a11425b152fe7c518b56c5fdcd2',
         batch: 1,
       },
     ])

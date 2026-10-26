@@ -15,17 +15,8 @@ declare module '*.woff2' {
   const path: string
   export default path
 }
-// Datastar, and the push notifications' scripts, served as files (see http/assets.ts) rather
-// than imported as modules.
+// Datastar, served as a file (see http/assets.ts) rather than imported as a module.
 declare module '*/datastar.js' {
-  const path: string
-  export default path
-}
-declare module '*/push-notifications.js' {
-  const path: string
-  export default path
-}
-declare module '*/push-worker.js' {
   const path: string
   export default path
 }

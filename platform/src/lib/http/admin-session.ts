@@ -14,11 +14,12 @@ import { Clock, Context, Effect, Layer, Option, Redacted, Schema } from 'effect'
 import { HttpServerRequest, HttpServerResponse } from 'effect/http'
 import { SqlClient } from 'effect/sql'
 
-import { AppConfig, MIN_SECRET_LENGTH } from '../config.ts'
+import { AppConfig } from '../config.ts'
 
 const COOKIE_NAME = 'admin_session'
 export const ADMIN_HINT_COOKIE = 'admin'
 const MAX_AGE = 60 * 60 * 24 * 30
+const MIN_SECRET_LENGTH = 16
 const MAX_SESSIONS = 100
 
 export const AdminSession = Schema.Struct({

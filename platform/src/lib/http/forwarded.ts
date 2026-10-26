@@ -1,11 +1,10 @@
 // Behind a reverse proxy (Caddy) a request arrives over plain HTTP from the proxy, so with
 // TRUST_PROXY=1 its protocol and host are the ones the browser used, which the proxy forwards: in
-// X-Forwarded-Proto and X-Forwarded-Host, else the standard Forwarded header, and its address is
-// the browser's, in X-Forwarded-For. Pages, links, the cross-origin check, and limits counted by
-// address depend on them. Only trust these headers from a proxy that overwrites them. Caddy sets
-// the X-Forwarded-* headers on every request but passes a browser's Forwarded header through, so
-// those win. (In LogSpace 0.1 Forwarded won, which let a browser choose the host the app saw.)
-import { isIP } from 'node:net'
+// X-Forwarded-Proto and X-Forwarded-Host, else the standard Forwarded header. Pages, links, and
+// the cross-origin check depend on them. Only trust these headers from a proxy that overwrites
+// them. Caddy sets the X-Forwarded-* headers on every request but passes a browser's Forwarded
+// header through, so those win. (In LogSpace 0.1 Forwarded won, which let a browser choose the
+// host the app saw.)
 
 export interface ForwardedOrigin {
   readonly protocol?: 'http' | 'https' | undefined
@@ -23,16 +22,6 @@ export function getForwardedOrigin(
     normalizeHost(getFirstValue(headers['x-forwarded-host'])) ??
     normalizeHost(getForwardedParameter(forwarded, 'host'))
   return { protocol, host }
-}
-
-// The browser's address, which Caddy puts in X-Forwarded-For, replacing what a browser sent (it
-// trusts no proxy before it), so it's the only value. Anything that isn't an IP address is left
-// out.
-export function getForwardedFor(
-  headers: Readonly<Record<string, string | undefined>>,
-): string | undefined {
-  let address = getFirstValue(headers['x-forwarded-for'])?.trim()
-  return address && isIP(address) ? address : undefined
 }
 
 // The first value of a parameter (proto, host) in a Forwarded header, e.g.

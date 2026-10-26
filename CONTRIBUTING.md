@@ -50,9 +50,8 @@ The platform (the app, in `platform/`) is built with:
 - **[Effect v4](https://effect.website)** for structure: services share resources and application
   APIs, stateless operations are Effect functions, every expected failure is a typed error, and
   the database is [`effect/sql`](https://effect.website/docs).
-- **[Datastar](https://data-star.dev)** for nearly all the JavaScript sent to browsers (13 KB
-  gzipped): the theme toggle, share buttons, and the admin composer. Push notifications have two
-  small scripts of their own (below).
+- **[Datastar](https://data-star.dev)** as the only JavaScript sent to browsers (13 KB gzipped),
+  for the theme toggle, share buttons, and the admin composer.
 - **A tiny JSX runtime** (`src/lib/jsx`, about 110 lines) that renders TSX straight to HTML strings: no
   virtual DOM, no hydration.
 - **CQRS**: writes go through `commands.ts`, and reads through `queries.ts`, in `src/data/`, which
@@ -106,16 +105,15 @@ folder.
 | `feeds/`              | `/sitemap.xml`, `/robots.txt`, `/rss.xml`                                    |
 | `site-files/`         | `/site.webmanifest`, `/favicon.ico`, `/apple-touch-icon.png`, `/site/<file>` |
 | `link-images/`        | `/link-images/<file>`, link previews' images                                 |
-| `assets/`             | `/assets/<file>`, `/fonts/<file>`: Datastar, the push notifications' script, and the fonts |
+| `assets/`             | `/assets/<file>`, `/fonts/<file>`: Datastar and the fonts                    |
 | `subscribe/`          | `/subscribe` and `/subscribe/verify/<id>`: signing up, confirmed by an emailed code |
-| `push-notifications/` | `/push-notifications` (and `/remove`), what the home page's bell posts a browser's subscription to, and `/push-notifications/worker.js`, the service worker |
 | `admin/login/`        | `/admin/login`, `/admin/logout`                                              |
 | `admin/index/`        | `/admin`, a link to each of the four below                                   |
 | `admin/posts/`        | `/admin/posts`, the list of posts                                            |
 | `admin/compose/`      | `/admin/posts/new`, `/admin/posts/<id>/edit`, and what the composer posts to |
 | `admin/branding/`     | `/admin/branding`, the site's title, URL, introduction, and images           |
 | `admin/integrations/` | `/admin/integrations`, a section for each service: Turnstile, and email      |
-| `admin/subscribers/`  | `/admin/subscribers`, the switches for subscribing and push notifications, and who gets them, each of whom can be deleted |
+| `admin/subscribers/`  | `/admin/subscribers`, the switch for subscribing                             |
 | `dev/`                | `/dev`, outside production: tools for working on the app (below)             |
 
 `dev/` has a folder for each of its pages, like `admin/`: `index/` for `/dev`, a card linking to
@@ -140,18 +138,9 @@ composer keeps nothing on the server until it's posted, which is a plain form su
 into a post by `form.ts`. Every expression is a one-line constant string. Values like the URL to
 share are passed in `data-*` attributes and read with `el.dataset`, so nothing a user typed can
 end up in an expression. Everything else works without JavaScript: navigation is links, forms are
-forms, and the delete dialog uses `command`/`commandfor`. Cloudflare's Turnstile widget runs on
-`/admin/integrations` once it has a site key, on `/admin/login` while it's enabled, and on
-`/subscribe`; it puts its token in a plain form.
-
-**Push notifications** take the browser's own APIs a step at a time, which Datastar's one-line
-expressions can't, so they have the only scripts of the site's own: `public/push-notifications.js`
-runs the home page's bell (asking to show notifications, registering the service worker,
-subscribing with the browser's push service, and telling the site), and `public/push-worker.js`,
-the service worker, shows them. On iPhone and iPad, where push works only for a site added to the
-Home Screen, the bell shows how to add it until it's opened from there. A new post is sent to every
-browser subscribed, encrypted for each (RFC 8291) and signed with a key derived from
-`AUTH_SESSION_SECRET` (VAPID, RFC 8292), in `lib/web-push.ts`.
+forms, and the delete dialog uses `command`/`commandfor`. The one other script is Cloudflare's
+Turnstile widget, on `/admin/integrations` once it has a site key, on `/admin/login` while it's
+enabled, and on `/subscribe`; it puts its token in a plain form.
 
 #### 4. Data: `data/`
 
@@ -180,10 +169,6 @@ the database, and nothing is kept between requests, so an edit made in the datab
 | `site/subscriptions.ts` | Whether subscribing is off, paused (email or an enabled Turnstile is missing), or open                                                                 |
 | `users/user.ts`         | Accounts (the `users` table, after better-auth's `user`), and signing up: the form's checks, and the emailed code (a `verifications` row)              |
 | `users/queries.ts`      | The address a code (by its id) was sent to, while it can still be entered                                                                               |
-| `push/push.ts`          | Push notifications: what a browser's subscription is, the push services the site sends to, the limits, and the notifications                          |
-| `push/delivery.ts`      | `PushDelivery`: whether push notifications are on, and sending one browser a notification, with a typed error for each way that fails                  |
-| `push/queries.ts`       | The browsers subscribed, for `/admin/subscribers`                                                                                                     |
-| `push/commands.ts`      | `PushCommands`: subscribing (within the limits, once a notification that says so is sent), unsubscribing, the admin's removing one, and sending a new post to everyone, keeping what happened to each |
 | `users/commands.ts`     | `UserCommands`: asking for a code (passing Turnstile, as often as an address may be sent one), and entering it, which makes the account                |
 | `site/files.ts`         | The site's image files, from storage, or the default icons that `Images` caches                                                                         |
 | `link-previews/`        | `LinkPreviews` fetches previews in the background, never on a page's time, and saves each one's image as resized WebP copies                            |
@@ -231,7 +216,6 @@ Database migrations are an Effect function, `runMigrations`, used by startup and
 | `media-storage.ts`   | Uploaded files as plain files under `MEDIA_DIR` (`posts/<id>/<file>`, `variants/…`, `site/…`, `link-images/…`), written atomically with `Bun.write` and served straight from disk; or in memory for the tests |
 | `images.ts`          | Everything Bun.Image does: reading and resizing photos, and making the logos, icons, and banner image                                                                                                         |
 | `public-http.ts`     | Fetching other sites, only at public addresses on standard ports                                                                                                                                              |
-| `web-push.ts`        | The Web Push protocol: the site's key pair, derived from `AUTH_SESSION_SECRET`, encrypting a message for one browser (RFC 8291), and signing it (VAPID, RFC 8292)                                          |
 | `secrets.ts`         | `Secrets`: sealing secrets like an integration's secret key for the database, with AES-256-GCM and a key derived from `AUTH_SESSION_SECRET`                                                                   |
 | `http/pages.ts`      | What a page needs from the request (`PageContext`), and its response with a per-response CSP nonce                                                                                                            |
 | `http/admin-session.ts`    | The admin password check and the signed session cookie (`AdminAuth`)                                                                                                                                          |
@@ -250,8 +234,8 @@ called directly with `app.run(effect)`. `test/content/` has the posts they start
 #### Browser tests
 
 `*.pw.ts` (like `src/routes/admin/compose/compose.pw.ts`) drive the composer, and the dropdown
-menu, dialog, and input OTP on `/dev/design`, the email settings' fields, the subscriptions
-switch, and the home page's bell for push notifications, in Chromium and WebKit with Playwright, which also needs Node.js 20 or newer: publishing each kind of post, with
+menu, dialog, and input OTP on `/dev/design`, the email settings' fields, and the subscriptions
+switch, in Chromium and WebKit with Playwright, which also needs Node.js 20 or newer: publishing each kind of post, with
 and without JavaScript. Each test starts the app with its own temporary data and port
 (`browser/fixtures.ts`). Install the browsers once with `bun run test:browser:install`, then run
 `bun run test:browser`. CI doesn't run them.
@@ -264,9 +248,7 @@ and without JavaScript. Each test starts the app with its own temporary data and
   there's no `unsafe-eval` or `unsafe-inline`. Other responses (files, feeds) run no scripts.
   Pages also send `frame-ancestors 'none'`, `base-uri 'self'`, `object-src 'none'`, and
   `form-action 'self'`. Only a page with the Turnstile widget also allows scripts and frames
-  from `https://challenges.cloudflare.com`, still with Trusted Types required, and only the home
-  page, with push notifications on, lets its script register the site's service worker
-  (`worker-src 'self'`), with a Trusted Types policy that makes only that URL.
+  from `https://challenges.cloudflare.com`, still with Trusted Types required.
 - **Stored secrets**: an integration's secret key (or email's secret access key or API key) is sealed with AES-256-GCM, with a key derived
   (HKDF) from `AUTH_SESSION_SECRET` and the setting it's for, so a copy of the database alone
   doesn't give it away, and it's never sent back to the browser (only its last four characters).
@@ -281,18 +263,6 @@ and without JavaScript. Each test starts the app with its own temporary data and
   At most 100 sessions are retained, with expired/old-credential rows removed on login. Login is
   checked before an upload's body is read, and the login form itself, which anyone can send, is
   read only up to 16 KB.
-- **Push notifications**: the site sends only to the push services browsers use (Apple's,
-  Google's, Mozilla's, and Microsoft's), over HTTPS, so a subscription can't make it send requests
-  anywhere else, and takes a subscription only once its push service has taken a notification
-  that says it's on. An address (or IPv6 /64) can make 20 an hour, the site sends to at most
-  10,000 browsers, and the bell's requests are read only up to 4 KB. An endpoint is taken only
-  as the URL parser writes it, without a fragment, so one browser can't subscribe twice. Sends
-  don't follow redirects, and one a push service says is gone is dropped (one that fails
-  otherwise is kept, for the next post, until the admin deletes it at `/admin/subscribers`, which
-  frees its place at once). A subscription's endpoint is all it takes to unsubscribe it, so
-  `/admin/subscribers` names each by a random id instead, and never shows it. Sending is best effort: a post's notifications
-  aren't retried, and changing `AUTH_SESSION_SECRET` drops every subscription until its browser
-  visits the home page again.
 - **Subscribing**: the form needs Turnstile, always, and is read only up to 16 KB. An address is
   sent a code at most every 30 seconds, and 5 an hour (counted in `rate_limits`, as better-auth
   counts requests, whether or not it's sent), and the site sends at most its email settings'

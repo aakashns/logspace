@@ -114,8 +114,6 @@ export class SiteConfigCommands extends Context.Service<
     readonly saveEmail: (form: EmailForm) => Effect.Effect<void, EmailSettingsRejected>
     // Switches subscribing on or off. It's switched on only while nothing it needs is missing.
     readonly saveSubscriptions: (enabled: boolean) => Effect.Effect<void, SubscriptionsNotReady>
-    // Switches the home page's bell for push notifications on or off.
-    readonly savePushNotifications: (enabled: boolean) => Effect.Effect<void>
     // Disconnects an integration, forgetting its settings. Removing one that isn't set up does
     // nothing.
     readonly removeIntegration: (integration: Integration) => Effect.Effect<void>
@@ -156,10 +154,7 @@ export class SiteConfigCommands extends Context.Service<
       }
 
       let save = Effect.fn('SiteConfigCommands.save')(function* (config: SiteConfig) {
-        yield* write(
-          [...BRANDING_SETTINGS, ...INTEGRATIONS, 'subscriptions', 'pushNotifications'],
-          config,
-        )
+        yield* write([...BRANDING_SETTINGS, ...INTEGRATIONS, 'subscriptions'], config)
       })
 
       let saveTurnstile = Effect.fn('SiteConfigCommands.saveTurnstile')(function* (
@@ -232,12 +227,6 @@ export class SiteConfigCommands extends Context.Service<
           }
         }
         yield* write(['subscriptions'], { subscriptions: { enabled } })
-      })
-
-      let savePushNotifications = Effect.fn('SiteConfigCommands.savePushNotifications')(function* (
-        enabled: boolean,
-      ) {
-        yield* write(['pushNotifications'], { pushNotifications: { enabled } })
       })
 
       let removeIntegration = Effect.fn('SiteConfigCommands.removeIntegration')(function* (
@@ -329,8 +318,6 @@ export class SiteConfigCommands extends Context.Service<
         saveEmail: (form) => mutations.withPermit(Effect.uninterruptible(saveEmail(form))),
         saveSubscriptions: (enabled) =>
           mutations.withPermit(Effect.uninterruptible(saveSubscriptions(enabled))),
-        savePushNotifications: (enabled) =>
-          mutations.withPermit(Effect.uninterruptible(savePushNotifications(enabled))),
         removeIntegration: (integration) =>
           mutations.withPermit(Effect.uninterruptible(removeIntegration(integration))),
         save: (...args) => mutations.withPermit(Effect.uninterruptible(save(...args))),

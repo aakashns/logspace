@@ -97,11 +97,6 @@ export const EMAIL_SECRET_PURPOSES = {
 export const SubscriptionSettings = Schema.Struct({ enabled: Schema.Boolean })
 export type SubscriptionSettings = typeof SubscriptionSettings.Type
 
-// Whether the home page shows the bell that turns on push notifications of new posts, the other
-// switch at /admin/subscribers (see ../push/).
-export const PushNotificationSettings = Schema.Struct({ enabled: Schema.Boolean })
-export type PushNotificationSettings = typeof PushNotificationSettings.Type
-
 // The services the site connects to, set at /admin/integrations, each saved as one setting. One
 // that's never been saved isn't set up.
 export const INTEGRATIONS = ['turnstile', 'email'] as const
@@ -113,10 +108,7 @@ export interface SiteIntegrations {
 
 export type SiteConfig = SiteText &
   SiteImages &
-  SiteIntegrations & {
-    readonly subscriptions?: SubscriptionSettings
-    readonly pushNotifications?: PushNotificationSettings
-  }
+  SiteIntegrations & { readonly subscriptions?: SubscriptionSettings }
 
 export const REQUIRED_SETTINGS = ['siteTitle', 'siteUrl', 'siteDescription'] as const
 export type RequiredSetting = (typeof REQUIRED_SETTINGS)[number]
@@ -393,10 +385,6 @@ export function fromConfigRows(rows: ReadonlyMap<string, string>): SavedSiteConf
   if (email) config.email = email
   let subscriptions = Option.getOrUndefined(decodeSubscriptions(rows.get('subscriptions') ?? ''))
   if (subscriptions) config.subscriptions = subscriptions
-  let pushNotifications = Option.getOrUndefined(
-    decodePushNotifications(rows.get('pushNotifications') ?? ''),
-  )
-  if (pushNotifications) config.pushNotifications = pushNotifications
   return config
 }
 
@@ -405,6 +393,3 @@ const decodeSiteImage = Schema.decodeUnknownOption(Schema.fromJsonString(SiteIma
 const decodeTurnstile = Schema.decodeUnknownOption(Schema.fromJsonString(TurnstileSettings))
 const decodeEmail = Schema.decodeUnknownOption(Schema.fromJsonString(EmailSettings))
 const decodeSubscriptions = Schema.decodeUnknownOption(Schema.fromJsonString(SubscriptionSettings))
-const decodePushNotifications = Schema.decodeUnknownOption(
-  Schema.fromJsonString(PushNotificationSettings),
-)
