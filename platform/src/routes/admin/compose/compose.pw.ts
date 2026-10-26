@@ -97,7 +97,17 @@ test('photos pasted or dropped anywhere are added like chosen ones', async ({ pa
   await caption(page, 'Pasted and dropped')
   await transfer(page, 'paste', [photo])
   await loadedImages(page, '#composer-media img', 1)
+  // Dragging files over the page says they can be dropped anywhere, until they are.
+  const overlay = page.getByText('Drop photos to add them')
+  await expect(overlay).toBeHidden()
+  await page.locator('h1').evaluate((element) => {
+    const data = new DataTransfer()
+    data.items.add(new File(['photo'], 'photo.jpg', { type: 'image/jpeg' }))
+    element.dispatchEvent(new DragEvent('dragenter', { bubbles: true, dataTransfer: data }))
+  })
+  await expect(overlay).toBeVisible()
   await transfer(page, 'drop', [secondPhoto])
+  await expect(overlay).toBeHidden()
   await loadedImages(page, '#composer-media img', 2)
   await expect(page.getByLabel('Caption', { exact: true })).toHaveValue('Pasted and dropped')
   await publish(page)

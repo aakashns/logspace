@@ -65,7 +65,8 @@ const PREVIEW = `@post('${urls.admin.postPreview()}', {contentType: 'form'})`
 // file dropped is kept from opening in the tab.
 const ADD_FILES = (from: string) =>
   `!$_uploading && (el.files = ${from}.files).length && ${UPDATE_MEDIA}`
-const ACCEPT_FILES = `evt.dataTransfer.types.includes('Files') && evt.preventDefault()`
+const DRAGGING_FILES = `evt.dataTransfer.types.includes('Files')`
+const ACCEPT_FILES = `${DRAGGING_FILES} && evt.preventDefault()`
 const DROP_HANDLERS = {
   'data-on:paste__window': ADD_FILES('evt.clipboardData'),
   'data-on:dragover__window': ACCEPT_FILES,
@@ -112,6 +113,7 @@ export function ComposePage(props: ComposerProps): Html {
         </div>
       </form>
       {published ? <DeleteDialog id={values.id} /> : null}
+      <DropOverlay />
       <section aria-labelledby="preview-heading" class="composer-preview">
         <h2 id="preview-heading">Preview</h2>
         <div id={COMPOSER_IDS.preview} class="feed">
@@ -123,6 +125,26 @@ export function ComposePage(props: ComposerProps): Html {
 }
 
 const COMPOSER_FORM = 'composer'
+
+// Says files dragged over the page can be dropped anywhere on it, while they're over it. It covers
+// the page, and its insides don't take the pointer, so it's only left when the drag leaves the
+// window or is cancelled. Not while something is uploading, since drops are ignored then.
+function DropOverlay(): Html {
+  return (
+    <div
+      hidden
+      aria-hidden="true"
+      class="drop-overlay"
+      data-attr:hidden="!$_dragging"
+      data-on:dragenter__window={`!$_uploading && ${DRAGGING_FILES} && ($_dragging = true)`}
+      data-on:dragleave="$_dragging = false"
+      data-on:drop__window="$_dragging = false"
+    >
+      <ImageIcon />
+      <p>Drop photos to add them</p>
+    </div>
+  )
+}
 
 // Closes the composer, like a dialog's ×, back to the list of posts: a new post is discarded,
 // and an edit's changes. It posts the composer's form to discard what was uploaded for it, so
