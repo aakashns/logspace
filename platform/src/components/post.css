@@ -58,16 +58,17 @@
   }
 
   /*
-   * The row's shape, kept while it's open. One photo keeps its own (or is cropped square, if its
-   * size couldn't be read); more share a 3:4 frame they're cropped to fill, or with a pointer (a
-   * desktop), where 3:4 is taller than the screen, a black square they fit inside.
+   * The row's shape, kept while it's open: one photo's own, or the default box, 3:4, or with a
+   * pointer (a desktop), where 3:4 is taller than the screen, a square. Photos fit inside the box
+   * (black around them on a desktop), except that on a touch screen, a post's several photos are
+   * cropped to fill it.
    */
   .carousel-frame {
-    aspect-ratio: var(--aspect-ratio, 1);
+    aspect-ratio: var(--aspect-ratio);
     /* Without this, the photos would stretch it to their own shape. */
     min-height: 0;
 
-    &[data-many] {
+    &[data-box] {
       aspect-ratio: 3 / 4;
 
       @media (pointer: fine) {
@@ -76,13 +77,18 @@
     }
   }
 
-  @media (pointer: fine) {
-    [data-many] > .carousel:not(:modal) {
+  [data-box] > .carousel:not(:modal) {
+    @media (pointer: fine) {
       background-color: black;
+    }
+    & .carousel-slide > img {
+      object-fit: contain;
+    }
+  }
 
-      & .carousel-slide > img {
-        object-fit: contain;
-      }
+  @media (pointer: coarse) {
+    [data-many] > .carousel:not(:modal) .carousel-slide > img {
+      object-fit: cover;
     }
   }
 

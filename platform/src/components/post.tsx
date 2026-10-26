@@ -87,7 +87,8 @@ const STEP_BY_KEY =
   "evt.key === el.getAttribute('aria-keyshortcuts') && el.parentElement.matches(':modal') && (evt.preventDefault(), el.click())"
 
 // A post's photos in a row to swipe through, as on Instagram: one photo keeps its own shape, and
-// more share a frame (see .carousel-frame in post.css), with arrows and a dot for each. The row is
+// more (or one whose size couldn't be read) take the default box (see .carousel-frame in
+// post.css), with arrows and a dot for each when there's more than one. The row is
 // a <dialog> shown in place, so clicking a photo opens the same element as a modal lightbox, at
 // the same photo, where photos are shown whole; its close button or Escape closes it. The frame
 // keeps the row's space in the page while it's open.
@@ -102,6 +103,7 @@ function PhotoCarousel(props: {
   return (
     <div
       class="carousel-frame"
+      data-box={!aspectRatio}
       data-many={many}
       style={`--count: ${photos.length}${aspectRatio ? `; --aspect-ratio: ${aspectRatio}` : ''}`}
     >
