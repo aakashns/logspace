@@ -27,7 +27,7 @@ interface Sent {
   readonly redirect: RequestRedirect | undefined
 }
 let sent: Sent[] = []
-let answers = new Map<string, () => Response>()
+let answers = new Map<string, () => Response | Promise<Response>>()
 // Called with each message sent, for a test to wait for one.
 let onSend: (message: Sent) => void = () => {}
 
@@ -438,6 +438,34 @@ describe('subscribing', () => {
     // After AUTH_SESSION_SECRET changed, the old ones don't take anyone's place.
     await fill('an-old-key')
     expect((await subscribe(makeBrowser().subscription)).status).toBe(201)
+
+    // With one place left, subscriptions whose first notifications are on their way at once
+    // can't all take it.
+    await fill(SITE_KEY.publicKey)
+    await app.run(
+      Effect.flatMap(SqlClient.SqlClient, (sql) =>
+        sql`delete from push_subscriptions where endpoint = 'https://web.push.apple.com/filler-0'`.pipe(
+          Effect.orDie,
+        ),
+      ),
+    )
+    let release = () => {}
+    let held = new Promise<void>((resolve) => (release = resolve))
+    let first = makeBrowser()
+    let second = makeBrowser()
+    for (let browser of [first, second]) {
+      answers.set(browser.subscription.endpoint, () =>
+        held.then(() => new Response(null, { status: 201 })),
+      )
+    }
+    let both = new Promise<void>((resolve) => {
+      onSend = () => sent.filter((message) => answers.has(message.url)).length === 2 && resolve()
+    })
+    let responses = Promise.all([subscribe(first.subscription), subscribe(second.subscription)])
+    await both
+    release()
+    expect((await responses).map((response) => response.status).toSorted()).toEqual([201, 503])
+    expect(await rows()).toHaveLength(MAX_PUSH_SUBSCRIPTIONS)
   })
 
   it('counts addresses by the network they’re likely one of', () => {

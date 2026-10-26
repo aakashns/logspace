@@ -116,11 +116,18 @@ export class PushCommands extends Context.Service<
         return status._tag === 'On' && isSiteConfigured(site) ? site : undefined
       })
 
+      // Whether the site has as many subscriptions as it takes, besides the one at `endpoint`,
+      // counting only those it can send to, made with its key.
+      let full = (endpoint: string) =>
+        Effect.map(
+          sql<{ count: number }>`select count(*) as count from push_subscriptions
+            where endpoint != ${endpoint} and application_server_key = ${delivery.publicKey}`,
+          ([total]) => (total?.count ?? 0) >= MAX_PUSH_SUBSCRIPTIONS,
+        )
+
       // Counts a new subscription from the address, or says why it can't be made: the address
-      // made too many lately, or the site has as many as it takes (counting only those it can
-      // send to, made with its key). An address's count goes an hour after its last. Subscriptions
-      // waiting on their first notification aren't counted, so a burst of them can pass the
-      // limit by a few, which is fine for a bound on work.
+      // made too many lately, or the site has as many as it takes. An address's count goes an
+      // hour after its last.
       let countSubscription = (address: string | undefined, endpoint: string, now: number) =>
         Effect.gen(function* () {
           let key = pushRateLimitKey(address)
@@ -133,10 +140,7 @@ export class PushCommands extends Context.Service<
               retryAfter: Math.ceil((row.last_request + HOUR - now) / 1000),
             })
           }
-          let [total] = yield* sql<{ count: number }>`
-            select count(*) as count from push_subscriptions
-            where endpoint != ${endpoint} and application_server_key = ${delivery.publicKey}`
-          if ((total?.count ?? 0) >= MAX_PUSH_SUBSCRIPTIONS) {
+          if (yield* full(endpoint)) {
             return new PushSubscriptionsFull({ limit: MAX_PUSH_SUBSCRIPTIONS })
           }
           yield* sql`insert into rate_limits ${sql.insert({ key, count: 1, last_request: now })}
@@ -195,13 +199,18 @@ export class PushCommands extends Context.Service<
           last_error: null,
           failures: 0,
         }
-        yield* sql`insert into push_subscriptions ${sql.insert({
-          endpoint: target.endpoint,
-          created_at: now,
-          ...fields,
-        })} on conflict (endpoint) do update set ${sql.update({ ...fields, created_at: now })}`.pipe(
-          Effect.orDie,
-        )
+        // Checked again as it's saved, as others may have been saved while the first
+        // notification was on its way.
+        let stored = yield* Effect.gen(function* () {
+          if (yield* full(target.endpoint)) return false
+          yield* sql`insert into push_subscriptions ${sql.insert({
+            endpoint: target.endpoint,
+            created_at: now,
+            ...fields,
+          })} on conflict (endpoint) do update set ${sql.update({ ...fields, created_at: now })}`
+          return true
+        }).pipe(sql.withTransaction, Effect.orDie, counting.withPermit)
+        if (!stored) return yield* new PushSubscriptionsFull({ limit: MAX_PUSH_SUBSCRIPTIONS })
         return 'added' as const
       })
 
