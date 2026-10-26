@@ -1,7 +1,7 @@
 // The email telling a subscriber about a new post (see ../../../data/posts/commands.ts): the post
 // as its page shows it, under the site's logo, with the app's styles, and in plain text, and the
 // link to unsubscribe.
-import { raw } from '#jsx/jsx-runtime'
+import { raw, type Html } from '#jsx/jsx-runtime'
 
 import { DOCUMENT_STYLES } from '../../../components/document.tsx'
 import { Caption, PostMedia } from '../../../components/post.tsx'
@@ -10,7 +10,11 @@ import { stylesheet } from '../../../components/stylesheet.ts'
 import type { NewPostEmail } from '../../../data/posts/commands.ts'
 import { captionText } from '../../../data/posts/caption.ts'
 import { clamp, formatPostDate } from '../../../data/posts/format.ts'
-import { summarizePost } from '../../../data/posts/presentation.ts'
+import {
+  FULL_WIDTH_IMAGE_SIZES,
+  type Photo,
+  summarizePost,
+} from '../../../data/posts/presentation.ts'
 import { urls } from '../../../lib/urls.ts'
 import { POST_PAGE_STYLES } from '../../post/page.tsx'
 import css from './email.css' with { type: 'text' }
@@ -30,6 +34,24 @@ function preferColorScheme(styles: string): string {
 }
 
 const EMAIL_STYLES = preferColorScheme(DOCUMENT_STYLES + POST_PAGE_STYLES + stylesheet(css))
+
+// A photo as the post page shows it, kept to the email's width by its own style too, for email
+// apps that drop the stylesheet (where a photo would be as wide as its pixels).
+function EmailPhoto(props: { photo: Photo }): Html {
+  let { photo } = props
+  return (
+    <img
+      src={photo.src}
+      srcset={photo.srcset}
+      sizes={photo.srcset ? FULL_WIDTH_IMAGE_SIZES : undefined}
+      alt={photo.alt}
+      width={photo.width}
+      height={photo.height}
+      style="max-width: 100%; height: auto"
+      class="media-frame single-photo"
+    />
+  )
+}
 
 export const newPostEmail: NewPostEmail = (post, site, unsubscribeUrl) => {
   let postUrl = site.siteUrl + urls.post(post.id)
@@ -64,7 +86,15 @@ export const newPostEmail: NewPostEmail = (post, site, unsubscribeUrl) => {
               </p>
             </header>
             {post.captionHtml ? <Caption html={post.captionHtml} /> : null}
-            <PostMedia post={post} full priority />
+            {post.type === 'photos' ? (
+              <div class="photo-list">
+                {post.photos.map((photo) => (
+                  <EmailPhoto photo={photo} />
+                ))}
+              </div>
+            ) : (
+              <PostMedia post={post} full priority />
+            )}
           </article>
           <footer class="email-footer">
             <p>
