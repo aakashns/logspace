@@ -152,6 +152,8 @@ describe('a new post', () => {
     expect(other).not.toBe(unsubscribe)
     expect(html).toStartWith('<!DOCTYPE html><html lang="en">')
     expect(html).toContain('<meta name="color-scheme" content="light dark">')
+    // The post comes first, with no header above it.
+    expect(html).toMatch(/<body><main><article class="post-page">/)
     // Every URL is the site's full one.
     expect(html).toContain('<a href="https://example.com/posts/emailed001" class="permalink">')
     expect(html).toMatch(/<img src="https:\/\/example\.com\/posts\/emailed001\/peak\.jpg\?v=\w+"/)

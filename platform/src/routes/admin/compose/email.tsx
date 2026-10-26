@@ -1,11 +1,9 @@
 // The email telling a subscriber about a new post (see ../../../data/posts/commands.ts): the post
-// as its page shows it, under the site's logo, with the app's styles, and in plain text, and the
-// link to unsubscribe.
+// as its page shows it, with the app's styles, and in plain text, and the link to unsubscribe.
 import { raw, type Html } from '#jsx/jsx-runtime'
 
 import { DOCUMENT_STYLES } from '../../../components/document.tsx'
 import { Caption, PostMedia } from '../../../components/post.tsx'
-import { SiteLogo } from '../../../components/site-logo.tsx'
 import { stylesheet } from '../../../components/stylesheet.ts'
 import type { NewPostEmail } from '../../../data/posts/commands.ts'
 import { captionText } from '../../../data/posts/caption.ts'
@@ -68,13 +66,6 @@ export const newPostEmail: NewPostEmail = (post, site, unsubscribeUrl) => {
         <style>{raw(EMAIL_STYLES)}</style>
       </head>
       <body>
-        <header class="navbar">
-          <div class="navbar-content">
-            <a href={site.siteUrl} class="navbar-title">
-              <SiteLogo site={site} height="1.2rem" origin={site.siteUrl} />
-            </a>
-          </div>
-        </header>
         <main>
           <article class="post-page">
             <header class="post-meta">
