@@ -38,8 +38,6 @@ export interface PageContext {
   readonly stylesheet: string
   // Where Datastar is served, with its hash in the name.
   readonly datastarHref: string
-  // Where the home page's script for push notifications is served, with its hash in the name.
-  readonly pushScriptHref: string
 }
 
 export interface DocumentProps {
@@ -52,14 +50,11 @@ export interface DocumentProps {
   readonly styles: string
   // Extra navbar buttons, shown at the far right after the theme toggle.
   readonly navActions?: Child | undefined
-  // Whether the page has the bell for push notifications, which its script runs (its response
-  // needs pageResponse's `pushNotifications` too).
-  readonly pushNotifications?: boolean | undefined
   readonly children?: Child | undefined
 }
 
 export function Document(props: DocumentProps): Html {
-  let { page, meta, preloadImage, styles, navActions, pushNotifications, children } = props
+  let { page, meta, preloadImage, styles, navActions, children } = props
   // The admin pages are shown before the site is configured, so its required settings can be
   // missing. Then the title is the app's, URLs are relative to the page, and there's no RSS feed.
   let saved = page.site
@@ -167,14 +162,6 @@ export function Document(props: DocumentProps): Html {
               nonce={page.nonce}
               fetchpriority="low"
             ></script>
-            {pushNotifications ? (
-              <script
-                type="module"
-                src={page.pushScriptHref}
-                nonce={page.nonce}
-                fetchpriority="low"
-              ></script>
-            ) : null}
           </body>
         </html>
       ).value,

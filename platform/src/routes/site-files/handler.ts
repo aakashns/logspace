@@ -8,9 +8,7 @@ import { getIconHref } from '../../data/site/site-images.ts'
 import { param, requestUrl } from '../../lib/http/pages.ts'
 import { fileResponse, IMMUTABLE, notFound, textFileResponse } from '../../lib/http/responses.ts'
 
-// Named after the site, for browsers that install it as an app, in its icon's color. Installed,
-// it opens in its own window, without the browser's toolbar: on iPhone and iPad, that's what a
-// site added to the Home Screen needs to get push notifications.
+// Named after the site, for browsers that install it as an app, in its icon's color.
 const manifest = Effect.gen(function* () {
   let site = yield* configuredSite
   let color = yield* siteIconColor(site)
@@ -20,11 +18,9 @@ const manifest = Effect.gen(function* () {
     type: 'image/png',
   })
   let manifest = {
-    id: '/',
     name: site.siteTitle,
     start_url: '/',
-    scope: '/',
-    display: 'standalone',
+    display: 'browser',
     background_color: color,
     theme_color: color,
     icons: [icon('icon-192.png', 192), icon('icon-512.png', 512)],

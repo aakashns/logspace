@@ -1,11 +1,7 @@
-// /admin/subscribers: switching subscribing on and off, and who's subscribed; and switching push
-// notifications on and off, and which browsers get them.
+// /admin/subscribers: switching subscribing on and off, and who's subscribed.
 import { Effect } from 'effect'
 import { HttpRouter } from 'effect/http'
 
-import { PushCommands } from '../../../data/push/commands.ts'
-import { PushDelivery } from '../../../data/push/delivery.ts'
-import { allPushSubscribers } from '../../../data/push/queries.ts'
 import { SiteConfigCommands } from '../../../data/site/commands.ts'
 import { subscriptionsStatus } from '../../../data/site/subscriptions.ts'
 import { UserCommands } from '../../../data/users/commands.ts'
@@ -21,16 +17,9 @@ const subscribersPage = (status = 200) =>
   Effect.gen(function* () {
     let subscriptions = yield* subscriptionsStatus
     let subscribers = yield* allUsers
-    let push = yield* (yield* PushDelivery).status
-    let pushSubscribers = yield* allPushSubscribers
     return yield* adminPage(
       'Subscribers',
-      <SubscribersPage
-        status={subscriptions}
-        subscribers={subscribers}
-        pushEnabled={push._tag === 'On'}
-        pushSubscribers={pushSubscribers}
-      />,
+      <SubscribersPage status={subscriptions} subscribers={subscribers} />,
       { styles: SUBSCRIBERS_PAGE_STYLES, status },
     )
   })
@@ -49,15 +38,6 @@ const saveSubscriptions = adminOnly(() =>
   }),
 )
 
-// The switch for push notifications, sent only while it's on.
-const savePushNotifications = adminOnly(() =>
-  Effect.gen(function* () {
-    let enabled = formText(yield* readForm(SMALL_FORM_LIMIT), 'enabled') !== ''
-    yield* (yield* SiteConfigCommands).savePushNotifications(enabled)
-    return redirect(urls.admin.subscribers(), 303)
-  }),
-)
-
 const deleteSubscriber = adminOnly(() =>
   Effect.gen(function* () {
     yield* (yield* UserCommands).delete(yield* param('id'))
@@ -65,17 +45,8 @@ const deleteSubscriber = adminOnly(() =>
   }),
 )
 
-const deletePushSubscriber = adminOnly(() =>
-  Effect.gen(function* () {
-    yield* (yield* PushCommands).remove(yield* param('id'))
-    return redirect(urls.admin.subscribers(), 303)
-  }),
-)
-
 export const SubscriberRoutes = HttpRouter.addAll([
   HttpRouter.route('GET', '/admin/subscribers', subscribers),
   HttpRouter.route('POST', '/admin/subscribers', saveSubscriptions),
-  HttpRouter.route('POST', '/admin/subscribers/push-notifications', savePushNotifications),
   HttpRouter.route('POST', '/admin/subscribers/:id/delete', deleteSubscriber),
-  HttpRouter.route('POST', '/admin/subscribers/push/:id/delete', deletePushSubscriber),
 ])

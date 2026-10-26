@@ -4,10 +4,6 @@
 import * as path from 'node:path'
 import { Config, Context, Effect, Layer, Redacted } from 'effect'
 
-// How long ADMIN_PASSWORD and AUTH_SESSION_SECRET must be: /admin, and what's keyed off the
-// secret (like push notifications', see ../data/push/delivery.ts), is off until they are.
-export const MIN_SECRET_LENGTH = 16
-
 export class AppConfig extends Context.Service<
   AppConfig,
   {

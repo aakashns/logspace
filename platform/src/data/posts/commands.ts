@@ -4,7 +4,6 @@ import { Context, DateTime, Effect, Layer, Schema } from 'effect'
 import { SqlClient } from 'effect/sql'
 
 import { MediaStorage, mediaKeys } from '../../lib/media-storage.ts'
-import { PushCommands } from '../push/commands.ts'
 import { makePostFiles } from './files.ts'
 import {
   getPostFileNames,
@@ -41,8 +40,7 @@ export interface PostSubmission {
 export class PostCommands extends Context.Service<
   PostCommands,
   {
-    // Publishes the post, or saves it over the published one with its id. A new post is sent to
-    // the browsers subscribed to push notifications, in the background.
+    // Publishes the post, or saves it over the published one with its id.
     readonly save: (submission: PostSubmission) => Effect.Effect<PostRecord, PostRejected>
     // Saves files chosen in the composer as the post's, before it's saved.
     readonly upload: (
@@ -61,7 +59,6 @@ export class PostCommands extends Context.Service<
       let sql = yield* SqlClient.SqlClient
       let files = yield* makePostFiles()
       let storage = yield* MediaStorage
-      let push = yield* PushCommands
 
       let saveUploads = (id: string, uploads: PostSubmission['uploads']) =>
         Effect.forEach(uploads, ({ name, file }) => files.save(id, name, file), { discard: true })
@@ -115,13 +112,9 @@ export class PostCommands extends Context.Service<
         let record = yield* check(submission)
         let { id: _, ...row } = toPostRow(record)
         let updated_at = DateTime.formatIso(yield* DateTime.now)
-        let [published] = yield* sql<{ id: string }>`select id from posts where id = ${id}`.pipe(
-          Effect.orDie,
-        )
         yield* sql`insert into posts ${sql.insert({ id, ...row })}
           on conflict (id) do update set ${sql.update({ ...row, updated_at })}`.pipe(Effect.orDie)
         yield* cleanUp(id)
-        if (!published) yield* push.notifyNewPost(id)
         return record
       })
 

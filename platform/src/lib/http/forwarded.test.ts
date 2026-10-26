@@ -1,7 +1,7 @@
-// The protocol, host, and address behind a reverse proxy.
+// The protocol and host behind a reverse proxy.
 import { describe, expect, it } from 'bun:test'
 
-import { getForwardedFor, getForwardedOrigin } from './forwarded.ts'
+import { getForwardedOrigin } from './forwarded.ts'
 
 describe('getForwardedOrigin', () => {
   // The origin a request through the proxy is seen at.
@@ -61,15 +61,5 @@ describe('getForwardedOrigin', () => {
     )
     expect(origin({ 'X-Forwarded-Host': 'bad host[' })).toBe('http://127.0.0.1:44100')
     expect(origin({ 'X-Forwarded-Host': 'evil.example/path' })).toBe('http://127.0.0.1:44100')
-  })
-})
-
-describe('getForwardedFor', () => {
-  it('is the address in X-Forwarded-For, if it’s an IP address', () => {
-    expect(getForwardedFor({ 'x-forwarded-for': '192.0.2.7' })).toBe('192.0.2.7')
-    expect(getForwardedFor({ 'x-forwarded-for': ' 2001:db8::1 ' })).toBe('2001:db8::1')
-    expect(getForwardedFor({ 'x-forwarded-for': '192.0.2.7, 198.51.100.1' })).toBe('192.0.2.7')
-    expect(getForwardedFor({ 'x-forwarded-for': 'unknown' })).toBeUndefined()
-    expect(getForwardedFor({})).toBeUndefined()
   })
 })

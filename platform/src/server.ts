@@ -10,8 +10,6 @@ import { LinkPreviews } from './data/link-previews/link-previews.ts'
 import { PostCommands } from './data/posts/commands.ts'
 import { PostMedia } from './data/posts/media.ts'
 import { PostQueries } from './data/posts/queries.ts'
-import { PushCommands } from './data/push/commands.ts'
-import { PushDelivery } from './data/push/delivery.ts'
 import { SiteConfigCommands } from './data/site/commands.ts'
 import { Email } from './data/site/email.ts'
 import { SiteConfigQueries } from './data/site/queries.ts'
@@ -41,7 +39,6 @@ import { FeedRoutes } from './routes/feeds/handler.ts'
 import { IndexRoutes } from './routes/index/handler.tsx'
 import { LinkImageRoutes } from './routes/link-images/handler.ts'
 import { PostRoutes } from './routes/post/handler.tsx'
-import { PushNotificationRoutes } from './routes/push-notifications/handler.ts'
 import { SiteFileRoutes } from './routes/site-files/handler.ts'
 import { SubscribeRoutes } from './routes/subscribe/handler.tsx'
 
@@ -85,13 +82,6 @@ const TurnstileLive = Turnstile.layer.pipe(
 const EmailLive = Email.layer.pipe(
   Layer.provide([MigratedDatabase, SiteConfigQueriesLive, Secrets.layer, IntegrationHttp]),
 )
-// Push services are at fixed domains too (see PUSH_SERVICES), checked before anything's sent.
-const PushDeliveryLive = PushDelivery.layer.pipe(
-  Layer.provide([SiteConfigQueriesLive, IntegrationHttp]),
-)
-const PushCommandsLive = PushCommands.layer.pipe(
-  Layer.provide([MigratedDatabase, SiteConfigQueriesLive, PushDeliveryLive, PostQueriesLive]),
-)
 
 // Requires AppConfig and PublicNetwork. SQL and media services are exposed for seeding and file
 // queries; the remaining outputs are the APIs used by routes and the server's shutdown hook.
@@ -104,9 +94,7 @@ export const AppServices = Layer.mergeAll(
   Assets.layer,
   Secrets.layer,
   AdminAuth.layer.pipe(Layer.provide(MigratedDatabase)),
-  PostCommands.layer.pipe(
-    Layer.provide([MigratedDatabase, MediaStorage.layer, Images.layer, PushCommandsLive]),
-  ),
+  PostCommands.layer.pipe(Layer.provide([MigratedDatabase, MediaStorage.layer, Images.layer])),
   SiteConfigCommands.layer.pipe(
     Layer.provide([
       MigratedDatabase,
@@ -120,8 +108,6 @@ export const AppServices = Layer.mergeAll(
   ),
   TurnstileLive,
   EmailLive,
-  PushDeliveryLive,
-  PushCommandsLive,
   UserCommands.layer.pipe(
     Layer.provide([MigratedDatabase, SiteConfigQueriesLive, EmailLive, TurnstileLive]),
   ),
@@ -149,7 +135,6 @@ export const AppRoutes = Layer.mergeAll(
   LinkImageRoutes,
   AssetRoutes,
   SubscribeRoutes,
-  PushNotificationRoutes,
   AdminLoginRoutes,
   AdminIndexRoutes,
   PostListRoutes,
