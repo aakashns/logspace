@@ -132,7 +132,8 @@ request, calls queries or one command, and picks a response.
 **Datastar** runs the theme toggle (`data-on:click`) and share buttons (`data-on:click`,
 `data-class`, `data-attr`, one `_shared` signal) in `components/controls.tsx`, and the composer in
 `admin/compose/`: its file inputs and remove buttons post the form for its media
-(`data-on:change`, with `data-indicator:_uploading`), and typing posts it for the preview
+(`data-on:change`, with `data-indicator:_uploading`), as do photos pasted or dropped anywhere on
+the page, which the photo input takes (`data-on:paste__window`, `data-on:drop__window`), and typing posts it for the preview
 (`data-on:input__throttle.100ms.trailing`); the server answers with HTML for those parts. The
 composer keeps nothing on the server until it's posted, which is a plain form submission, read
 into a post by `form.ts`. Every expression is a one-line constant string. Values like the URL to

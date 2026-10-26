@@ -1,5 +1,5 @@
 // The composer, where posts are written and edited: a caption, photos or a video added with the
-// toolbar's buttons (uploaded as they're chosen), and below, the post as it'll look, which follows
+// toolbar's buttons, or photos pasted or dropped anywhere on the page (uploaded as they're added), and below, the post as it'll look, which follows
 // along as you write. Nothing is saved until it's posted: closing the page loses it.
 //
 // Datastar runs it with one-line attributes, like the buttons in ../controls.tsx. The parts the
@@ -60,6 +60,17 @@ export interface ComposerProps {
 
 const UPDATE_MEDIA = `@post('${urls.admin.postMedia()}', {contentType: 'form'})`
 const PREVIEW = `@post('${urls.admin.postPreview()}', {contentType: 'form'})`
+// Files pasted or dropped are put in the photo button's input and uploaded as if chosen with it,
+// unless something is uploading. Text pasted or dropped has no files, so it's left alone, but a
+// file dropped is kept from opening in the tab.
+const ADD_FILES = (from: string) =>
+  `!$_uploading && (el.files = ${from}.files).length && ${UPDATE_MEDIA}`
+const ACCEPT_FILES = `evt.dataTransfer.types.includes('Files') && evt.preventDefault()`
+const DROP_HANDLERS = {
+  'data-on:paste__window': ADD_FILES('evt.clipboardData'),
+  'data-on:dragover__window': ACCEPT_FILES,
+  'data-on:drop__window': `${ACCEPT_FILES}; ${ADD_FILES('evt.dataTransfer')}`,
+}
 
 export function ComposePage(props: ComposerProps): Html {
   let { values, published } = props
@@ -272,11 +283,11 @@ function RemoveButton(props: { file: string; label: string; text?: boolean | und
 
 // The buttons that add media. They're the same for every post, so they can always be sent again
 // to empty their file inputs: with a video, the photo button adds its poster, and the video
-// button replaces it.
+// button replaces it. Photos pasted or dropped go through the photo button.
 export function ComposerTools(): Html {
   return (
     <div id={COMPOSER_IDS.tools} class="composer-tools">
-      <MediaPicker label="Add photos" name="image_uploads" accept="image/*" multiple>
+      <MediaPicker label="Add photos" name="image_uploads" accept="image/*" multiple takesDrops>
         <ImageIcon />
       </MediaPicker>
       <MediaPicker label="Add a video" name="video_upload" accept="video/*">
@@ -296,9 +307,11 @@ function MediaPicker(props: {
   name: string
   accept: string
   multiple?: boolean | undefined
+  // Whether files pasted or dropped on the page are added with it.
+  takesDrops?: boolean | undefined
   children: Child
 }): Html {
-  let { label, name, accept, multiple, children } = props
+  let { label, name, accept, multiple, takesDrops, children } = props
   return (
     <Tooltip label={label}>
       <label class="tool-button">
@@ -312,6 +325,7 @@ function MediaPicker(props: {
           class="visually-hidden"
           data-on:change={UPDATE_MEDIA}
           data-indicator:_uploading
+          {...(takesDrops ? DROP_HANDLERS : {})}
         />
       </label>
     </Tooltip>

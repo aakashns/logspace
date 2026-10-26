@@ -1,4 +1,5 @@
 import { test, expect, openComposer, caption, composePath } from '../../../../browser/fixtures.ts'
+import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import type { Page } from '@playwright/test'
 
@@ -64,6 +65,43 @@ test('photos upload as they’re chosen, and one can be taken out', async ({ pag
   // Public media is served without the admin cookie.
   const image = await page.locator('main article img').getAttribute('src')
   expect((await page.request.get(image ?? '')).status()).toBe(200)
+})
+
+// Pastes or drops `files` on the caption, as the browser would, and waits for their upload.
+async function transfer(page: Page, event: 'paste' | 'drop', files: string[]) {
+  const contents = files.map((file) => ({
+    name: file.split('/').pop() ?? '',
+    bytes: [...readFileSync(file)],
+  }))
+  const response = page.waitForResponse((response) => response.url().endsWith('/media'))
+  await page.getByLabel('Caption', { exact: true }).evaluate(
+    (element, { event, contents }) => {
+      const data = new DataTransfer()
+      for (const { name, bytes } of contents) {
+        data.items.add(new File([new Uint8Array(bytes)], name, { type: 'image/jpeg' }))
+      }
+      const init = { bubbles: true, cancelable: true }
+      element.dispatchEvent(
+        event === 'paste'
+          ? new ClipboardEvent('paste', { ...init, clipboardData: data })
+          : new DragEvent('drop', { ...init, dataTransfer: data }),
+      )
+    },
+    { event, contents },
+  )
+  expect((await response).status()).toBe(200)
+}
+
+test('photos pasted or dropped anywhere are added like chosen ones', async ({ page }) => {
+  await openComposer(page)
+  await caption(page, 'Pasted and dropped')
+  await transfer(page, 'paste', [photo])
+  await loadedImages(page, '#composer-media img', 1)
+  await transfer(page, 'drop', [secondPhoto])
+  await loadedImages(page, '#composer-media img', 2)
+  await expect(page.getByLabel('Caption', { exact: true })).toHaveValue('Pasted and dropped')
+  await publish(page)
+  await loadedImages(page, 'main article img', 2)
 })
 
 test('Post waits for an upload to finish', async ({ page }) => {
