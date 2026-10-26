@@ -42,4 +42,6 @@ bun run build && bun scripts/smoke-test.ts dist/logspace
   promises, not sleeps
 - Keep helpers with their one user until a second needs them; comments explain why
 - Attach PR screenshots with `gh pr create --attach`; never commit them. After creating a PR, run
-  `bun run test:browser` and report the result in it
+  `bun run test:browser` and report the result in it. For an app change, then leave
+  `bun run dev:demo` running from the PR's branch, and give its composer or page URL, its admin
+  password, and what to try by hand
