@@ -20,14 +20,18 @@ import {
 
 const RESEND_URL = 'https://api.resend.com/emails'
 const TIMEOUT = Duration.seconds(30)
+// How many times an email SES or Resend asked to send more slowly is sent again, and the longest
+// it waits first, in seconds; asked to wait longer, as for a day's quota, it isn't sent.
+const THROTTLE_RETRIES = 3
+const THROTTLE_WAIT = 5
 const HOUR = 60 * 60 * 1000
 // The `key` of how many emails the site sent this hour, in the `rate_limits` table, where
 // `last_request` is when the hour began.
 const RATE_LIMIT_KEY = 'email'
-const PROVIDER_NAMES = { ses: 'Amazon SES', resend: 'Resend' } as const satisfies Record<
-  EmailProvider,
-  string
->
+const PROVIDER_NAMES = {
+  ses: 'Amazon SES',
+  resend: 'Resend',
+} as const satisfies Record<EmailProvider, string>
 
 // Where SES's API (SendEmail) takes an email, at an endpoint like
 // https://email.us-east-1.amazonaws.com.
@@ -37,7 +41,11 @@ export const sesUrl = (endpoint: string) => new URL(`${endpoint}/v2/email/outbou
 // without showing it.
 export type EmailStatus =
   | { readonly _tag: 'NotSetUp' }
-  | { readonly _tag: 'SetUp'; readonly settings: EmailSettings; readonly secretEnding: string }
+  | {
+      readonly _tag: 'SetUp'
+      readonly settings: EmailSettings
+      readonly secretEnding: string
+    }
   | { readonly _tag: 'SecretUnreadable'; readonly settings: EmailSettings }
 
 // An email in plain text, and in HTML too for one with `html`, which readers show instead, with
@@ -129,7 +137,10 @@ export function signAwsRequest(request: {
   let { method, url, body, region, service, accessKeyId, secretAccessKey, now } = request
   let time = now.toISOString().replace(/[-:]|\.\d{3}/g, '')
   let date = time.slice(0, 8)
-  let headers: Record<string, string> = { ...request.headers, 'x-amz-date': time }
+  let headers: Record<string, string> = {
+    ...request.headers,
+    'x-amz-date': time,
+  }
   let signed: Record<string, string> = { ...headers, host: url.host }
   let names = Object.keys(signed).sort()
   let query = [...url.searchParams]
@@ -194,14 +205,24 @@ export class Email extends Context.Service<
         return yield* secretOf(settings.provider).pipe(
           Effect.match({
             onSuccess: (secret) =>
-              ({ _tag: 'SetUp', settings, secretEnding: secret.slice(-4) }) as const,
+              ({
+                _tag: 'SetUp',
+                settings,
+                secretEnding: secret.slice(-4),
+              }) as const,
             onFailure: () => ({ _tag: 'SecretUnreadable', settings }) as const,
           }),
         )
       }).pipe(Effect.withSpan('Email.status'))
 
-      // Sends the request, succeeding if it's accepted, or failing with why not.
-      let deliver = (provider: EmailProvider, request: HttpClientRequest.HttpClientRequest) => {
+      // Sends the request, succeeding if it's accepted, or failing with why not. Asked to send
+      // more slowly (HTTP 429), as when emails go out faster than SES or Resend take them a
+      // second, it waits as long as they say (Retry-After), or a second, and sends it again.
+      let deliver = (
+        provider: EmailProvider,
+        request: HttpClientRequest.HttpClientRequest,
+        retries = THROTTLE_RETRIES,
+      ): Effect.Effect<void, EmailNotSent> => {
         let name = PROVIDER_NAMES[provider]
         return client.execute(request).pipe(
           Effect.catchTag('HttpClientError', () =>
@@ -212,7 +233,11 @@ export class Email extends Context.Service<
             ),
           ),
           Effect.flatMap((response) => {
-            if (response.status >= 200 && response.status < 300) return Effect.void
+            if (response.status >= 200 && response.status < 300) return Effect.succeed(undefined)
+            let wait = Number(response.headers['retry-after'] ?? 1)
+            if (response.status === 429 && retries > 0 && wait <= THROTTLE_WAIT) {
+              return Effect.succeed(wait)
+            }
             // Like "MessageRejected:http://internal.amazon.com/coral/…".
             let kind = response.headers['x-amzn-errortype']?.split(':')[0]
             return response.json.pipe(
@@ -230,6 +255,18 @@ export class Email extends Context.Service<
               ),
             )
           }),
+          Effect.timeoutOrElse({
+            duration: TIMEOUT,
+            orElse: () =>
+              Effect.fail(new EmailNotSent({ message: 'No answer within 30 seconds.' })),
+          }),
+          Effect.flatMap((wait) =>
+            wait === undefined
+              ? Effect.void
+              : Effect.sleep(Duration.seconds(wait)).pipe(
+                  Effect.andThen(deliver(provider, request, retries - 1)),
+                ),
+          ),
         )
       }
 
@@ -323,7 +360,10 @@ export class Email extends Context.Service<
         let limited = yield* countEmail(settings.hourlyLimit, DateTime.toEpochMillis(now))
         if (limited) {
           yield* Effect.logWarning('Email limit reached').pipe(
-            Effect.annotateLogs({ limit: limited.limit, retryAfter: limited.retryAfter }),
+            Effect.annotateLogs({
+              limit: limited.limit,
+              retryAfter: limited.retryAfter,
+            }),
           )
           return yield* limited
         }
@@ -337,14 +377,12 @@ export class Email extends Context.Service<
             ? sesRequest(provider, secret, fields, DateTime.toDateUtc(now))
             : resendRequest(secret, fields)
         yield* deliver(provider._tag, request).pipe(
-          Effect.timeoutOrElse({
-            duration: TIMEOUT,
-            orElse: () =>
-              Effect.fail(new EmailNotSent({ message: 'No answer within 30 seconds.' })),
-          }),
           Effect.tapError((error) =>
             Effect.logWarning('Email not sent').pipe(
-              Effect.annotateLogs({ provider: provider._tag, reason: error.message }),
+              Effect.annotateLogs({
+                provider: provider._tag,
+                reason: error.message,
+              }),
             ),
           ),
         )

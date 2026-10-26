@@ -18,10 +18,11 @@ interface Sent {
 }
 
 // The emails Resend was asked to send, and the tests waiting for some. Resend refuses the
-// addresses in `refused`.
+// addresses in `refused`, and asks for the next `throttled` emails to be sent more slowly.
 let emails: Sent[] = []
 let waiting: { count: number; resolve: () => void }[] = []
 let refused = new Set<string>()
+let throttled = 0
 const sent = (count: number) =>
   new Promise<void>((resolve) => {
     waiting.push({ count, resolve })
@@ -43,6 +44,13 @@ const app = makeTestApp(
         emails.push({ to: to[0], subject, text, html, headers })
         settle()
         if (refused.has(to[0])) return Response.json({ message: 'Refused' }, { status: 422 })
+        if (throttled > 0) {
+          throttled--
+          return Response.json(
+            { message: 'Too many requests' },
+            { status: 429, headers: { 'retry-after': '0' } },
+          )
+        }
         return Response.json({ id: 'sent' })
       },
     },
@@ -101,6 +109,7 @@ beforeEach(async () => {
   emails = []
   waiting = []
   refused = new Set()
+  throttled = 0
 })
 afterAll(app.dispose)
 
@@ -143,10 +152,14 @@ describe('a new post', () => {
     expect(other).not.toBe(unsubscribe)
     expect(html).toStartWith('<!DOCTYPE html><html lang="en">')
     expect(html).toContain('<meta name="color-scheme" content="light dark">')
+    // The post comes first, with no header above it.
+    expect(html).toMatch(/<body><main><article class="post-page">/)
     // Every URL is the site's full one.
     expect(html).toContain('<a href="https://example.com/posts/emailed001" class="permalink">')
     expect(html).toMatch(/<img src="https:\/\/example\.com\/posts\/emailed001\/peak\.jpg\?v=\w+"/)
     expect(html).toContain('srcset="https://example.com/posts/emailed001/peak.jpg?w=')
+    // Kept to the email's width where email apps drop the stylesheet.
+    expect(html).toContain('style="max-width: 100%; height: auto"')
     expect(html).toContain('<div class="caption" data-ignore><p>Up top</p>')
     // The theme's colors are light, and dark while the reader's system is.
     expect(html).toContain('--background:oklch(.985 0 0)')
@@ -185,5 +198,21 @@ describe('a new post', () => {
     ])
     await sent(2)
     expect(emails.map((email) => email.to)).toEqual(['grace@example.com', 'ada@example.com'])
+  })
+
+  it('is sent again to a subscriber when Resend asks for emails more slowly', async () => {
+    await subscribe('ada@example.com', 'grace@example.com')
+    throttled = 2
+    await publish([
+      ['post_id', 'emailed005'],
+      ['caption', 'Hello'],
+    ])
+    await sent(4)
+    expect(emails.map((email) => email.to)).toEqual([
+      'grace@example.com',
+      'grace@example.com',
+      'grace@example.com',
+      'ada@example.com',
+    ])
   })
 })

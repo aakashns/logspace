@@ -6,8 +6,7 @@ import type { SiteConfig, SiteImage } from '../data/site/site.ts'
 // The site's logo for each theme, uploaded at /admin/branding, or its title without one; sized by its
 // height. Each theme shows its own logo, or the other theme's if it has none. They're images in the
 // page, not CSS, so the browser fetches them as soon as it reads the HTML, alongside the banner.
-// `origin` goes before their URLs: '' on the site's pages, or its URL in an email.
-export function SiteLogo(props: { site: SiteConfig; height: string; origin: string }): Html {
+export function SiteLogo(props: { site: SiteConfig; height: string }): Html {
   let { siteTitle } = props.site
   let light = props.site.logo ?? props.site.darkLogo
   let dark = props.site.darkLogo ?? props.site.logo
@@ -20,7 +19,7 @@ export function SiteLogo(props: { site: SiteConfig; height: string; origin: stri
   }
   let logo = (image: SiteImage, theme?: string) => (
     <img
-      src={props.origin + getSiteImageHref(image)}
+      src={getSiteImageHref(image)}
       alt={siteTitle}
       width={image.width}
       height={image.height}
