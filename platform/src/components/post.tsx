@@ -76,17 +76,21 @@ const SHOW_INDEX =
 // its old offset, so the photo shown is noted before and scrolled back to after.
 const NOTE_INDEX = "el.dataset.index = el.style.getPropertyValue('--index')"
 const RESTORE_INDEX = 'el.firstElementChild.scrollLeft = el.dataset.index * el.clientWidth'
+// Once the lightbox has opened, the browser picks copies of the photos for the whole screen
+// rather than for the content column.
+const FULL_SCREEN_SIZES = "el.querySelectorAll('img').forEach((img) => (img.sizes = '100vw'))"
 // Scrolls the track a photo back or forward (data-step), and it snaps to that photo.
 const STEP =
   'el.parentElement.firstElementChild.scrollBy({ left: el.dataset.step * el.parentElement.clientWidth })'
 // In the lightbox, the arrow key in the button's aria-keyshortcuts presses it.
 const STEP_BY_KEY =
-  "evt.key === el.getAttribute('aria-keyshortcuts') && el.parentElement.matches(':popover-open') && (evt.preventDefault(), el.click())"
+  "evt.key === el.getAttribute('aria-keyshortcuts') && el.parentElement.matches(':modal') && (evt.preventDefault(), el.click())"
 
 // A post's photos in a row to swipe through, as on Instagram: one photo keeps its own shape, and
-// more share a frame (see .carousel[data-many] in post.css), with arrows and a dot for each. The row is a popover, so
-// clicking a photo opens the same element as a lightbox, at the same photo, where photos are
-// shown whole; clicking one again, its close button, or Escape closes it.
+// more share a frame (see .carousel-frame in post.css), with arrows and a dot for each. The row is
+// a <dialog> shown in place, so clicking a photo opens the same element as a modal lightbox, at
+// the same photo, where photos are shown whole; its close button or Escape closes it. The frame
+// keeps the row's space in the page while it's open.
 function PhotoCarousel(props: {
   id: string
   photos: Arr.NonEmptyReadonlyArray<Photo>
@@ -97,42 +101,48 @@ function PhotoCarousel(props: {
   let aspectRatio = many ? undefined : displayAspectRatio(photos[0])
   return (
     <div
-      id={id}
-      popover
-      class="carousel"
+      class="carousel-frame"
       data-many={many}
-      data-on:beforetoggle={many ? NOTE_INDEX : undefined}
-      data-on:toggle={many ? RESTORE_INDEX : undefined}
       style={`--count: ${photos.length}${aspectRatio ? `; --aspect-ratio: ${aspectRatio}` : ''}`}
     >
-      <div class="carousel-track" data-on:scroll={many ? SHOW_INDEX : undefined}>
-        {photos.map((photo, index) => (
-          <button type="button" popovertarget={id} class="carousel-slide">
-            <PostImage photo={photo} priority={priority && index === 0} />
-          </button>
-        ))}
-      </div>
-      {many ? (
-        <>
-          <StepButton step={-1} />
-          <StepButton step={1} />
-          <div class="carousel-dots" aria-hidden="true">
-            {photos.map(() => (
-              <span />
-            ))}
-          </div>
-        </>
-      ) : null}
-      <Button
-        popovertarget={id}
-        popovertargetaction="hide"
-        variant="ghost"
-        size="icon-lg"
-        aria-label="Close"
-        class="carousel-close"
+      <dialog
+        id={id}
+        aria-label="Photos"
+        class="carousel"
+        data-on:beforetoggle={many ? NOTE_INDEX : undefined}
+        data-on:toggle={many ? RESTORE_INDEX : undefined}
+        data-on:command={FULL_SCREEN_SIZES}
       >
-        <CloseIcon />
-      </Button>
+        <div class="carousel-track" data-on:scroll={many ? SHOW_INDEX : undefined}>
+          {photos.map((photo, index) => (
+            <button type="button" command="show-modal" commandfor={id} class="carousel-slide">
+              <PostImage photo={photo} priority={priority && index === 0} />
+            </button>
+          ))}
+        </div>
+        {many ? (
+          <>
+            <StepButton step={-1} />
+            <StepButton step={1} />
+            <div class="carousel-dots" aria-hidden="true">
+              {photos.map(() => (
+                <span />
+              ))}
+            </div>
+          </>
+        ) : null}
+        <Button
+          command="close"
+          commandfor={id}
+          autofocus
+          variant="ghost"
+          size="icon-lg"
+          aria-label="Close"
+          class="carousel-close"
+        >
+          <CloseIcon />
+        </Button>
+      </dialog>
     </div>
   )
 }

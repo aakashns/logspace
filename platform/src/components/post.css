@@ -49,12 +49,41 @@
   }
 
   /*
-   * A post's photos, in a row that snaps to each (see PhotoCarousel in post.tsx). It's a popover
+   * A post's photos, in a row that snaps to each (see PhotoCarousel in post.tsx). It's a dialog
    * that's shown in place until it's opened, when it fills the screen. The track, arrows, dots,
    * and close button share one grid cell, stacked in that order.
    */
-  html:has(.carousel:popover-open) {
+  html:has(.carousel:modal) {
     overflow: hidden;
+  }
+
+  /*
+   * The row's shape, kept while it's open. One photo keeps its own; more share a 3:4 frame they're
+   * cropped to fill, or with a pointer (a desktop), where 3:4 is taller than the screen, a black
+   * square they fit inside.
+   */
+  .carousel-frame {
+    aspect-ratio: var(--aspect-ratio, auto);
+    /* Without this, the photos would stretch it to their own shape. */
+    min-height: 0;
+
+    &[data-many] {
+      aspect-ratio: 3 / 4;
+
+      @media (pointer: fine) {
+        aspect-ratio: 1;
+      }
+    }
+  }
+
+  @media (pointer: fine) {
+    [data-many] > .carousel:not(:modal) {
+      background-color: black;
+
+      & .carousel-slide > img {
+        object-fit: contain;
+      }
+    }
   }
 
   .carousel {
@@ -69,11 +98,11 @@
     }
   }
 
-  .carousel:not(:popover-open) {
+  .carousel:not(:modal) {
     position: static;
     inset: auto;
     width: 100%;
-    height: auto;
+    height: 100%;
     margin: 0;
     border: 1px solid var(--border);
     border-radius: var(--radius-xl);
@@ -82,7 +111,7 @@
   }
 
   /* Dimmed behind the photo with a pointer, which has the arrows; black on a touch screen. */
-  .carousel:popover-open {
+  .carousel:modal {
     width: 100%;
     height: 100%;
     max-width: none;
@@ -102,15 +131,10 @@
   .carousel-track {
     isolation: isolate;
     display: flex;
-    aspect-ratio: var(--aspect-ratio, auto);
     overflow-x: auto;
     overscroll-behavior-x: contain;
     scroll-snap-type: x mandatory;
     scrollbar-width: none;
-
-    .carousel:popover-open & {
-      aspect-ratio: auto;
-    }
   }
 
   .carousel-slide {
@@ -132,33 +156,13 @@
       outline: 2px solid var(--ring);
       outline-offset: -2px;
     }
-    .carousel:popover-open & {
-      cursor: zoom-out;
+    .carousel:modal & {
+      cursor: default;
 
       @media (pointer: fine) {
         padding: 3.5rem 4rem;
       }
       & > img {
-        object-fit: contain;
-      }
-    }
-  }
-
-  /*
-   * More than one photo share a 3:4 frame they're cropped to fill. With a pointer (a desktop),
-   * where 3:4 is taller than the screen, they fit inside a black square instead.
-   */
-  .carousel[data-many]:not(:popover-open) {
-    & .carousel-track {
-      aspect-ratio: 3 / 4;
-    }
-    @media (pointer: fine) {
-      background-color: black;
-
-      & .carousel-track {
-        aspect-ratio: 1;
-      }
-      & .carousel-slide > img {
         object-fit: contain;
       }
     }
@@ -188,7 +192,7 @@
       }
     }
     @media (pointer: coarse) {
-      .carousel:popover-open & {
+      .carousel:modal & {
         display: none;
       }
     }
@@ -237,7 +241,7 @@
         color: white;
       }
     }
-    .carousel:not(:popover-open) & {
+    .carousel:not(:modal) & {
       display: none;
     }
   }
@@ -346,7 +350,7 @@
     &:has(> .post-link:hover) {
       background-color: color-mix(in oklch, var(--foreground) 2.5%, transparent);
     }
-    & :is(a:not(.post-link), button, video, .carousel:not(:popover-open)) {
+    & :is(a:not(.post-link), button, video, .carousel-frame) {
       position: relative;
       z-index: 2;
     }

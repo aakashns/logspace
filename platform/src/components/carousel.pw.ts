@@ -1,5 +1,5 @@
 // A post's photos (see PhotoCarousel in post.tsx): the arrows and dots in the feed, and the
-// lightbox they open as, with the arrow keys.
+// lightbox they open as, with the arrow keys and the keyboard's focus kept in it.
 import { fileURLToPath } from 'node:url'
 
 import { test, expect, openComposer } from '../../browser/fixtures.ts'
@@ -23,12 +23,15 @@ test('the arrows step through the photos, and the arrow keys do in the lightbox'
 
   let carousel = page.locator('.carousel')
   let index = () => carousel.evaluate((el) => getComputedStyle(el).getPropertyValue('--index'))
-  let open = () => carousel.evaluate((el) => el.matches(':popover-open'))
+  let open = () => carousel.evaluate((el) => el.matches(':modal'))
   await carousel.getByRole('button', { name: 'Next photo' }).click()
   await expect.poll(index).toBe('1')
+  let frame = page.locator('.carousel-frame')
+  let height = (await frame.boundingBox())?.height
 
   // Clicking the photo opens the lightbox at it, once Datastar has put it back there (its
-  // listener runs before this one).
+  // listener runs before this one). The photo's space stays in the page, the photos are sized
+  // for the screen, and Tab stays in the lightbox.
   let toggled = carousel.evaluate(
     (el) => new Promise((resolve) => el.addEventListener('toggle', resolve, { once: true })),
   )
@@ -36,6 +39,16 @@ test('the arrows step through the photos, and the arrow keys do in the lightbox'
   await toggled
   await expect.poll(open).toBe(true)
   await expect.poll(index).toBe('1')
+  expect((await frame.boundingBox())?.height).toBe(height)
+  await expect(carousel.locator('img').first()).toHaveAttribute('sizes', '100vw')
+  await expect(carousel.getByRole('button', { name: 'Close' })).toBeFocused()
+  // The page behind is inert. (WebKit's Tab skips buttons, so it leaves the page instead.)
+  for (let tab = 0; tab < 5; tab++) await page.keyboard.press('Tab')
+  expect(
+    await carousel.evaluate(
+      (el) => el.contains(document.activeElement) || document.activeElement === document.body,
+    ),
+  ).toBe(true)
   await page.keyboard.press('ArrowRight')
   await expect.poll(index).toBe('2')
   await page.keyboard.press('ArrowLeft')
