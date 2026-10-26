@@ -144,6 +144,26 @@
     }
   }
 
+  /*
+   * More than one photo share a 3:4 frame they're cropped to fill. With a pointer (a desktop),
+   * where 3:4 is taller than the screen, they fit inside a black square instead.
+   */
+  .carousel[data-many]:not(:popover-open) {
+    & .carousel-track {
+      aspect-ratio: 3 / 4;
+    }
+    @media (pointer: fine) {
+      background-color: black;
+
+      & .carousel-track {
+        aspect-ratio: 1;
+      }
+      & .carousel-slide > img {
+        object-fit: contain;
+      }
+    }
+  }
+
   /* Each arrow is hidden (scaled to nothing) at its end of the row. */
   .carousel-step {
     align-self: center;

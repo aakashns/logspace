@@ -84,7 +84,7 @@ const STEP_BY_KEY =
   "evt.key === el.getAttribute('aria-keyshortcuts') && el.parentElement.matches(':popover-open') && (evt.preventDefault(), el.click())"
 
 // A post's photos in a row to swipe through, as on Instagram: one photo keeps its own shape, and
-// more are cropped to a 3:4 frame, with arrows and a dot for each. The row is a popover, so
+// more share a frame (see .carousel[data-many] in post.css), with arrows and a dot for each. The row is a popover, so
 // clicking a photo opens the same element as a lightbox, at the same photo, where photos are
 // shown whole; clicking one again, its close button, or Escape closes it.
 function PhotoCarousel(props: {
@@ -94,12 +94,13 @@ function PhotoCarousel(props: {
 }): Html {
   let { id, photos, priority } = props
   let many = photos.length > 1
-  let aspectRatio = many ? '3 / 4' : displayAspectRatio(photos[0])
+  let aspectRatio = many ? undefined : displayAspectRatio(photos[0])
   return (
     <div
       id={id}
       popover
       class="carousel"
+      data-many={many}
       data-on:beforetoggle={many ? NOTE_INDEX : undefined}
       data-on:toggle={many ? RESTORE_INDEX : undefined}
       style={`--count: ${photos.length}${aspectRatio ? `; --aspect-ratio: ${aspectRatio}` : ''}`}
