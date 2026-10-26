@@ -68,8 +68,8 @@ export const newPostEmail: NewPostEmail = (post, site, unsubscribeUrl) => {
           </article>
           <footer class="email-footer">
             <p>
-              You’re subscribed to <a href={site.siteUrl}>{site.siteTitle}</a>.{' '}
-              <a href={unsubscribeUrl}>Unsubscribe</a>
+              <a href={unsubscribeUrl}>Unsubscribe</a> · You’re subscribed to{' '}
+              <a href={site.siteUrl}>{site.siteTitle}</a>.
             </p>
           </footer>
         </main>
@@ -80,8 +80,8 @@ export const newPostEmail: NewPostEmail = (post, site, unsubscribeUrl) => {
     subject,
     text:
       `${post.caption ? captionText(post.caption) : summarizePost(post)}\n\n${postUrl}\n\n` +
-      `You’re subscribed to ${site.siteTitle} (${site.siteUrl}).\n` +
-      `To unsubscribe: ${unsubscribeUrl}\n`,
+      `To unsubscribe: ${unsubscribeUrl}\n` +
+      `You’re subscribed to ${site.siteTitle} (${site.siteUrl}).\n`,
     html: `<!DOCTYPE html>${html.value}`,
   }
 }

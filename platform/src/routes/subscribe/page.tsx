@@ -151,27 +151,36 @@ export function SubscriptionsClosedPage(props: { siteTitle: string }): Html {
 }
 
 // /unsubscribe/<id>/<signature>: asking first, as email apps and their scanners open links on their
-// own, and the button posts to it.
+// own, and the button posts to it. Cancel goes home.
 export function UnsubscribePage(props: { siteTitle: string; email: string; action: string }): Html {
   return (
     <section class="subscribe">
       <h1 class="page-title">Unsubscribe</h1>
       <p>{`Stop emailing new posts from ${props.siteTitle} to ${props.email}?`}</p>
-      <form method="post" action={props.action}>
+      <form method="post" action={props.action} class="subscribe-actions">
         <Button type="submit">Unsubscribe</Button>
+        <Button href={urls.home()} variant="outline">
+          Cancel
+        </Button>
       </form>
     </section>
   )
 }
 
-export function UnsubscribedPage(props: { siteTitle: string }): Html {
+// Subscribing again, at the form, is offered only while it's open.
+export function UnsubscribedPage(props: { siteTitle: string; canSubscribe: boolean }): Html {
   return (
     <section class="subscribe">
       <h1 class="page-title">You’re unsubscribed</h1>
-      <p>
-        {`You won’t get emails from ${props.siteTitle} any more. `}
-        <a href={urls.subscribe()}>Subscribe again</a>
-      </p>
+      <p>{`You won’t get emails from ${props.siteTitle} any more.`}</p>
+      <div class="subscribe-actions">
+        <Button href={urls.home()}>Back to Home</Button>
+        {props.canSubscribe ? (
+          <Button href={urls.subscribe()} variant="outline">
+            Subscribe again
+          </Button>
+        ) : null}
+      </div>
     </section>
   )
 }

@@ -196,9 +196,14 @@ const unsubscribeLinkInvalid = page('This link isn’t right', <UnsubscribeLinkI
   status: 404,
 })
 
-const unsubscribed = Effect.flatMap(configuredSite, ({ siteTitle }) =>
-  page('You’re unsubscribed', <UnsubscribedPage siteTitle={siteTitle} />),
-)
+const unsubscribed = Effect.gen(function* () {
+  let { siteTitle } = yield* configuredSite
+  let canSubscribe = (yield* subscriptionsStatus)._tag === 'Open'
+  return yield* page(
+    'You’re unsubscribed',
+    <UnsubscribedPage siteTitle={siteTitle} canSubscribe={canSubscribe} />,
+  )
+})
 
 const showUnsubscribe = Effect.gen(function* () {
   let id = yield* param('id')

@@ -1,5 +1,5 @@
 /*
- * The sign-up pages (see page.tsx): a narrow form, under the page's title.
+ * The sign-up and unsubscribe pages (see page.tsx): a narrow form, under the page's title.
  */
 @layer components {
   .subscribe {
@@ -13,7 +13,7 @@
       color: var(--muted-foreground);
       line-height: 1.7;
     }
-    & a {
+    & p a {
       color: var(--foreground);
       text-decoration: underline;
       text-underline-offset: 0.2em;
@@ -23,6 +23,11 @@
     }
     & [data-slot='button'] {
       align-self: flex-start;
+    }
+    /* A row of buttons, like Unsubscribe and Cancel. */
+    & .subscribe-actions {
+      display: flex;
+      gap: 0.75rem;
     }
   }
 }

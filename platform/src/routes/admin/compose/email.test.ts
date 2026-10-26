@@ -124,20 +124,22 @@ describe('a new post', () => {
     ])
     let [email] = emails
     let { subject, text, html, headers } = defined(email, 'an email')
-    let unsubscribe = capture(text, /To unsubscribe: (\S+)\n$/)
+    let unsubscribe = capture(text, /To unsubscribe: (\S+)\n/)
     expect(subject).toBe('Up top')
     expect(text).toBe(
       'Up top\nSee https://example.org\n\nhttps://example.com/posts/emailed001\n\n' +
-        `You’re subscribed to Test Site (https://example.com).\nTo unsubscribe: ${unsubscribe}\n`,
+        `To unsubscribe: ${unsubscribe}\nYou’re subscribed to Test Site (https://example.com).\n`,
     )
     // Each subscriber's own link to unsubscribe, in the footer, and for email apps' button.
     expect(unsubscribe).toMatch(/^https:\/\/example\.com\/unsubscribe\/[\w-]{36}\/[\w-]{22}$/)
-    expect(html).toContain(`<a href="${unsubscribe}">Unsubscribe</a>`)
+    expect(html).toContain(
+      `<p><a href="${unsubscribe}">Unsubscribe</a> · You’re subscribed to <a href="https://example.com">Test Site</a>.</p>`,
+    )
     expect(headers).toEqual({
       'List-Unsubscribe': `<${unsubscribe}>`,
       'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
     })
-    let other = capture(defined(emails[1], 'another email').text, /To unsubscribe: (\S+)\n$/)
+    let other = capture(defined(emails[1], 'another email').text, /To unsubscribe: (\S+)\n/)
     expect(other).not.toBe(unsubscribe)
     expect(html).toStartWith('<!DOCTYPE html><html lang="en">')
     expect(html).toContain('<meta name="color-scheme" content="light dark">')

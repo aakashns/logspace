@@ -442,7 +442,8 @@ describe('unsubscribing', () => {
     let html = await response.text()
     expect(response.status).toBe(200)
     expect(html).toContain('Stop emailing new posts from Test Site to ada@example.com?')
-    expect(html).toContain(`<form method="post" action="${link}">`)
+    expect(html).toContain(`<form method="post" action="${link}" class="subscribe-actions">`)
+    expect(html).toMatch(/<a data-slot="button" data-variant="outline"[^>]* href="\/">Cancel<\/a>/)
     expect(html).toContain('<meta name="robots" content="noindex">')
     expect(response.headers.get('Cache-Control')).toBe('no-store')
     // Opening the link, as an email app's scanner does, leaves them subscribed.
@@ -454,7 +455,14 @@ describe('unsubscribing', () => {
       headers: { 'Sec-Fetch-Site': 'same-origin' },
     })
     expect(response.status).toBe(200)
-    expect(await response.text()).toContain('You won’t get emails from Test Site any more.')
+    html = await response.text()
+    expect(html).toContain('You won’t get emails from Test Site any more.')
+    expect(html).toMatch(
+      /<a data-slot="button" data-variant="default"[^>]* href="\/">Back to Home<\/a>/,
+    )
+    expect(html).toMatch(
+      /<a data-slot="button" data-variant="outline"[^>]* href="\/subscribe">Subscribe again<\/a>/,
+    )
     expect(await users()).toEqual([])
     // Opened again, the link says so.
     expect(await (await app.fetch(link)).text()).toContain(
@@ -469,6 +477,8 @@ describe('unsubscribing', () => {
     for (let attempt of [1, 2]) {
       let response = await post(link, { 'List-Unsubscribe': 'One-Click' })
       expect(response.status, `attempt ${attempt}`).toBe(200)
+      // Subscribing again isn't offered while it's closed.
+      expect(await response.text()).not.toContain('Subscribe again')
     }
     expect(await users()).toEqual([])
   })
