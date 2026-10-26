@@ -37,7 +37,12 @@
     & h1 + p {
       margin-top: 0.5rem;
     }
-    & [data-slot='button'] {
+    /* Subscribe, and the RSS feed. */
+    & .intro-actions {
+      display: flex;
+      gap: 0.75rem;
+    }
+    & :is(h1, p) + .intro-actions {
       margin-top: 1.25rem;
     }
     & p {

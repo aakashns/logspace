@@ -7,15 +7,7 @@ import type { Child, Html } from '#jsx/jsx-runtime'
 
 import { urls } from '../lib/urls.ts'
 import css from './controls.css' with { type: 'text' }
-import {
-  CheckIcon,
-  ComposeIcon,
-  LogoutIcon,
-  MoonIcon,
-  RssIcon,
-  ShareIcon,
-  SunIcon,
-} from './icons.tsx'
+import { CheckIcon, ComposeIcon, LogoutIcon, MoonIcon, ShareIcon, SunIcon } from './icons.tsx'
 import { stylesheet } from './stylesheet.ts'
 import { Button } from './ui/button.tsx'
 
@@ -67,17 +59,6 @@ export function ThemeToggle(): Html {
       >
         <MoonIcon class="in-light-theme" />
         <SunIcon class="in-dark-theme" />
-      </Button>
-    </Tooltip>
-  )
-}
-
-// The navbar's link to the RSS feed.
-export function RssLink(): Html {
-  return (
-    <Tooltip label="RSS feed">
-      <Button href={urls.rss()} variant="ghost" size="icon-lg" aria-label="RSS feed">
-        <RssIcon />
       </Button>
     </Tooltip>
   )

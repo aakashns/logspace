@@ -169,10 +169,10 @@ describe('while subscribing is closed', () => {
 describe('subscribing', () => {
   beforeEach(open)
 
-  it('starts at the home page’s Subscribe button, below the introduction', async () => {
+  it('starts at the home page’s Subscribe button, below the introduction, beside RSS', async () => {
     let home = await (await app.fetch('/')).text()
     expect(home).toMatch(
-      /<p>I check that things work.<\/p><a data-slot="button"[^>]* href="\/subscribe">Subscribe<\/a><\/section>/,
+      /<p>I check that things work.<\/p><div class="intro-actions"><a data-slot="button"[^>]* href="\/subscribe">Subscribe<\/a><a data-slot="button" data-variant="outline"[^>]* href="\/rss.xml">/,
     )
   })
 

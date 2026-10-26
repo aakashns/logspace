@@ -1,4 +1,5 @@
 import type { Html } from '#jsx/jsx-runtime'
+import { RssIcon } from '../../components/icons.tsx'
 import { POST_STYLES } from '../../components/post.tsx'
 import { stylesheet } from '../../components/stylesheet.ts'
 
@@ -16,7 +17,8 @@ export const HOME_PAGE_STYLES = POST_STYLES + stylesheet(css)
 export const BANNER_IMAGE_SIZES = '(min-width: 38rem) 38rem, 100vw'
 
 // The banner and introduction set at /admin/branding, with a Subscribe button while subscribing
-// is open, then the feed. Any of the banner and the introduction's parts can be left out.
+// is open and a link to the RSS feed, then the feed. The banner, heading, and subheading can be
+// left out.
 export function HomePage(props: {
   site: SiteConfig
   items: readonly FeedItem[]
@@ -38,13 +40,17 @@ export function HomePage(props: {
           class="banner"
         />
       ) : null}
-      {heroHeading || heroSubheading || props.subscribe ? (
-        <section class="intro">
-          {heroHeading ? <h1>{heroHeading}</h1> : null}
-          {heroSubheading ? <p>{heroSubheading}</p> : null}
+      <section class="intro">
+        {heroHeading ? <h1>{heroHeading}</h1> : null}
+        {heroSubheading ? <p>{heroSubheading}</p> : null}
+        <div class="intro-actions">
           {props.subscribe ? <Button href={urls.subscribe()}>Subscribe</Button> : null}
-        </section>
-      ) : null}
+          <Button href={urls.rss()} variant="outline">
+            <RssIcon />
+            RSS
+          </Button>
+        </div>
+      </section>
       <Feed items={props.items} siteUrl={siteUrl} />
     </>
   )

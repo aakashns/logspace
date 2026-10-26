@@ -6,7 +6,7 @@ import type { PageMeta, PreloadImage } from '../data/posts/presentation.ts'
 import { getIconHref, getSiteImageHref } from '../data/site/site-images.ts'
 import { isSiteConfigured, type SavedSiteConfig, type SiteConfig } from '../data/site/site.ts'
 import { urls } from '../lib/urls.ts'
-import { ComposeLink, CONTROLS_STYLES, RssLink, ThemeToggle } from './controls.tsx'
+import { ComposeLink, CONTROLS_STYLES, ThemeToggle } from './controls.tsx'
 import layoutCss from './layout.css' with { type: 'text' }
 import resetCss from './reset.css' with { type: 'text' }
 import { SiteLogo } from './site-logo.tsx'
@@ -147,7 +147,6 @@ export function Document(props: DocumentProps): Html {
                 </a>
                 <div class="nav-actions">
                   {page.admin ? <ComposeLink /> : null}
-                  {configured ? <RssLink /> : null}
                   <ThemeToggle />
                   {navActions}
                 </div>
