@@ -101,6 +101,7 @@ export const AppServices = Layer.mergeAll(
       Images.layer,
       PostQueriesLive,
       SiteConfigQueriesLive,
+      Secrets.layer,
       EmailLive,
     ]),
   ),
@@ -118,7 +119,13 @@ export const AppServices = Layer.mergeAll(
   TurnstileLive,
   EmailLive,
   UserCommands.layer.pipe(
-    Layer.provide([MigratedDatabase, SiteConfigQueriesLive, EmailLive, TurnstileLive]),
+    Layer.provide([
+      MigratedDatabase,
+      SiteConfigQueriesLive,
+      Secrets.layer,
+      EmailLive,
+      TurnstileLive,
+    ]),
   ),
   PostMedia.layer.pipe(Layer.provide([MediaStorage.layer, Images.layer, PostQueriesLive])),
   LinkPreviews.layer.pipe(

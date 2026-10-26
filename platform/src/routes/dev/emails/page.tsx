@@ -79,6 +79,12 @@ export function DevEmailsPage(props: {
                         <dd>{email.replyTo.join(', ')}</dd>
                       </>
                     ) : null}
+                    {email.headers.map(({ name, value }) => (
+                      <>
+                        <dt>{name}</dt>
+                        <dd>{value}</dd>
+                      </>
+                    ))}
                     <dt>Received</dt>
                     <dd>
                       <time datetime={email.receivedAt.toISOString()}>

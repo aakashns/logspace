@@ -3,6 +3,10 @@
 // says nothing about the address, and each code has its own, so an old page, or someone else's
 // asking for a code for the same address, can't touch it. While subscribing is off or paused, the
 // pages say it's closed.
+//
+// Unsubscribing, from the link in each email (see ../../data/users/unsubscribe.ts), which works
+// whether subscribing is open or not: the page asks first, and its button posts to the link, as an
+// email app's own Unsubscribe button does. Posting it again, once they're unsubscribed, says so.
 import { Effect } from 'effect'
 import { HttpRouter } from 'effect/http'
 
@@ -11,7 +15,7 @@ import { Document } from '../../components/document.tsx'
 import { configuredSite } from '../../data/site/queries.ts'
 import { subscriptionsStatus } from '../../data/site/subscriptions.ts'
 import { type SignUpRateLimited, UserCommands } from '../../data/users/commands.ts'
-import { pendingSignUpEmail } from '../../data/users/queries.ts'
+import { pendingSignUpEmail, unsubscribingUser } from '../../data/users/queries.ts'
 import type { SignUpForm, SignUpIssue } from '../../data/users/user.ts'
 import { formText, readForm, SMALL_FORM_LIMIT } from '../../lib/http/forms.ts'
 import { pageContext, pageResponse, param, requestUrl } from '../../lib/http/pages.ts'
@@ -24,6 +28,9 @@ import {
   SubscribePage,
   SubscribeVerifyPage,
   SubscriptionsClosedPage,
+  UnsubscribedPage,
+  UnsubscribeLinkInvalidPage,
+  UnsubscribePage,
 } from './page.tsx'
 
 const page = (title: string, content: Child, options?: { status?: number; turnstile?: boolean }) =>
@@ -185,9 +192,56 @@ const verify = Effect.gen(function* () {
   }),
 )
 
+const unsubscribeLinkInvalid = page('This link isn’t right', <UnsubscribeLinkInvalidPage />, {
+  status: 404,
+})
+
+const unsubscribed = Effect.gen(function* () {
+  let { siteTitle } = yield* configuredSite
+  let canSubscribe = (yield* subscriptionsStatus)._tag === 'Open'
+  return yield* page(
+    'You’re unsubscribed',
+    <UnsubscribedPage siteTitle={siteTitle} canSubscribe={canSubscribe} />,
+  )
+})
+
+const showUnsubscribe = Effect.gen(function* () {
+  let id = yield* param('id')
+  let signature = yield* param('signature')
+  return yield* unsubscribingUser(id, signature).pipe(
+    Effect.flatMap((user) =>
+      user
+        ? Effect.flatMap(configuredSite, ({ siteTitle }) =>
+            page(
+              'Unsubscribe',
+              <UnsubscribePage
+                siteTitle={siteTitle}
+                email={user.email}
+                action={urls.unsubscribe(id, signature)}
+              />,
+            ),
+          )
+        : unsubscribed,
+    ),
+    Effect.catchTag('UnsubscribeLinkInvalid', () => unsubscribeLinkInvalid),
+  )
+})
+
+// What it posts, like an email app's "List-Unsubscribe=One-Click", says nothing more.
+const unsubscribe = Effect.gen(function* () {
+  let id = yield* param('id')
+  let signature = yield* param('signature')
+  return yield* (yield* UserCommands).unsubscribe(id, signature).pipe(
+    Effect.flatMap(() => unsubscribed),
+    Effect.catchTag('UnsubscribeLinkInvalid', () => unsubscribeLinkInvalid),
+  )
+})
+
 export const SubscribeRoutes = HttpRouter.addAll([
   HttpRouter.route('GET', '/subscribe', showSubscribe),
   HttpRouter.route('POST', '/subscribe', subscribe),
   HttpRouter.route('GET', '/subscribe/verify/:id', showVerify),
   HttpRouter.route('POST', '/subscribe/verify/:id', verify),
+  HttpRouter.route('GET', '/unsubscribe/:id/:signature', showUnsubscribe),
+  HttpRouter.route('POST', '/unsubscribe/:id/:signature', unsubscribe),
 ])

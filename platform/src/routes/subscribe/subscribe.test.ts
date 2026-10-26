@@ -1,5 +1,6 @@
 // Subscribing: the home page's button, the form with Turnstile, the code emailed (with Resend,
-// which a fake network answers for, as it does for Cloudflare), and the account it makes.
+// which a fake network answers for, as it does for Cloudflare), and the account it makes. Then
+// unsubscribing, by the link in the email that says they're subscribed.
 import { afterAll, beforeEach, describe, expect, it } from 'bun:test'
 import { Clock, Effect } from 'effect'
 import { SqlClient } from 'effect/sql'
@@ -13,7 +14,12 @@ const RESEND = 'https://api.resend.com/emails'
 // The emails Resend was asked to send, and the tokens Cloudflare was asked about. Cloudflare
 // accepts "good-token" and nothing else. Resend answers once `resend` lets it, with `resendFails`
 // set refusing the email.
-let emails: { to: string; subject: string; text: string }[] = []
+let emails: {
+  to: string
+  subject: string
+  text: string
+  headers?: Record<string, string>
+}[] = []
 let tokens: string[] = []
 let resend: () => Promise<void> = () => Promise.resolve()
 let resendFails = false
@@ -43,8 +49,8 @@ const app = makeTestApp(
       fetch: async (url, init) => {
         let body = await new Response(init.body).text()
         if (url.href === RESEND) {
-          let { to, subject, text } = JSON.parse(body)
-          emails.push({ to: to[0], subject, text })
+          let { to, subject, text, headers } = JSON.parse(body)
+          emails.push({ to: to[0], subject, text, ...(headers ? { headers } : {}) })
           await resend()
           if (resendFails) return Response.json({ message: 'Unavailable' }, { status: 503 })
           return Response.json({ id: 'sent' })
@@ -163,10 +169,10 @@ describe('while subscribing is closed', () => {
 describe('subscribing', () => {
   beforeEach(open)
 
-  it('starts at the home page’s Subscribe button, below the introduction', async () => {
+  it('starts at the home page’s Subscribe button, below the introduction, beside RSS', async () => {
     let home = await (await app.fetch('/')).text()
     expect(home).toMatch(
-      /<p>I check that things work.<\/p><a data-slot="button"[^>]* href="\/subscribe">Subscribe<\/a><\/section>/,
+      /<p>I check that things work.<\/p><div class="intro-actions"><a data-slot="button"[^>]* href="\/subscribe">Subscribe<\/a><a data-slot="button" data-variant="outline"[^>]* href="\/rss.xml">/,
     )
   })
 
@@ -230,10 +236,19 @@ describe('subscribing', () => {
       { name: 'Ada Lovelace', email: 'ada@example.com', email_verified: 1 },
     ])
     expect(await codeRows()).toEqual([])
-    expect(emails.at(-1)).toEqual({
+    let email = defined(emails.at(-1), 'an email')
+    let link = capture(email.text, /To unsubscribe: (\S+)\n$/)
+    expect(link).toMatch(/^https:\/\/example\.com\/unsubscribe\/[\w-]{36}\/[\w-]{22}$/)
+    expect(email).toEqual({
       to: 'ada@example.com',
       subject: 'You’re subscribed to Test Site',
-      text: 'Hi Ada Lovelace,\n\nYou’re now subscribed to Test Site (https://example.com), as ada@example.com.\n',
+      text:
+        'Hi Ada Lovelace,\n\nYou’re now subscribed to Test Site (https://example.com), as ada@example.com.\n\n' +
+        `To unsubscribe: ${link}\n`,
+      headers: {
+        'List-Unsubscribe': `<${link}>`,
+        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+      },
     })
     // A code works once.
     expect((await enter(code, page)).status).toBe(410)
@@ -408,5 +423,80 @@ describe('how often codes are sent', () => {
     expect(olderPage).not.toBe(newer)
     expect((await app.fetch(olderPage)).status).toBe(200)
     expect((await enter(newerCode, newer)).status).toBe(200)
+  })
+})
+
+describe('unsubscribing', () => {
+  // Subscribes Ada, returning the path of the link to unsubscribe in the email that says so.
+  const subscribed = async () => {
+    await open()
+    let page = await askForCode()
+    expect((await enter(lastCode(), page)).status).toBe(200)
+    let text = defined(emails.at(-1), 'an email').text
+    return new URL(capture(text, /To unsubscribe: (\S+)/)).pathname
+  }
+
+  it('asks first, kept out of caches and search, then unsubscribes when its button is pressed', async () => {
+    let link = await subscribed()
+    let response = await app.fetch(link)
+    let html = await response.text()
+    expect(response.status).toBe(200)
+    expect(html).toContain('Stop emailing new posts from Test Site to ada@example.com?')
+    expect(html).toContain(`<form method="post" action="${link}" class="subscribe-actions">`)
+    expect(html).toMatch(/<a data-slot="button" data-variant="outline"[^>]* href="\/">Cancel<\/a>/)
+    expect(html).toContain('<meta name="robots" content="noindex">')
+    expect(response.headers.get('Cache-Control')).toBe('no-store')
+    // Opening the link, as an email app's scanner does, leaves them subscribed.
+    expect(await users()).toHaveLength(1)
+
+    // The button posts it from the page.
+    response = await app.fetch(link, {
+      method: 'POST',
+      headers: { 'Sec-Fetch-Site': 'same-origin' },
+    })
+    expect(response.status).toBe(200)
+    html = await response.text()
+    expect(html).toContain('You won’t get emails from Test Site any more.')
+    expect(html).toMatch(
+      /<a data-slot="button" data-variant="default"[^>]* href="\/">Back to Home<\/a>/,
+    )
+    expect(html).toMatch(
+      /<a data-slot="button" data-variant="outline"[^>]* href="\/subscribe">Subscribe again<\/a>/,
+    )
+    expect(await users()).toEqual([])
+    // Opened again, the link says so.
+    expect(await (await app.fetch(link)).text()).toContain(
+      '<h1 class="page-title">You’re unsubscribed</h1>',
+    )
+  })
+
+  it('takes an email app’s one-click post, again and again, while subscribing is closed', async () => {
+    let link = await subscribed()
+    await commands((commands) => commands.saveSubscriptions(false))
+    // As Gmail's servers post it (RFC 8058), not from a page.
+    for (let attempt of [1, 2]) {
+      let response = await post(link, { 'List-Unsubscribe': 'One-Click' })
+      expect(response.status, `attempt ${attempt}`).toBe(200)
+      // Subscribing again isn't offered while it's closed.
+      expect(await response.text()).not.toContain('Subscribe again')
+    }
+    expect(await users()).toEqual([])
+  })
+
+  it('refuses a link the site didn’t make, leaving everyone subscribed', async () => {
+    let link = await subscribed()
+    let [, , id = '', signature = ''] = link.split('/')
+    let otherId = crypto.randomUUID()
+    for (let wrong of [
+      `/unsubscribe/${id}/${signature.slice(0, -1)}`,
+      `/unsubscribe/${id}/${'A'.repeat(22)}`,
+      `/unsubscribe/${otherId}/${signature}`,
+    ]) {
+      for (let response of [await app.fetch(wrong), await post(wrong, {})]) {
+        expect(response.status, wrong).toBe(404)
+        expect(await response.text()).toContain('<h1 class="page-title">This link isn’t right</h1>')
+      }
+    }
+    expect(await users()).toHaveLength(1)
   })
 })

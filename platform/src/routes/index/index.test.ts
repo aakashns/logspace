@@ -65,12 +65,17 @@ describe('the home page', () => {
     expect(text).not.toMatch(/rel="preload" as="image"/)
   })
 
-  it('links to the RSS feed from every page', async () => {
+  it('links to the RSS feed from every page’s head, and with a button below the introduction', async () => {
     let html = await (await app.fetch('/')).text()
     expect(html).toMatch(
       /<link rel="alternate" type="application\/rss\+xml"[^>]*href="https:\/\/example\.com\/rss\.xml"/,
     )
-    expect(html).toMatch(/<a [^>]*href="\/rss\.xml" aria-label="RSS feed"/)
+    // With subscribing closed, RSS is the only button.
+    expect(html).toMatch(
+      /<div class="intro-actions"><a data-slot="button" data-variant="outline"[^>]* href="\/rss\.xml"><svg[^>]*>.*?<\/svg>RSS<\/a><\/div>/,
+    )
+    // Not in the navbar.
+    expect(html).not.toContain('aria-label="RSS feed"')
   })
 
   it('inlines every page’s styles, with the heading font embedded, and its own', async () => {

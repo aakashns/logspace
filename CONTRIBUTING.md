@@ -106,7 +106,7 @@ folder.
 | `site-files/`         | `/site.webmanifest`, `/favicon.ico`, `/apple-touch-icon.png`, `/site/<file>` |
 | `link-images/`        | `/link-images/<file>`, link previews' images                                 |
 | `assets/`             | `/assets/<file>`, `/fonts/<file>`: Datastar and the fonts                    |
-| `subscribe/`          | `/subscribe` and `/subscribe/verify/<id>`: signing up, confirmed by an emailed code |
+| `subscribe/`          | `/subscribe`, `/subscribe/verify/<id>`, and `/unsubscribe/<id>/<signature>`  |
 | `admin/login/`        | `/admin/login`, `/admin/logout`                                              |
 | `admin/index/`        | `/admin`, a link to each of the four below                                   |
 | `admin/posts/`        | `/admin/posts`, the list of posts                                            |
@@ -152,32 +152,33 @@ the database, and nothing is kept between requests, so an edit made in the datab
 (like with `sqlite3`) shows up on the next request. Storage and database failures are defects (a
 500, logged), as they're not something a user can fix.
 
-| File                    | What it holds                                                                                                                                           |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `posts/post.ts`         | What a post is (`PostRecord`, an Effect `Schema`), and the checks a post passes before it's saved, reported as `{ field, message }` issues for the form |
-| `posts/rows.ts`         | How a post maps to a row of the `posts` table                                                                                                           |
-| `posts/presentation.ts` | Posts as pages show them: media URLs, image sizes, `srcset`s, captions rendered to HTML, link previews, and page metadata                               |
-| `posts/caption.ts`      | Captions: paragraphs, line breaks, and URLs as links, and the first URL for its preview                                                                 |
-| `posts/queries.ts`      | `PostQueries`: posts and their images' sizes, presented                                                                                                 |
-| `posts/commands.ts`     | `PostCommands` (below), `PostRejected` (with the issues to show), and `PostNotFound`                                                                    |
-| `posts/media.ts`        | `PostMedia`: a post's files, and its resized photos, made on first request and stored; concurrent requests for one share a single resize                |
-| `posts/files.ts`        | `makePostFiles`: stateless upload and removal helpers, also used by test seeding                                                                        |
-| `site/site.ts`          | The site's settings (branding, and integrations like `TurnstileSettings`, each one setting saved as JSON), and their checks                             |
-| `site/site-images.ts`   | The URLs pages link the site's icon, logos, and banner image with                                                                                       |
-| `site/queries.ts`       | `SiteConfigQueries`, and `configuredSite` for what's only served once the settings are saved                                                            |
-| `site/commands.ts`      | `SiteConfigCommands`: saving `/admin/branding` (turning uploads into the site's image files, or `SiteConfigRejected`), and the integrations' settings  |
-| `site/email.ts`         | `Email`: whether it's set up, and sending an email (in plain text, and HTML too) with Amazon SES's API (signing with AWS Signature V4) or Resend's, up to its emails per hour, with a typed error for each failure |
-| `site/turnstile.ts`     | `Turnstile`: whether it's set up, checking a widget's token with Cloudflare, with a typed error for each way that fails, and logins while it's enabled  |
-| `site/subscriptions.ts` | Whether subscribing is off, paused (email or an enabled Turnstile is missing), or open                                                                 |
-| `users/user.ts`         | Accounts (the `users` table, after better-auth's `user`), and signing up: the form's checks, and the emailed code (a `verifications` row)              |
-| `users/queries.ts`      | The address a code (by its id) was sent to, while it can still be entered                                                                               |
-| `users/commands.ts`     | `UserCommands`: asking for a code (passing Turnstile, as often as an address may be sent one), and entering it, which makes the account                |
-| `site/files.ts`         | The site's image files, from storage, or the default icons that `Images` caches                                                                         |
-| `link-previews/`        | `LinkPreviews` fetches previews in the background, never on a page's time, and saves each one's image as resized WebP copies                            |
+| File                    | What it holds                                                                                                                                                                                                                             |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `posts/post.ts`         | What a post is (`PostRecord`, an Effect `Schema`), and the checks a post passes before it's saved, reported as `{ field, message }` issues for the form                                                                                   |
+| `posts/rows.ts`         | How a post maps to a row of the `posts` table                                                                                                                                                                                             |
+| `posts/presentation.ts` | Posts as pages show them: media URLs, image sizes, `srcset`s, captions rendered to HTML, link previews, and page metadata                                                                                                                 |
+| `posts/caption.ts`      | Captions: paragraphs, line breaks, and URLs as links, and the first URL for its preview                                                                                                                                                   |
+| `posts/queries.ts`      | `PostQueries`: posts and their images' sizes, presented                                                                                                                                                                                   |
+| `posts/commands.ts`     | `PostCommands` (below), `PostRejected` (with the issues to show), and `PostNotFound`                                                                                                                                                      |
+| `posts/media.ts`        | `PostMedia`: a post's files, and its resized photos, made on first request and stored; concurrent requests for one share a single resize                                                                                                  |
+| `posts/files.ts`        | `makePostFiles`: stateless upload and removal helpers, also used by test seeding                                                                                                                                                          |
+| `site/site.ts`          | The site's settings (branding, and integrations like `TurnstileSettings`, each one setting saved as JSON), and their checks                                                                                                               |
+| `site/site-images.ts`   | The URLs pages link the site's icon, logos, and banner image with                                                                                                                                                                         |
+| `site/queries.ts`       | `SiteConfigQueries`, and `configuredSite` for what's only served once the settings are saved                                                                                                                                              |
+| `site/commands.ts`      | `SiteConfigCommands`: saving `/admin/branding` (turning uploads into the site's image files, or `SiteConfigRejected`), and the integrations' settings                                                                                     |
+| `site/email.ts`         | `Email`: whether it's set up, and sending an email (in plain text, and HTML too, with any more headers) with Amazon SES's API (signing with AWS Signature V4) or Resend's, up to its emails per hour, with a typed error for each failure |
+| `site/turnstile.ts`     | `Turnstile`: whether it's set up, checking a widget's token with Cloudflare, with a typed error for each way that fails, and logins while it's enabled                                                                                    |
+| `site/subscriptions.ts` | Whether subscribing is off, paused (email or an enabled Turnstile is missing), or open                                                                                                                                                    |
+| `users/user.ts`         | Accounts (the `users` table, after better-auth's `user`), and signing up: the form's checks, and the emailed code (a `verifications` row)                                                                                                 |
+| `users/queries.ts`      | The address a code (by its id) was sent to, while it can still be entered, and whom a link to unsubscribe is for                                                                                                                          |
+| `users/commands.ts`     | `UserCommands`: asking for a code (passing Turnstile, as often as an address may be sent one), entering it, and unsubscribing                                                                                                             |
+| `users/unsubscribe.ts`  | Each subscriber's link to unsubscribe (their account's id, signed), and its List-Unsubscribe headers                                                                                                                                      |
+| `site/files.ts`         | The site's image files, from storage, or the default icons that `Images` caches                                                                                                                                                           |
+| `link-previews/`        | `LinkPreviews` fetches previews in the background, never on a page's time, and saves each one's image as resized WebP copies                                                                                                              |
 
 `PostCommands` has `save`, which publishes a post or saves an edit of one (emailing a new one to
-everyone subscribed, in the background, as the composer's `email.tsx` makes it), `delete`, and the
-composer's `upload`, which saves a post's files as they're chosen. Uploads are saved before the
+everyone subscribed, in the background, as the composer's `email.tsx` makes it, each with their
+own link to unsubscribe), `delete`, and the composer's `upload`, which saves a post's files as they're chosen. Uploads are saved before the
 post is checked, so a rejected form doesn't need its files chosen again, and a chosen file never
 takes the name of one the post has, so nothing published changes until the post is saved.
 Saving, or closing the composer (`discard`), removes the post's files it doesn't name.
@@ -211,22 +212,22 @@ borders or cards.
 Shared resources are Effect services (`Context.Service`) with a `layer` that builds them.
 Database migrations are an Effect function, `runMigrations`, used by startup and the CLI.
 
-| File                 | Does                                                                                                                                                                                                          |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `config.ts`          | `AppConfig`, from environment variables                                                                                                                                                                       |
-| `urls.ts`            | Every URL the app links to                                                                                                                                                                                    |
-| `database.ts`        | The SQLite connection (`@effect/sql-sqlite-bun`, in WAL mode) and the migrations, which write the same journal LogSpace 0.1 (the Remix version) did, so its databases upgrade in place                        |
-| `media-storage.ts`   | Uploaded files as plain files under `MEDIA_DIR` (`posts/<id>/<file>`, `variants/…`, `site/…`, `link-images/…`), written atomically with `Bun.write` and served straight from disk; or in memory for the tests |
-| `images.ts`          | Everything Bun.Image does: reading and resizing photos, and making the logos, icons, and banner image                                                                                                         |
-| `public-http.ts`     | Fetching other sites, only at public addresses on standard ports                                                                                                                                              |
-| `secrets.ts`         | `Secrets`: sealing secrets like an integration's secret key for the database, with AES-256-GCM and a key derived from `AUTH_SESSION_SECRET`                                                                   |
-| `http/pages.ts`      | What a page needs from the request (`PageContext`), and its response with a per-response CSP nonce                                                                                                            |
-| `http/admin-session.ts`    | The admin password check and the signed session cookie (`AdminAuth`)                                                                                                                                          |
-| `http/forms.ts`      | Reading a form within the upload limits (`UploadTooLarge` → the 413 page)                                                                                                                                     |
-| `http/responses.ts`  | Files with ranges, ETags, and caching; redirects                                                                                                                                                              |
-| `http/forwarded.ts`  | The protocol and host behind Caddy (`TRUST_PROXY=1`)                                                                                                                                                          |
-| `http/assets.ts`     | Datastar, fonts, and every page's styles with the heading font, embedded in the binary                                                                                                                        |
-| `http/middleware.ts` | Wraps every request, in this order: the proxy's forwarded host, the cross-origin form check, the gate that keeps an unconfigured site private, then the handler, with 404s, 500s, and security headers        |
+| File                    | Does                                                                                                                                                                                                          |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `config.ts`             | `AppConfig`, from environment variables                                                                                                                                                                       |
+| `urls.ts`               | Every URL the app links to                                                                                                                                                                                    |
+| `database.ts`           | The SQLite connection (`@effect/sql-sqlite-bun`, in WAL mode) and the migrations, which write the same journal LogSpace 0.1 (the Remix version) did, so its databases upgrade in place                        |
+| `media-storage.ts`      | Uploaded files as plain files under `MEDIA_DIR` (`posts/<id>/<file>`, `variants/…`, `site/…`, `link-images/…`), written atomically with `Bun.write` and served straight from disk; or in memory for the tests |
+| `images.ts`             | Everything Bun.Image does: reading and resizing photos, and making the logos, icons, and banner image                                                                                                         |
+| `public-http.ts`        | Fetching other sites, only at public addresses on standard ports                                                                                                                                              |
+| `secrets.ts`            | `Secrets`: sealing secrets like an integration's secret key for the database, with AES-256-GCM and a key derived from `AUTH_SESSION_SECRET`, and signing values like the account in a link to unsubscribe     |
+| `http/pages.ts`         | What a page needs from the request (`PageContext`), and its response with a per-response CSP nonce                                                                                                            |
+| `http/admin-session.ts` | The admin password check and the signed session cookie (`AdminAuth`)                                                                                                                                          |
+| `http/forms.ts`         | Reading a form within the upload limits (`UploadTooLarge` → the 413 page)                                                                                                                                     |
+| `http/responses.ts`     | Files with ranges, ETags, and caching; redirects                                                                                                                                                              |
+| `http/forwarded.ts`     | The protocol and host behind Caddy (`TRUST_PROXY=1`)                                                                                                                                                          |
+| `http/assets.ts`        | Datastar, fonts, and every page's styles with the heading font, embedded in the binary                                                                                                                        |
+| `http/middleware.ts`    | Wraps every request, in this order: the proxy's forwarded host, the cross-origin form check, the gate that keeps an unconfigured site private, then the handler, with 404s, 500s, and security headers        |
 
 #### 7. Tests
 
@@ -274,6 +275,13 @@ and without JavaScript. Each test starts the app with its own temporary data and
   its row's random id, so the address is never in a URL, and an old page, or someone else asking
   for a code for the same address, can't replace or use up another code. An address that already
   has an account gets the same pages and emails, so the form doesn't say who has one.
+- **Unsubscribing**: each email to a subscriber links to `/unsubscribe/<id>/<signature>`, their
+  account's id signed with HMAC-SHA256 (its first 16 bytes) by a key derived from
+  `AUTH_SESSION_SECRET`, so only the site can make a link that's accepted, and changing it breaks
+  the links in emails already sent. Opening the link only asks; posting it deletes the account,
+  so email apps' scanners can't unsubscribe anyone. The emails' `List-Unsubscribe` and
+  `List-Unsubscribe-Post` headers (RFC 8058) give email apps their own button, which posts to the
+  link from their servers, without the headers that would mark it as a form from another site.
 - **Forms from other sites** are refused (`Sec-Fetch-Site`, else `Origin` against the host), as
   Remix's `cop()` did. Behind Caddy, the host is taken from `X-Forwarded-Host`, which
   Caddy overwrites, before the `Forwarded` header, which it passes through from the browser.

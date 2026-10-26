@@ -40,12 +40,14 @@ export type EmailStatus =
   | { readonly _tag: 'SetUp'; readonly settings: EmailSettings; readonly secretEnding: string }
   | { readonly _tag: 'SecretUnreadable'; readonly settings: EmailSettings }
 
-// An email in plain text, and in HTML too for one with `html`, which readers show instead.
+// An email in plain text, and in HTML too for one with `html`, which readers show instead, with
+// any more `headers`, like List-Unsubscribe.
 export interface EmailMessage {
   readonly to: string
   readonly subject: string
   readonly text: string
   readonly html?: string | undefined
+  readonly headers?: Readonly<Record<string, string>> | undefined
 }
 
 // There's nothing to send it with.
@@ -251,6 +253,14 @@ export class Email extends Context.Service<
                   ? { Html: { Data: fields.message.html, Charset: 'UTF-8' } }
                   : {}),
               },
+              ...(fields.message.headers
+                ? {
+                    Headers: Object.entries(fields.message.headers).map(([Name, Value]) => ({
+                      Name,
+                      Value,
+                    })),
+                  }
+                : {}),
             },
           },
         })
@@ -281,6 +291,7 @@ export class Email extends Context.Service<
             subject: fields.message.subject,
             text: fields.message.text,
             ...(fields.message.html ? { html: fields.message.html } : {}),
+            ...(fields.message.headers ? { headers: fields.message.headers } : {}),
           }),
         )
 
