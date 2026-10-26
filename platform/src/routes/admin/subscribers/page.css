@@ -73,4 +73,75 @@
       }
     }
   }
+
+  .push-notifications {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    margin-top: 1rem;
+
+    & h2 {
+      font-size: 1.125rem;
+      line-height: 1.4;
+    }
+  }
+
+  .push-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+
+    & th {
+      color: var(--muted-foreground);
+      font-weight: 500;
+      text-align: start;
+      white-space: nowrap;
+    }
+    & :is(th, td) {
+      padding: 0.5rem 0.75rem 0.5rem 0;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    & td {
+      overflow-wrap: anywhere;
+    }
+    & time {
+      white-space: nowrap;
+    }
+    & tbody tr:last-child td {
+      border-bottom: 0;
+    }
+
+    /* On a narrow screen, each browser is its push service over when it subscribed and its last
+       notification. */
+    @media (width < 40rem) {
+      & thead {
+        display: none;
+      }
+      & tr {
+        display: grid;
+        padding-block: 0.75rem;
+        border-bottom: 1px solid var(--border);
+      }
+      & tbody tr:last-child {
+        border-bottom: 0;
+      }
+      & td {
+        padding: 0;
+        border: 0;
+      }
+      & td:not(:first-child) {
+        color: var(--muted-foreground);
+      }
+      & td:nth-child(2)::before {
+        content: 'Since ';
+      }
+    }
+  }
+
+  /* Why a push service didn't take the last notification, under when. */
+  .push-error {
+    display: block;
+    color: var(--muted-foreground);
+  }
 }

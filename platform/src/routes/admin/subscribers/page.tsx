@@ -25,6 +25,7 @@ import {
 } from '../../../components/ui/field.tsx'
 import { Switch, SWITCH_STYLES } from '../../../components/ui/switch.tsx'
 import { formatPostDate } from '../../../data/posts/format.ts'
+import type { PushSubscriber } from '../../../data/push/push.ts'
 import type { SubscriptionsBlocker, SubscriptionsStatus } from '../../../data/site/subscriptions.ts'
 import type { User } from '../../../data/users/user.ts'
 import { urls } from '../../../lib/urls.ts'
@@ -49,10 +50,13 @@ const BLOCKERS: Record<SubscriptionsBlocker, string> = {
 }
 
 // /admin/subscribers: the switch for subscribing, and while it can't be switched on, or is on but
-// paused, why; then everyone subscribed, newest first.
+// paused, why; then everyone subscribed, newest first. Below, the switch for push notifications,
+// and the browsers that get them.
 export function SubscribersPage(props: {
   status: SubscriptionsStatus
   subscribers: readonly User[]
+  pushEnabled: boolean
+  pushSubscribers: readonly PushSubscriber[]
 }): Html {
   let { status, subscribers } = props
   let missing = status._tag === 'Open' ? [] : status.missing
@@ -132,7 +136,102 @@ export function SubscribersPage(props: {
           ))}
         </>
       )}
+      <PushNotifications enabled={props.pushEnabled} subscribers={props.pushSubscribers} />
     </section>
+  )
+}
+
+// The switch for push notifications, and the browsers that get them, newest first, with what
+// happened to the last one sent to each.
+function PushNotifications(props: {
+  enabled: boolean
+  subscribers: readonly PushSubscriber[]
+}): Html {
+  let { enabled, subscribers } = props
+  let count = subscribers.length
+  return (
+    <section class="push-notifications" aria-labelledby="push-notifications-heading">
+      <h2 id="push-notifications-heading">Push notifications</h2>
+      <form method="post" action={urls.admin.savePushNotifications()} class="subscriptions-form">
+        <Field orientation="horizontal">
+          <FieldContent>
+            <FieldLabel for="push-notifications-enabled">Enable push notifications</FieldLabel>
+            <FieldDescription id="push-notifications-enabled-description">
+              The home page shows a bell that turns on a notification of each new post, on the
+              computer or phone it’s clicked on. On iPhone and iPad, it shows how to add the site to
+              the Home Screen first, where notifications work.
+            </FieldDescription>
+          </FieldContent>
+          {/* Changing it saves it. Without JavaScript, the Save button below does. */}
+          <Switch
+            id="push-notifications-enabled"
+            name="enabled"
+            checked={enabled}
+            aria-describedby="push-notifications-enabled-description"
+            data-on:change="el.form.requestSubmit()"
+          />
+        </Field>
+        <noscript>
+          <Button type="submit" variant="outline">
+            Save
+          </Button>
+        </noscript>
+      </form>
+      {count === 0 ? (
+        <p class="muted">No browsers get notifications yet.</p>
+      ) : (
+        <>
+          <p class="muted">
+            {count === 1 ? '1 browser gets' : `${count} browsers get`} a notification of each new
+            post.
+          </p>
+          <table class="push-table">
+            <thead>
+              <tr>
+                <th>Push service</th>
+                <th>Since</th>
+                <th>Last notification</th>
+              </tr>
+            </thead>
+            <tbody>
+              {subscribers.map((subscriber) => (
+                <PushSubscriberRow subscriber={subscriber} />
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+    </section>
+  )
+}
+
+// A browser that gets notifications, by its push service (its browser is likely the one named).
+// A notification its push service didn't take says why, in the service's words.
+function PushSubscriberRow(props: { subscriber: PushSubscriber }): Html {
+  let { service, createdAt, lastSentAt, lastError, failures } = props.subscriber
+  return (
+    <tr>
+      <td>{service ? `${service.name} (${service.browsers})` : 'Unknown'}</td>
+      <td>
+        <time datetime={createdAt}>{formatPostDate(createdAt)}</time>
+      </td>
+      <td>
+        {lastSentAt ? (
+          <>
+            {lastError ? 'Not sent' : 'Sent'}{' '}
+            <time datetime={lastSentAt}>{formatPostDate(lastSentAt)}</time>
+            {lastError ? (
+              <span class="push-error" data-ignore>
+                {failures > 1 ? `${failures} in a row. ` : ''}
+                {lastError}
+              </span>
+            ) : null}
+          </>
+        ) : (
+          'None yet'
+        )}
+      </td>
+    </tr>
   )
 }
 

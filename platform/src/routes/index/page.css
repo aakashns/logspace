@@ -1,5 +1,5 @@
 /*
- * The home page's banner and introduction (see page.tsx).
+ * The home page's banner and introduction, and the bell's dialogs (see page.tsx).
  */
 @layer components {
   /*
@@ -37,11 +37,70 @@
     & h1 + p {
       margin-top: 0.5rem;
     }
-    & [data-slot='button'] {
-      margin-top: 1.25rem;
-    }
     & p {
       line-height: 1.7;
     }
+  }
+
+  /* Subscribe and the bell, side by side. With neither shown (a browser where push notifications
+     can't work, while subscribing is closed), there's no room left for them. */
+  .intro-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 1.25rem;
+
+    &:not(:has(> :not([hidden]))) {
+      display: none;
+    }
+  }
+
+  /* The bell shows one icon for its state (see ../../../public/push-notifications.js). Until its
+     script knows the state, it keeps its place, unseen. Its tooltip opens to the right, as it's at
+     the left of the page. */
+  .push-bell {
+    display: inline-flex;
+
+    &[hidden] {
+      display: none;
+    }
+    &[data-state='loading'] {
+      visibility: hidden;
+    }
+    &[data-state='busy'] svg {
+      opacity: 0.5;
+    }
+    & .bell-on,
+    & .bell-blocked,
+    &:is([data-state='on'], [data-state='blocked']) .bell-off {
+      display: none;
+    }
+    &[data-state='on'] .bell-on,
+    &[data-state='blocked'] .bell-blocked {
+      display: block;
+    }
+    & .tooltip > [data-tooltip] {
+      right: auto;
+      left: 0;
+    }
+  }
+
+  .push-steps {
+    display: grid;
+    gap: 0.5rem;
+    padding-inline-start: 1.25rem;
+    list-style: decimal;
+  }
+
+  .push-note {
+    color: var(--muted-foreground);
+  }
+
+  /* An icon in a line of text, as tall as its letters. */
+  .inline-icon {
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    vertical-align: -0.125em;
   }
 }

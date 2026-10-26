@@ -1,6 +1,7 @@
 // What runs around every request, in this order:
 //
-// 1. Behind the proxy (TRUST_PROXY=1), the request takes the protocol and host the browser used.
+// 1. Behind the proxy (TRUST_PROXY=1), the request takes the protocol, host, and address the
+//    browser used.
 // 2. A form posted from another site is refused, so a page elsewhere can't act with an admin's
 //    login.
 // 3. Until the site's required settings are saved, its public pages send visitors to the admin
@@ -22,7 +23,7 @@ import { SiteConfigQueries } from '../../data/site/queries.ts'
 import { isSiteConfigured } from '../../data/site/site.ts'
 import { AppConfig } from '../config.ts'
 import { urls } from '../urls.ts'
-import { getForwardedOrigin } from './forwarded.ts'
+import { getForwardedFor, getForwardedOrigin } from './forwarded.ts'
 import { notFound, redirect, textResponse } from './responses.ts'
 
 // Hardening headers for every response. Pages replace the Content-Security-Policy with one that
@@ -70,9 +71,11 @@ export const AppMiddleware = HttpRouter.middleware(
 
 function withForwardedOrigin(request: HttpServerRequest.HttpServerRequest) {
   let { protocol, host } = getForwardedOrigin(request.headers)
+  let address = getForwardedFor(request.headers)
   return request.modify({
     ...(protocol && { protocol }),
     ...(host && { headers: Headers.set(request.headers, 'host', host) }),
+    ...(address && { remoteAddress: Option.some(address) }),
   })
 }
 
