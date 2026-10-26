@@ -72,6 +72,10 @@ export function PostMedia(props: {
 // Which photo the track is scrolled to, for the dots and arrows (see .carousel in post.css).
 const SHOW_INDEX =
   "el.parentElement.style.setProperty('--index', Math.round(el.scrollLeft / el.clientWidth))"
+// Opening or closing the lightbox resizes the track, and Chrome then snaps to the photo nearest
+// its old offset, so the photo shown is noted before and scrolled back to after.
+const NOTE_INDEX = "el.dataset.index = el.style.getPropertyValue('--index')"
+const RESTORE_INDEX = 'el.firstElementChild.scrollLeft = el.dataset.index * el.clientWidth'
 // Scrolls the track a photo back or forward (data-step), and it snaps to that photo.
 const STEP =
   'el.parentElement.firstElementChild.scrollBy({ left: el.dataset.step * el.parentElement.clientWidth })'
@@ -96,6 +100,8 @@ function PhotoCarousel(props: {
       id={id}
       popover
       class="carousel"
+      data-on:beforetoggle={many ? NOTE_INDEX : undefined}
+      data-on:toggle={many ? RESTORE_INDEX : undefined}
       style={`--count: ${photos.length}${aspectRatio ? `; --aspect-ratio: ${aspectRatio}` : ''}`}
     >
       <div class="carousel-track" data-on:scroll={many ? SHOW_INDEX : undefined}>

@@ -27,8 +27,13 @@ test('the arrows step through the photos, and the arrow keys do in the lightbox'
   await carousel.getByRole('button', { name: 'Next photo' }).click()
   await expect.poll(index).toBe('1')
 
-  // Clicking the photo opens the lightbox at it.
+  // Clicking the photo opens the lightbox at it, once Datastar has put it back there (its
+  // listener runs before this one).
+  let toggled = carousel.evaluate(
+    (el) => new Promise((resolve) => el.addEventListener('toggle', resolve, { once: true })),
+  )
   await carousel.locator('.carousel-slide').nth(1).click()
+  await toggled
   await expect.poll(open).toBe(true)
   await expect.poll(index).toBe('1')
   await page.keyboard.press('ArrowRight')
