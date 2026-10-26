@@ -1,13 +1,14 @@
 // The site's fake of Amazon SES, outside production: /dev/ses is an SES endpoint, for email set up
 // with it and AWS's example key, which takes an email as SES's API does (SendEmail), checking its
 // signature as SES would and answering with SES's errors. /dev/emails shows what it took, and the
-// settings to send to it.
+// settings to send to it, and /dev/emails/<id> an email's HTML, as an email app would show it.
 // https://docs.aws.amazon.com/ses/latest/APIReference-V2/API_SendEmail.html
 import { DateTime, Effect, Layer, Schema } from 'effect'
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from 'effect/http'
 
 import { sesUrl, signAwsRequest } from '../../../data/site/email.ts'
-import { requestUrl } from '../../../lib/http/pages.ts'
+import { param, requestUrl } from '../../../lib/http/pages.ts'
+import { notFound } from '../../../lib/http/responses.ts'
 import { urls } from '../../../lib/urls.ts'
 import { devOnly, devPage } from '../dev.tsx'
 import { DevInbox } from './inbox.ts'
@@ -27,7 +28,10 @@ const SendEmailRequest = Schema.Struct({
   Content: Schema.Struct({
     Simple: Schema.Struct({
       Subject: Schema.Struct({ Data: Schema.String }),
-      Body: Schema.Struct({ Text: Schema.Struct({ Data: Schema.String }) }),
+      Body: Schema.Struct({
+        Text: Schema.Struct({ Data: Schema.String }),
+        Html: Schema.optionalKey(Schema.Struct({ Data: Schema.String })),
+      }),
     }),
   }),
 })
@@ -107,6 +111,7 @@ const receive = (inbox: DevInbox['Service']) =>
       replyTo: ReplyToAddresses ?? [],
       subject: Content.Simple.Subject.Data,
       text: Content.Simple.Body.Text.Data,
+      html: Content.Simple.Body.Html?.Data,
     })
     return HttpServerResponse.jsonUnsafe({ MessageId: id })
   })
@@ -130,13 +135,24 @@ const emails = (inbox: DevInbox['Service']) =>
     )
   })
 
-// One inbox for both, kept as long as the server runs.
+// An email's HTML, as an email app shows it. Like any response but a page, it can run no scripts.
+const emailHtml = (inbox: DevInbox['Service']) =>
+  Effect.gen(function* () {
+    let id = yield* param('id')
+    let html = (yield* inbox.emails).find((email) => email.id === id)?.html
+    return html === undefined
+      ? notFound()
+      : HttpServerResponse.text(html, { contentType: 'text/html; charset=utf-8' })
+  })
+
+// One inbox for all, kept as long as the server runs.
 export const DevEmailRoutes = devOnly(
   Layer.unwrap(
     Effect.map(DevInbox, (inbox) =>
       HttpRouter.addAll([
         HttpRouter.route('POST', '/dev/ses/v2/email/outbound-emails', receive(inbox)),
         HttpRouter.route('GET', '/dev/emails', emails(inbox)),
+        HttpRouter.route('GET', '/dev/emails/:id', emailHtml(inbox)),
       ]),
     ),
   ).pipe(Layer.provide(DevInbox.layer)),

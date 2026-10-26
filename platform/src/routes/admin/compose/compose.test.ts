@@ -8,6 +8,7 @@ import { makePostFiles } from '../../../data/posts/files.ts'
 import type { Post } from '../../../data/posts/presentation.ts'
 import { PostQueries } from '../../../data/posts/queries.ts'
 import { MediaStorage, mediaKeys } from '../../../lib/media-storage.ts'
+import { newPostEmail } from './email.tsx'
 
 const app = makeTestApp()
 const posts = () => app.run(Effect.flatMap(PostQueries, (queries) => queries.all))
@@ -448,16 +449,19 @@ describe('the composer', () => {
     let id = 'deleteme00'
     await app.run(
       Effect.flatMap(PostCommands, (commands) =>
-        commands.save({
-          post: {
-            id,
-            type: 'text',
-            date: '2026-10-01T09:00:00Z',
-            caption: 'Bye',
+        commands.save(
+          {
+            post: {
+              id,
+              type: 'text',
+              date: '2026-10-01T09:00:00Z',
+              caption: 'Bye',
+            },
+            uploads: [],
+            issues: [],
           },
-          uploads: [],
-          issues: [],
-        }),
+          newPostEmail,
+        ),
       ),
     )
     await savePostFile(id, 'a.jpg', new File(['a'], 'a.jpg'))

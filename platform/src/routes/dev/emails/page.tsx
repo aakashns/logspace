@@ -87,6 +87,11 @@ export function DevEmailsPage(props: {
                     </dd>
                   </dl>
                   <pre class="dev-email-text">{email.text}</pre>
+                  {email.html === undefined ? null : (
+                    <a href={urls.dev.email(email.id)} class="dev-email-html">
+                      View HTML
+                    </a>
+                  )}
                 </CardContent>
               </Card>
             </li>

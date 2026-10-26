@@ -118,10 +118,11 @@ folder.
 
 `dev/` has a folder for each of its pages, like `admin/`: `index/` for `/dev`, a card linking to
 the others; `design/` for `/dev/design`, every component in `components/ui/`; and `emails/` for
-`/dev/emails`, what the site sent to its fake of Amazon SES. The fake is an SES endpoint at
-`/dev/ses`, which takes email as SES's API does, checking each request's signature, with AWS's
-example access key (`AKIAIOSFODNN7EXAMPLE`, and its secret); `/dev/emails` lists the settings that
-send to it. `dev/dev.tsx` keeps them all out of production.
+`/dev/emails`, what the site sent to its fake of Amazon SES (and an HTML email's HTML at
+`/dev/emails/<id>`). The fake is an SES endpoint at `/dev/ses`, which takes email as SES's API
+does, checking each request's signature, with AWS's example access key (`AKIAIOSFODNN7EXAMPLE`,
+and its secret); `/dev/emails` lists the settings that send to it. `dev/dev.tsx` keeps them all
+out of production.
 
 Each has the same files: `handler.tsx`, its handlers with its route table at the bottom;
 `page.tsx` and `page.css`, what it shows; and its tests. `admin/admin.tsx`, `admin/layout.tsx`,
@@ -165,7 +166,7 @@ the database, and nothing is kept between requests, so an edit made in the datab
 | `site/site-images.ts`   | The URLs pages link the site's icon, logos, and banner image with                                                                                       |
 | `site/queries.ts`       | `SiteConfigQueries`, and `configuredSite` for what's only served once the settings are saved                                                            |
 | `site/commands.ts`      | `SiteConfigCommands`: saving `/admin/branding` (turning uploads into the site's image files, or `SiteConfigRejected`), and the integrations' settings  |
-| `site/email.ts`         | `Email`: whether it's set up, and sending an email with Amazon SES's API (signing with AWS Signature V4) or Resend's, up to its emails per hour, with a typed error for each failure |
+| `site/email.ts`         | `Email`: whether it's set up, and sending an email (in plain text, and HTML too) with Amazon SES's API (signing with AWS Signature V4) or Resend's, up to its emails per hour, with a typed error for each failure |
 | `site/turnstile.ts`     | `Turnstile`: whether it's set up, checking a widget's token with Cloudflare, with a typed error for each way that fails, and logins while it's enabled  |
 | `site/subscriptions.ts` | Whether subscribing is off, paused (email or an enabled Turnstile is missing), or open                                                                 |
 | `users/user.ts`         | Accounts (the `users` table, after better-auth's `user`), and signing up: the form's checks, and the emailed code (a `verifications` row)              |
@@ -174,7 +175,8 @@ the database, and nothing is kept between requests, so an edit made in the datab
 | `site/files.ts`         | The site's image files, from storage, or the default icons that `Images` caches                                                                         |
 | `link-previews/`        | `LinkPreviews` fetches previews in the background, never on a page's time, and saves each one's image as resized WebP copies                            |
 
-`PostCommands` has `save`, which publishes a post or saves an edit of one, `delete`, and the
+`PostCommands` has `save`, which publishes a post or saves an edit of one (emailing a new one to
+everyone subscribed, in the background, as the composer's `email.tsx` makes it), `delete`, and the
 composer's `upload`, which saves a post's files as they're chosen. Uploads are saved before the
 post is checked, so a rejected form doesn't need its files chosen again, and a chosen file never
 takes the name of one the post has, so nothing published changes until the post is saved.

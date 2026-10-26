@@ -90,6 +90,26 @@ describe('the fake of SES', () => {
     expect(html).toContain('First line\nsecond line</pre>')
   })
 
+  it('shows an email’s HTML at its own address', async () => {
+    let html = '<!DOCTYPE html><html><body><p>Hello</p></body></html>'
+    let body = JSON.stringify({
+      ...EMAIL,
+      Content: {
+        Simple: {
+          ...EMAIL.Content.Simple,
+          Body: { ...EMAIL.Content.Simple.Body, Html: { Data: html } },
+        },
+      },
+    })
+    let { MessageId } = await (await send({ body })).json()
+    expect(await inbox()).toContain(`<a href="/dev/emails/${MessageId}" class="dev-email-html">`)
+    let response = await app.fetch(`/dev/emails/${MessageId}`)
+    expect(response.headers.get('Content-Type')).toBe('text/html; charset=utf-8')
+    expect(response.headers.get('Content-Security-Policy')).toContain("script-src 'none'")
+    expect(await response.text()).toBe(html)
+    expect((await app.fetch('/dev/emails/not-an-email')).status).toBe(404)
+  })
+
   it('refuses a request SES would, as SES does', async () => {
     let before = await inboxSize()
     expect(await refusal(await send({ change: () => ({}) }))).toEqual({

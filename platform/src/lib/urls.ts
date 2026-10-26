@@ -31,6 +31,8 @@ export const urls = {
     index: () => '/dev',
     design: () => '/dev/design',
     emails: () => '/dev/emails',
+    // One email's HTML, by the id the fake gave it.
+    email: (id: string) => `/dev/emails/${encodeURIComponent(id)}`,
     // The fake's SES endpoint, which SES's API paths go under.
     ses: () => '/dev/ses',
   },

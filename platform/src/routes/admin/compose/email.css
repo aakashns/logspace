@@ -1,0 +1,16 @@
+/*
+ * The email of a new post (see email.tsx): the post as its page shows it, and below it, what the
+ * reader subscribed to.
+ */
+@layer components {
+  .email-footer {
+    padding-block: 1.5rem 2rem;
+    border-top: 1px solid var(--border);
+    color: var(--muted-foreground);
+    font-size: 0.875rem;
+
+    & a {
+      color: var(--link);
+    }
+  }
+}

@@ -40,10 +40,12 @@ export type EmailStatus =
   | { readonly _tag: 'SetUp'; readonly settings: EmailSettings; readonly secretEnding: string }
   | { readonly _tag: 'SecretUnreadable'; readonly settings: EmailSettings }
 
+// An email in plain text, and in HTML too for one with `html`, which readers show instead.
 export interface EmailMessage {
   readonly to: string
   readonly subject: string
   readonly text: string
+  readonly html?: string | undefined
 }
 
 // There's nothing to send it with.
@@ -161,8 +163,8 @@ export class Email extends Context.Service<
   Email,
   {
     readonly status: Effect.Effect<EmailStatus>
-    // Sends a plain-text email from the site, as its settings say, if it hasn't sent as many as
-    // they allow this hour.
+    // Sends an email from the site, as its settings say, if it hasn't sent as many as they allow
+    // this hour.
     readonly send: (message: EmailMessage) => Effect.Effect<void, EmailFailure>
   }
 >()('logspace/Email') {
@@ -243,7 +245,12 @@ export class Email extends Context.Service<
           Content: {
             Simple: {
               Subject: { Data: fields.message.subject, Charset: 'UTF-8' },
-              Body: { Text: { Data: fields.message.text, Charset: 'UTF-8' } },
+              Body: {
+                Text: { Data: fields.message.text, Charset: 'UTF-8' },
+                ...(fields.message.html
+                  ? { Html: { Data: fields.message.html, Charset: 'UTF-8' } }
+                  : {}),
+              },
             },
           },
         })
@@ -273,6 +280,7 @@ export class Email extends Context.Service<
             ...(fields.replyTo ? { reply_to: fields.replyTo } : {}),
             subject: fields.message.subject,
             text: fields.message.text,
+            ...(fields.message.html ? { html: fields.message.html } : {}),
           }),
         )
 

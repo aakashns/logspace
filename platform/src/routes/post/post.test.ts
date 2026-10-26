@@ -5,6 +5,7 @@ import { Effect } from 'effect'
 import { defined, makeTestApp } from '../../../test/app.ts'
 import { PostCommands } from '../../data/posts/commands.ts'
 import { PostQueries } from '../../data/posts/queries.ts'
+import { newPostEmail } from '../admin/compose/email.tsx'
 
 const app = makeTestApp()
 const posts = () => app.run(Effect.flatMap(PostQueries, (queries) => queries.all))
@@ -47,11 +48,14 @@ describe('a post’s page and files', () => {
     let caption = 'Broken: https://[bad-host] but https://remix.run is fine'
     await app.run(
       Effect.flatMap(PostCommands, (commands) =>
-        commands.save({
-          post: { id, type: 'text', date: '2000-01-01T00:00:00Z', caption },
-          uploads: [],
-          issues: [],
-        }),
+        commands.save(
+          {
+            post: { id, type: 'text', date: '2000-01-01T00:00:00Z', caption },
+            uploads: [],
+            issues: [],
+          },
+          newPostEmail,
+        ),
       ),
     )
     expect((await app.fetch('/')).status).toBe(200)
@@ -140,11 +144,14 @@ describe('a post’s page and files', () => {
         let record = yield* queries.findRecord(id)
         if (record?.type !== 'video') throw new Error('No video post')
         let { width: _, height: __, ...video } = record.video
-        yield* (yield* PostCommands).save({
-          post: { ...record, video },
-          uploads: [],
-          issues: [],
-        })
+        yield* (yield* PostCommands).save(
+          {
+            post: { ...record, video },
+            uploads: [],
+            issues: [],
+          },
+          newPostEmail,
+        )
         return yield* queries.find(id)
       }),
     )
