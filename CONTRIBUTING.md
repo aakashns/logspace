@@ -115,7 +115,7 @@ folder.
 | `admin/compose/`      | `/admin/posts/new`, `/admin/posts/<id>/edit`, and what the composer posts to |
 | `admin/branding/`     | `/admin/branding`, the site's title, URL, introduction, and images           |
 | `admin/integrations/` | `/admin/integrations`, a section for each service: Turnstile, and email      |
-| `admin/subscribers/`  | `/admin/subscribers`, the switches for subscribing and push notifications, and who gets them |
+| `admin/subscribers/`  | `/admin/subscribers`, the switches for subscribing and push notifications, and who gets them, each of whom can be deleted |
 | `dev/`                | `/dev`, outside production: tools for working on the app (below)             |
 
 `dev/` has a folder for each of its pages, like `admin/`: `index/` for `/dev`, a card linking to
@@ -183,7 +183,7 @@ the database, and nothing is kept between requests, so an edit made in the datab
 | `push/push.ts`          | Push notifications: what a browser's subscription is, the push services the site sends to, the limits, and the notifications                          |
 | `push/delivery.ts`      | `PushDelivery`: whether push notifications are on, and sending one browser a notification, with a typed error for each way that fails                  |
 | `push/queries.ts`       | The browsers subscribed, for `/admin/subscribers`                                                                                                     |
-| `push/commands.ts`      | `PushCommands`: subscribing (within the limits, once a notification that says so is sent), unsubscribing, and sending a new post to everyone, keeping what happened to each |
+| `push/commands.ts`      | `PushCommands`: subscribing (within the limits, once a notification that says so is sent), unsubscribing, the admin's removing one, and sending a new post to everyone, keeping what happened to each |
 | `users/commands.ts`     | `UserCommands`: asking for a code (passing Turnstile, as often as an address may be sent one), and entering it, which makes the account                |
 | `site/files.ts`         | The site's image files, from storage, or the default icons that `Images` caches                                                                         |
 | `link-previews/`        | `LinkPreviews` fetches previews in the background, never on a page's time, and saves each one's image as resized WebP copies                            |
@@ -288,8 +288,9 @@ and without JavaScript. Each test starts the app with its own temporary data and
   10,000 browsers, and the bell's requests are read only up to 4 KB. An endpoint is taken only
   as the URL parser writes it, without a fragment, so one browser can't subscribe twice. Sends
   don't follow redirects, and one a push service says is gone is dropped (one that fails
-  otherwise is kept, for the next post). A subscription's endpoint is all it takes to unsubscribe
-  it, and `/admin/subscribers` never shows it. Sending is best effort: a post's notifications
+  otherwise is kept, for the next post, until the admin deletes it at `/admin/subscribers`, which
+  frees its place at once). A subscription's endpoint is all it takes to unsubscribe it, so
+  `/admin/subscribers` names each by a random id instead, and never shows it. Sending is best effort: a post's notifications
   aren't retried, and changing `AUTH_SESSION_SECRET` drops every subscription until its browser
   visits the home page again.
 - **Subscribing**: the form needs Turnstile, always, and is read only up to 16 KB. An address is

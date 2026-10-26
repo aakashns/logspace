@@ -1,8 +1,11 @@
 -- Browsers that get a notification of each new post, each by its subscription with its push
 -- service (Apple's, Google's, Mozilla's, or Microsoft's), as PushSubscription.toJSON() gives it.
 create table push_subscriptions (
+  -- A random id, which /admin/subscribers names it by, as the endpoint is all it takes to send
+  -- the browser notifications, or to unsubscribe it.
+  id text not null primary key,
   -- Where the push service takes messages for the browser, which says who it is.
-  endpoint text not null primary key,
+  endpoint text not null unique,
   -- The browser's P-256 public key and 16-byte secret, base64url, which messages are encrypted
   -- for.
   p256dh text not null,

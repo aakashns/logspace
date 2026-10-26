@@ -3,7 +3,8 @@
 // so, which shows its subscription works) or unsubscribes, and each new post is sent to every
 // browser subscribed. What happened to each one's last notification is kept, for
 // /admin/subscribers; one its push service says is gone is dropped, and one that wasn't taken for
-// another reason (an outage, or being throttled) is kept, for the next post.
+// another reason (an outage, or being throttled) is kept, for the next post, until the admin
+// removes it there.
 //
 // Sending is best effort, in the background: a post's notifications aren't retried, and those
 // not sent yet when the server stops aren't sent.
@@ -88,6 +89,9 @@ export class PushCommands extends Context.Service<
     ) => Effect.Effect<'added' | 'known', PushSubscribeFailure>
     // Forgets the subscription at `endpoint`. One already gone stays gone.
     readonly unsubscribe: (endpoint: string) => Effect.Effect<void>
+    // Removes the subscription with this id, as the admin does, which frees its place at once.
+    // One already gone stays gone.
+    readonly remove: (id: string) => Effect.Effect<void>
     // Sends the newly published post with this id to every browser subscribed, in the
     // background, while push notifications are on. The fiber is for the tests, which wait for it.
     readonly notifyNewPost: (
@@ -204,6 +208,7 @@ export class PushCommands extends Context.Service<
         let stored = yield* Effect.gen(function* () {
           if (yield* full(target.endpoint)) return false
           yield* sql`insert into push_subscriptions ${sql.insert({
+            id: crypto.randomUUID(),
             endpoint: target.endpoint,
             created_at: now,
             ...fields,
@@ -216,6 +221,10 @@ export class PushCommands extends Context.Service<
 
       let unsubscribe = Effect.fn('PushCommands.unsubscribe')(function* (endpoint: string) {
         yield* sql`delete from push_subscriptions where endpoint = ${endpoint}`.pipe(Effect.orDie)
+      })
+
+      let remove = Effect.fn('PushCommands.remove')(function* (id: string) {
+        yield* sql`delete from push_subscriptions where id = ${id}`.pipe(Effect.orDie)
       })
 
       // Keeps what happened to a subscription's notification: taken, or not, and why, counting
@@ -289,7 +298,7 @@ export class PushCommands extends Context.Service<
         )
       })
 
-      return PushCommands.of({ subscribe, unsubscribe, notifyNewPost })
+      return PushCommands.of({ subscribe, unsubscribe, remove, notifyNewPost })
     }),
   )
 }

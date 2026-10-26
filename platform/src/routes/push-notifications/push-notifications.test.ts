@@ -418,6 +418,7 @@ describe('subscribing', () => {
             for (let i = 0; i < MAX_PUSH_SUBSCRIPTIONS; i += 500) {
               yield* sql`insert into push_subscriptions ${sql.insert(
                 Array.from({ length: 500 }, (_, j) => ({
+                  id: `filler-${i + j}`,
                   endpoint: `https://web.push.apple.com/filler-${i + j}`,
                   p256dh: keys.p256dh,
                   auth: keys.auth,
@@ -466,6 +467,12 @@ describe('subscribing', () => {
     release()
     expect((await responses).map((response) => response.status).toSorted()).toEqual([201, 503])
     expect(await rows()).toHaveLength(MAX_PUSH_SUBSCRIPTIONS)
+
+    // Deleting one at /admin/subscribers frees its place at once.
+    answers = new Map()
+    expect((await subscribe(makeBrowser().subscription)).status).toBe(503)
+    await app.adminFetch('/admin/subscribers/push/filler-1/delete', { method: 'POST' })
+    expect((await subscribe(makeBrowser().subscription)).status).toBe(201)
   })
 
   it('counts addresses by the network they’re likely one of', () => {
@@ -588,6 +595,7 @@ describe('a new post', () => {
     await app.run(
       Effect.flatMap(SqlClient.SqlClient, (sql) =>
         sql`insert into push_subscriptions ${sql.insert({
+          id: 'old-key',
           endpoint: 'https://web.push.apple.com/d-old-key',
           p256dh: taken.subscription.keys.p256dh,
           auth: taken.subscription.keys.auth,
@@ -699,11 +707,54 @@ describe('/admin/subscribers', () => {
   })
 
   it('is only for the admin', async () => {
-    let response = await app.fetch('/admin/subscribers/push-notifications', {
+    for (let path of [
+      '/admin/subscribers/push-notifications',
+      '/admin/subscribers/push/some-id/delete',
+    ]) {
+      let response = await app.fetch(path, {
+        method: 'POST',
+        body: new URLSearchParams({ enabled: 'on' }),
+      })
+      expect(response.status).toBe(302)
+      expect(response.headers.get('Location')).toBe('/admin/login')
+    }
+  })
+
+  it('lists browsers by an id of their own, never their endpoint, and deletes one, freeing its place', async () => {
+    await switchOn()
+    let kept = makeBrowser('https://web.push.apple.com/kept-endpoint')
+    let stuck = makeBrowser('https://fcm.googleapis.com/fcm/send/stuck-endpoint')
+    await subscribe(kept.subscription)
+    await subscribe(stuck.subscription)
+    let ids = await app.run(
+      Effect.flatMap(SqlClient.SqlClient, (sql) =>
+        sql<{ id: string; endpoint: string }>`select id, endpoint from push_subscriptions`.pipe(
+          Effect.orDie,
+        ),
+      ),
+    )
+    let stuckId = defined(
+      ids.find((row) => row.endpoint === stuck.subscription.endpoint),
+      'the stuck one',
+    ).id
+    expect(stuckId).toMatch(/^[0-9a-f-]{36}$/)
+
+    let page = await (await app.adminFetch('/admin/subscribers')).text()
+    expect(page).not.toContain('kept-endpoint')
+    expect(page).not.toContain('stuck-endpoint')
+    expect(page).toContain(`action="/admin/subscribers/push/${stuckId}/delete"`)
+    expect(page).toContain('Delete this browser?')
+
+    let response = await app.adminFetch(`/admin/subscribers/push/${stuckId}/delete`, {
       method: 'POST',
-      body: new URLSearchParams({ enabled: 'on' }),
     })
-    expect(response.status).toBe(302)
-    expect(response.headers.get('Location')).toBe('/admin/login')
+    expect(response.status).toBe(303)
+    expect(response.headers.get('Location')).toBe('/admin/subscribers')
+    expect((await rows()).map((row) => row.endpoint)).toEqual([kept.subscription.endpoint])
+    // One already gone stays gone.
+    response = await app.adminFetch(`/admin/subscribers/push/${stuckId}/delete`, {
+      method: 'POST',
+    })
+    expect(response.status).toBe(303)
   })
 })

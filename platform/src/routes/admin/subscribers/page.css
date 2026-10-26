@@ -111,30 +111,45 @@
     & tbody tr:last-child td {
       border-bottom: 0;
     }
+    /* The menu's column, as narrow as its button. */
+    & :is(th, td):last-child {
+      width: 1px;
+      padding-inline-end: 0;
+    }
 
     /* On a narrow screen, each browser is its push service over when it subscribed and its last
-       notification. */
+       notification, with the menu beside them. */
     @media (width < 40rem) {
       & thead {
         display: none;
       }
       & tr {
         display: grid;
+        grid-template-columns: 1fr auto;
+        column-gap: 0.75rem;
         padding-block: 0.75rem;
         border-bottom: 1px solid var(--border);
       }
       & tbody tr:last-child {
         border-bottom: 0;
       }
-      & td {
+      & td,
+      & td:last-child {
+        width: auto;
         padding: 0;
         border: 0;
       }
-      & td:not(:first-child) {
+      & td:is(:nth-child(2), :nth-child(3)) {
+        grid-column: 1;
         color: var(--muted-foreground);
       }
       & td:nth-child(2)::before {
         content: 'Since ';
+      }
+      & td:last-child {
+        grid-column: 2;
+        grid-row: 1 / span 3;
+        align-self: center;
       }
     }
   }

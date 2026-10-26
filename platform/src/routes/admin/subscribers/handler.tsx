@@ -3,6 +3,7 @@
 import { Effect } from 'effect'
 import { HttpRouter } from 'effect/http'
 
+import { PushCommands } from '../../../data/push/commands.ts'
 import { PushDelivery } from '../../../data/push/delivery.ts'
 import { allPushSubscribers } from '../../../data/push/queries.ts'
 import { SiteConfigCommands } from '../../../data/site/commands.ts'
@@ -64,9 +65,17 @@ const deleteSubscriber = adminOnly(() =>
   }),
 )
 
+const deletePushSubscriber = adminOnly(() =>
+  Effect.gen(function* () {
+    yield* (yield* PushCommands).remove(yield* param('id'))
+    return redirect(urls.admin.subscribers(), 303)
+  }),
+)
+
 export const SubscriberRoutes = HttpRouter.addAll([
   HttpRouter.route('GET', '/admin/subscribers', subscribers),
   HttpRouter.route('POST', '/admin/subscribers', saveSubscriptions),
   HttpRouter.route('POST', '/admin/subscribers/push-notifications', savePushNotifications),
   HttpRouter.route('POST', '/admin/subscribers/:id/delete', deleteSubscriber),
+  HttpRouter.route('POST', '/admin/subscribers/push/:id/delete', deletePushSubscriber),
 ])

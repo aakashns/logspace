@@ -191,27 +191,42 @@ function PushNotifications(props: {
                 <th>Push service</th>
                 <th>Since</th>
                 <th>Last notification</th>
+                <th>
+                  <span class="visually-hidden">Actions</span>
+                </th>
               </tr>
             </thead>
             <tbody>
-              {subscribers.map((subscriber) => (
-                <PushSubscriberRow subscriber={subscriber} />
+              {subscribers.map((subscriber, i) => (
+                <PushSubscriberRow subscriber={subscriber} index={i} />
               ))}
             </tbody>
           </table>
+          {subscribers.map((subscriber, i) => (
+            <DeletePushSubscriberDialog subscriber={subscriber} index={i} />
+          ))}
         </>
       )}
     </section>
   )
 }
 
+const pushMenuId = (index: number) => `push-subscriber-${index}`
+const pushDialogId = (index: number) => `delete-push-subscriber-${index}`
+const pushServiceName = (subscriber: PushSubscriber) =>
+  subscriber.service
+    ? `${subscriber.service.name} (${subscriber.service.browsers})`
+    : 'Unknown push service'
+
 // A browser that gets notifications, by its push service (its browser is likely the one named).
-// A notification its push service didn't take says why, in the service's words.
-function PushSubscriberRow(props: { subscriber: PushSubscriber }): Html {
-  let { service, createdAt, lastSentAt, lastError, failures } = props.subscriber
+// A notification its push service didn't take says why, in the service's words. Its menu, like a
+// subscriber's, has Delete, which opens the dialog below.
+function PushSubscriberRow(props: { subscriber: PushSubscriber; index: number }): Html {
+  let { subscriber, index } = props
+  let { createdAt, lastSentAt, lastError, failures } = subscriber
   return (
     <tr>
-      <td>{service ? `${service.name} (${service.browsers})` : 'Unknown'}</td>
+      <td>{pushServiceName(subscriber)}</td>
       <td>
         <time datetime={createdAt}>{formatPostDate(createdAt)}</time>
       </td>
@@ -231,7 +246,51 @@ function PushSubscriberRow(props: { subscriber: PushSubscriber }): Html {
           'None yet'
         )}
       </td>
+      <td>
+        <DropdownMenuTrigger
+          menu={pushMenuId(index)}
+          variant="ghost"
+          size="icon-sm"
+          aria-label={`Actions for the ${pushServiceName(subscriber)} browser subscribed ${formatPostDate(createdAt)}`}
+        >
+          <DotsThreeIcon />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent id={pushMenuId(index)}>
+          <DropdownMenuItem
+            variant="destructive"
+            command="show-modal"
+            commandfor={pushDialogId(index)}
+          >
+            <TrashIcon />
+            Delete
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </td>
     </tr>
+  )
+}
+
+// Deleting a browser that gets notifications, confirmed. It frees its place at once, and the
+// browser can turn them on again from the bell.
+function DeletePushSubscriberDialog(props: { subscriber: PushSubscriber; index: number }): Html {
+  let { subscriber, index } = props
+  return (
+    <DialogContent
+      id={pushDialogId(index)}
+      title="Delete this browser?"
+      description={`The ${pushServiceName(subscriber)} browser subscribed ${formatPostDate(subscriber.createdAt)} no longer gets notifications. It can turn them on again from the bell.`}
+    >
+      <form method="post" action={urls.admin.deletePushSubscriber(subscriber.id)}>
+        <DialogFooter>
+          <DialogClose dialog={pushDialogId(index)} variant="outline" autofocus>
+            Cancel
+          </DialogClose>
+          <Button type="submit" variant="destructive">
+            Delete
+          </Button>
+        </DialogFooter>
+      </form>
+    </DialogContent>
   )
 }
 

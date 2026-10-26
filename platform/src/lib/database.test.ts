@@ -143,7 +143,7 @@ describe('migrations', () => {
       {
         id: '0012',
         name: 'create_push_subscriptions',
-        checksum: '8e996b62c074e3558b734fa3b2d13d62aeff6fbc99dec1cace1b7afc1ed606ed',
+        checksum: 'fa01ae69d701240075c312b69cc93eaec866bec0b346c2634a589058f1218a5e',
         batch: 1,
       },
     ])

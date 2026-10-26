@@ -157,6 +157,7 @@ function describeMedia(post: Post): string {
 // is all it takes to send it notifications, or to unsubscribe it), when it subscribed, and what
 // happened to its last notification.
 export interface PushSubscriber {
+  readonly id: string
   readonly service: PushService | undefined
   readonly createdAt: string
   readonly lastSentAt: string | undefined

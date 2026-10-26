@@ -49,6 +49,9 @@ export const urls = {
     integrations: () => '/admin/integrations',
     subscribers: () => '/admin/subscribers',
     savePushNotifications: () => '/admin/subscribers/push-notifications',
+    // A browser that gets push notifications, by its id (not its endpoint).
+    deletePushSubscriber: (id: string) =>
+      `/admin/subscribers/push/${encodeURIComponent(id)}/delete`,
     deleteSubscriber: (id: string) => `/admin/subscribers/${encodeURIComponent(id)}/delete`,
     // What Turnstile's section of /admin/integrations posts to: its keys, to disconnect it, and
     // to check its widget with Cloudflare.
