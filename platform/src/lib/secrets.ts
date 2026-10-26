@@ -3,7 +3,18 @@
 // a backup, doesn't give them away. Each is sealed for a purpose, like "turnstile.secretKey", and
 // opens only for that one, so a sealed value can't be moved to another setting. Changing
 // AUTH_SESSION_SECRET leaves the saved ones unreadable, so they have to be entered again.
-import { createCipheriv, createDecipheriv, hkdfSync, randomBytes } from 'node:crypto'
+//
+// Values the site gives out, like the account in a link to unsubscribe, are signed (HMAC-SHA256)
+// with another key derived from it, so only the site can make a link that's accepted. They're
+// signed for a purpose too, and changing AUTH_SESSION_SECRET leaves the old signatures wrong.
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHmac,
+  hkdfSync,
+  randomBytes,
+  timingSafeEqual,
+} from 'node:crypto'
 import { Context, Effect, Layer, Redacted, Schema } from 'effect'
 
 import { AppConfig } from './config.ts'
@@ -22,6 +33,9 @@ export class SecretUnreadable extends Schema.TaggedError<SecretUnreadable>()(
 ) {}
 
 const TAG_BYTES = 16
+// A signature's first 16 bytes, 22 characters in base64url, as many as a link needs to be
+// unguessable.
+const SIGNATURE_BYTES = 16
 
 export class Secrets extends Context.Service<
   Secrets,
@@ -31,15 +45,28 @@ export class Secrets extends Context.Service<
       sealed: SealedSecret,
       purpose: string,
     ) => Effect.Effect<string, SecretUnreadable>
+    // The signature of `value` for `purpose`, and whether `signature` is it.
+    readonly sign: (value: string, purpose: string) => string
+    readonly verify: (value: string, signature: string, purpose: string) => boolean
   }
 >()('logspace/Secrets') {
   static readonly layer = Layer.effect(
     Secrets,
     Effect.map(AppConfig, ({ sessionSecret }) => {
-      // Its own key, so it's never the one that signs session cookies.
+      // Keys of their own, so neither is the one that signs session cookies.
       let key = Buffer.from(
         hkdfSync('sha256', Redacted.value(sessionSecret), 'logspace', 'stored secrets v1', 32),
       )
+      let signingKey = Buffer.from(
+        hkdfSync('sha256', Redacted.value(sessionSecret), 'logspace', 'signatures v1', 32),
+      )
+      // The purpose and value, with a byte neither has between them, so no two pairs sign alike.
+      let sign = (value: string, purpose: string) =>
+        createHmac('sha256', signingKey)
+          .update(`${purpose}\0${value}`)
+          .digest()
+          .subarray(0, SIGNATURE_BYTES)
+          .toString('base64url')
       return Secrets.of({
         seal: (secret, purpose) =>
           Effect.sync(() => {
@@ -67,6 +94,12 @@ export class Secrets extends Context.Service<
             },
             catch: () => new SecretUnreadable(),
           }),
+        sign,
+        verify: (value, signature, purpose) => {
+          let given = Buffer.from(signature)
+          let expected = Buffer.from(sign(value, purpose))
+          return given.length === expected.length && timingSafeEqual(given, expected)
+        },
       })
     }),
   )

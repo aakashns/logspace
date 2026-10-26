@@ -5,11 +5,13 @@ import { Context, DateTime, Effect, Layer, Schema } from 'effect'
 import { SqlClient } from 'effect/sql'
 
 import { MediaStorage, mediaKeys } from '../../lib/media-storage.ts'
+import { Secrets } from '../../lib/secrets.ts'
 import { urls } from '../../lib/urls.ts'
 import { Email, type EmailMessage } from '../site/email.ts'
 import { configuredSite, SiteConfigQueries } from '../site/queries.ts'
 import type { SiteConfig } from '../site/site.ts'
 import { allUsers } from '../users/queries.ts'
+import { unsubscribeLink } from '../users/unsubscribe.ts'
 import { makePostFiles } from './files.ts'
 import {
   getPostFileNames,
@@ -45,9 +47,13 @@ export interface PostSubmission {
   readonly issues: readonly PostIssue[]
 }
 
-// The email telling subscribers about a new post, with its files' full URLs, which the composer
-// makes (see ../../routes/admin/compose/email.tsx).
-export type NewPostEmail = (post: Post, site: SiteConfig) => Omit<EmailMessage, 'to'>
+// The email telling a subscriber about a new post, with its files' full URLs, and the link for them
+// to unsubscribe, which the composer makes (see ../../routes/admin/compose/email.tsx).
+export type NewPostEmail = (
+  post: Post,
+  site: SiteConfig,
+  unsubscribeUrl: string,
+) => Omit<EmailMessage, 'to' | 'headers'>
 
 export class PostCommands extends Context.Service<
   PostCommands,
@@ -77,6 +83,7 @@ export class PostCommands extends Context.Service<
       let storage = yield* MediaStorage
       let queries = yield* PostQueries
       let siteConfig = yield* SiteConfigQueries
+      let secrets = yield* Secrets
       let mail = yield* Email
       // Where emails are sent from, which outlives the request that published the post.
       let scope = yield* Effect.scope
@@ -122,9 +129,9 @@ export class PostCommands extends Context.Service<
         )
       })
 
-      // Emails post `id` to each subscriber, one after another. An address that can't be sent to
-      // is skipped; once nothing can be (email isn't set up, or the hour's emails are sent), the
-      // rest aren't sent.
+      // Emails post `id` to each subscriber, one after another, each with their own link to
+      // unsubscribe. An address that can't be sent to is skipped; once nothing can be (email
+      // isn't set up, or the hour's emails are sent), the rest aren't sent.
       let announce = Effect.fnUntraced(
         function* (id: string, email: NewPostEmail) {
           let users = yield* allUsers
@@ -132,13 +139,16 @@ export class PostCommands extends Context.Service<
           let site = yield* configuredSite
           let post = yield* queries.find(id, (id, file) => site.siteUrl + urls.postFile(id, file))
           if (!post) return
-          let message = email(post, site)
           yield* Effect.forEach(
             users,
             (user) =>
-              mail
-                .send({ ...message, to: user.email })
-                .pipe(Effect.catchTag(['EmailAddressInvalid', 'EmailNotSent'], () => Effect.void)),
+              Effect.flatMap(unsubscribeLink(site.siteUrl, user.id), (unsubscribe) =>
+                mail.send({
+                  ...email(post, site, unsubscribe.url),
+                  to: user.email,
+                  headers: unsubscribe.headers,
+                }),
+              ).pipe(Effect.catchTag(['EmailAddressInvalid', 'EmailNotSent'], () => Effect.void)),
             { discard: true },
           )
         },
@@ -147,6 +157,7 @@ export class PostCommands extends Context.Service<
             Effect.catchCause((cause) => Effect.logWarning('New post not emailed to all', cause)),
             Effect.provideService(SqlClient.SqlClient, sql),
             Effect.provideService(SiteConfigQueries, siteConfig),
+            Effect.provideService(Secrets, secrets),
           ),
       )
 

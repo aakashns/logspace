@@ -80,4 +80,19 @@ describe('secrets', () => {
     ])
       expect(isSealed(value)).toBe(false)
   })
+
+  it('signs a value so only the same value, purpose, and AUTH_SESSION_SECRET verify it', async () => {
+    let sign = (on = app) =>
+      on.run(Effect.map(Secrets, (secrets) => secrets.sign('an-id', 'unsubscribe')))
+    let verify = (value: string, signature: string, purpose = 'unsubscribe') =>
+      app.run(Effect.map(Secrets, (secrets) => secrets.verify(value, signature, purpose)))
+    let signature = await sign()
+    expect(signature).toMatch(/^[\w-]{22}$/)
+    expect(await sign()).toBe(signature)
+    expect(await verify('an-id', signature)).toBe(true)
+    expect(await verify('another-id', signature)).toBe(false)
+    expect(await verify('an-id', signature, 'something.else')).toBe(false)
+    expect(await verify('an-id', await sign(otherSecret))).toBe(false)
+    expect(await verify('an-id', '')).toBe(false)
+  })
 })

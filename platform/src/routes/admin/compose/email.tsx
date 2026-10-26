@@ -1,5 +1,6 @@
-// The email telling subscribers about a new post (see ../../../data/posts/commands.ts): the post
-// as its page shows it, under the site's logo, with the app's styles, and in plain text.
+// The email telling a subscriber about a new post (see ../../../data/posts/commands.ts): the post
+// as its page shows it, under the site's logo, with the app's styles, and in plain text, and the
+// link to unsubscribe.
 import { raw } from '#jsx/jsx-runtime'
 
 import { DOCUMENT_STYLES } from '../../../components/document.tsx'
@@ -30,7 +31,7 @@ function preferColorScheme(styles: string): string {
 
 const EMAIL_STYLES = preferColorScheme(DOCUMENT_STYLES + POST_PAGE_STYLES + stylesheet(css))
 
-export const newPostEmail: NewPostEmail = (post, site) => {
+export const newPostEmail: NewPostEmail = (post, site, unsubscribeUrl) => {
   let postUrl = site.siteUrl + urls.post(post.id)
   let subject = clamp(summarizePost(post), 80)
   let html = (
@@ -67,7 +68,8 @@ export const newPostEmail: NewPostEmail = (post, site) => {
           </article>
           <footer class="email-footer">
             <p>
-              You’re subscribed to <a href={site.siteUrl}>{site.siteTitle}</a>.
+              You’re subscribed to <a href={site.siteUrl}>{site.siteTitle}</a>.{' '}
+              <a href={unsubscribeUrl}>Unsubscribe</a>
             </p>
           </footer>
         </main>
@@ -78,7 +80,8 @@ export const newPostEmail: NewPostEmail = (post, site) => {
     subject,
     text:
       `${post.caption ? captionText(post.caption) : summarizePost(post)}\n\n${postUrl}\n\n` +
-      `You’re subscribed to ${site.siteTitle} (${site.siteUrl}).\n`,
+      `You’re subscribed to ${site.siteTitle} (${site.siteUrl}).\n` +
+      `To unsubscribe: ${unsubscribeUrl}\n`,
     html: `<!DOCTYPE html>${html.value}`,
   }
 }

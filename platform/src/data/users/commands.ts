@@ -1,16 +1,22 @@
-// Signing up, and deleting accounts, the write side of the `users`, `verifications`, and
+// Signing up, unsubscribing, and deleting accounts, the write side of the `users`, `verifications`, and
 // `rate_limits` tables: someone asks for a code (passing Turnstile, and as often as an address may
 // be sent one), which is emailed to them, and entering it makes their account and emails them that
-// they're subscribed. Only an account's address is proven, so an address that already has one
+// they're subscribed, with the link to unsubscribe. Only an account's address is proven, so an address that already has one
 // gets the same pages and emails, and the form never says who has an account.
 import { randomInt, timingSafeEqual } from 'node:crypto'
 import { Clock, Context, DateTime, Effect, Layer, Option, Schema, Semaphore } from 'effect'
 import { SqlClient } from 'effect/sql'
 
+import { Secrets } from '../../lib/secrets.ts'
 import { Email, type EmailFailure } from '../site/email.ts'
 import { SiteConfigQueries } from '../site/queries.ts'
 import { subscriptionsStatus } from '../site/subscriptions.ts'
 import { Turnstile, type TurnstileFailure } from '../site/turnstile.ts'
+import {
+  checkUnsubscribeLink,
+  unsubscribeLink,
+  type UnsubscribeLinkInvalid,
+} from './unsubscribe.ts'
 import {
   checkSignUp,
   hashCode,
@@ -79,11 +85,16 @@ export class UserCommands extends Context.Service<
       id: string,
       code: string,
     ) => Effect.Effect<
-      { name: string; email: string },
+      { id: string; name: string; email: string },
       SubscriptionsClosed | SignUpCodeWrong | SignUpCodeExpired
     >
     // Deletes someone's account, so they're no longer subscribed. One already gone stays gone.
     readonly delete: (id: string) => Effect.Effect<void>
+    // Deletes the account a link to unsubscribe is for, if the site made the link.
+    readonly unsubscribe: (
+      id: string,
+      signature: string,
+    ) => Effect.Effect<void, UnsubscribeLinkInvalid>
   }
 >()('logspace/UserCommands') {
   static readonly layer = Layer.effect(
@@ -93,6 +104,7 @@ export class UserCommands extends Context.Service<
       let queries = yield* SiteConfigQueries
       let email = yield* Email
       let turnstile = yield* Turnstile
+      let secrets = yield* Secrets
       let services = Context.make(SiteConfigQueries, queries).pipe(
         Context.add(Email, email),
         Context.add(Turnstile, turnstile),
@@ -214,15 +226,17 @@ export class UserCommands extends Context.Service<
           }
           yield* sql`delete from verifications where identifier = ${signUpIdentifier(address)}`
           // An address that has an account keeps it as it is.
+          let made = crypto.randomUUID()
           yield* sql`insert into users ${sql.insert({
-            id: crypto.randomUUID(),
+            id: made,
             name: pending.name,
             email: address,
             email_verified: 1,
             created_at: DateTime.formatIso(now),
             updated_at: DateTime.formatIso(now),
           })} on conflict (email) do nothing`
-          return { name: pending.name, email: address }
+          let [account] = yield* sql<{ id: string }>`select id from users where email = ${address}`
+          return { id: account?.id ?? made, name: pending.name, email: address }
         }).pipe(sql.withTransaction, Effect.orDie)
 
       let completeSignUp = Effect.fn('UserCommands.completeSignUp')(function* (
@@ -235,12 +249,18 @@ export class UserCommands extends Context.Service<
           return yield* outcome
         }
         let { title, url } = yield* site
+        let unsubscribe = yield* unsubscribeLink(url, outcome.id).pipe(
+          Effect.provideService(Secrets, secrets),
+        )
         // They're subscribed whether or not this arrives.
         yield* email
           .send({
             to: outcome.email,
             subject: `You’re subscribed to ${title}`,
-            text: `Hi ${outcome.name},\n\nYou’re now subscribed to ${title} (${url}), as ${outcome.email}.\n`,
+            text:
+              `Hi ${outcome.name},\n\nYou’re now subscribed to ${title} (${url}), as ${outcome.email}.\n\n` +
+              `To unsubscribe: ${unsubscribe.url}\n`,
+            headers: unsubscribe.headers,
           })
           .pipe(Effect.ignore)
         return outcome
@@ -250,7 +270,15 @@ export class UserCommands extends Context.Service<
         yield* sql`delete from users where id = ${id}`.pipe(Effect.orDie)
       })
 
-      return UserCommands.of({ requestSignUp, completeSignUp, delete: remove })
+      let unsubscribe = Effect.fn('UserCommands.unsubscribe')(function* (
+        id: string,
+        signature: string,
+      ) {
+        yield* checkUnsubscribeLink(id, signature).pipe(Effect.provideService(Secrets, secrets))
+        yield* remove(id)
+      })
+
+      return UserCommands.of({ requestSignUp, completeSignUp, delete: remove, unsubscribe })
     }),
   )
 }

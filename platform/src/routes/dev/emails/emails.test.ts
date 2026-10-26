@@ -18,6 +18,7 @@ const EMAIL = {
     Simple: {
       Subject: { Data: 'Hello <there>' },
       Body: { Text: { Data: 'First line\nsecond line' } },
+      Headers: [{ Name: 'List-Unsubscribe', Value: '<https://example.com/unsubscribe/a/b>' }],
     },
   },
 }
@@ -87,6 +88,9 @@ describe('the fake of SES', () => {
     expect(html).toContain('<dt>From</dt><dd>"Test Site" &lt;news@example.com&gt;</dd>')
     expect(html).toContain('<dt>To</dt><dd>reader@example.com</dd>')
     expect(html).toContain('<dt>Reply-To</dt><dd>me@example.com</dd>')
+    expect(html).toContain(
+      '<dt>List-Unsubscribe</dt><dd>&lt;https://example.com/unsubscribe/a/b&gt;</dd>',
+    )
     expect(html).toContain('First line\nsecond line</pre>')
   })
 

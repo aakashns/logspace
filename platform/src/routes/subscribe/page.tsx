@@ -149,3 +149,42 @@ export function SubscriptionsClosedPage(props: { siteTitle: string }): Html {
     </section>
   )
 }
+
+// /unsubscribe/<id>/<signature>: asking first, as email apps and their scanners open links on their
+// own, and the button posts to it.
+export function UnsubscribePage(props: { siteTitle: string; email: string; action: string }): Html {
+  return (
+    <section class="subscribe">
+      <h1 class="page-title">Unsubscribe</h1>
+      <p>{`Stop emailing new posts from ${props.siteTitle} to ${props.email}?`}</p>
+      <form method="post" action={props.action}>
+        <Button type="submit">Unsubscribe</Button>
+      </form>
+    </section>
+  )
+}
+
+export function UnsubscribedPage(props: { siteTitle: string }): Html {
+  return (
+    <section class="subscribe">
+      <h1 class="page-title">You’re unsubscribed</h1>
+      <p>
+        {`You won’t get emails from ${props.siteTitle} any more. `}
+        <a href={urls.subscribe()}>Subscribe again</a>
+      </p>
+    </section>
+  )
+}
+
+// A link to unsubscribe the site didn't make: cut short, or from before its secret changed.
+export function UnsubscribeLinkInvalidPage(): Html {
+  return (
+    <section class="subscribe">
+      <h1 class="page-title">This link isn’t right</h1>
+      <p>
+        It may have been cut short. Try the Unsubscribe link in a newer email, or reply to one and
+        ask.
+      </p>
+    </section>
+  )
+}

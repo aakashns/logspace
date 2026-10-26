@@ -24,6 +24,10 @@ export const urls = {
   // by the id of its row (random, and not the address), which posts to itself.
   subscribe: () => '/subscribe',
   subscribeVerify: (id: string) => `/subscribe/verify/${encodeURIComponent(id)}`,
+  // Unsubscribing account `id`, from a link in an email, with the signature that proves the site
+  // made it (see ../data/users/unsubscribe.ts). It asks first, and posts to itself.
+  unsubscribe: (id: string, signature: string) =>
+    `/unsubscribe/${encodeURIComponent(id)}/${encodeURIComponent(signature)}`,
   // Tools for working on the app, outside production: a page leading to the rest, the components
   // in components/ui, and the site's fake of Amazon SES, which takes email as SES's API does and
   // shows what it's taken.

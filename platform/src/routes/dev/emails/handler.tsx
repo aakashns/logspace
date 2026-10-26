@@ -32,6 +32,9 @@ const SendEmailRequest = Schema.Struct({
         Text: Schema.Struct({ Data: Schema.String }),
         Html: Schema.optionalKey(Schema.Struct({ Data: Schema.String })),
       }),
+      Headers: Schema.optionalKey(
+        Schema.Array(Schema.Struct({ Name: Schema.String, Value: Schema.String })),
+      ),
     }),
   }),
 })
@@ -112,6 +115,10 @@ const receive = (inbox: DevInbox['Service']) =>
       subject: Content.Simple.Subject.Data,
       text: Content.Simple.Body.Text.Data,
       html: Content.Simple.Body.Html?.Data,
+      headers: (Content.Simple.Headers ?? []).map(({ Name, Value }) => ({
+        name: Name,
+        value: Value,
+      })),
     })
     return HttpServerResponse.jsonUnsafe({ MessageId: id })
   })

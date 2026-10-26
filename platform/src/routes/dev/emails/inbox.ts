@@ -9,6 +9,8 @@ export interface ReceivedEmail {
   readonly from: string
   readonly to: readonly string[]
   readonly replyTo: readonly string[]
+  // The rest of the headers it was sent with, like List-Unsubscribe.
+  readonly headers: readonly { readonly name: string; readonly value: string }[]
   readonly subject: string
   readonly text: string
   readonly html?: string | undefined

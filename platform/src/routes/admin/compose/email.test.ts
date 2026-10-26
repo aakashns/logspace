@@ -4,7 +4,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'bun:test'
 import { Effect } from 'effect'
 import { SqlClient } from 'effect/sql'
 
-import { defined, makeTestApp } from '../../../../test/app.ts'
+import { capture, defined, makeTestApp } from '../../../../test/app.ts'
 import { SiteConfigCommands } from '../../../data/site/commands.ts'
 
 const RESEND = 'https://api.resend.com/emails'
@@ -14,6 +14,7 @@ interface Sent {
   readonly subject: string
   readonly text: string
   readonly html: string
+  readonly headers: Record<string, string>
 }
 
 // The emails Resend was asked to send, and the tests waiting for some. Resend refuses the
@@ -38,8 +39,8 @@ const app = makeTestApp(
       resolve: () => Promise.reject(new Error('Not expected')),
       fetch: async (url, init) => {
         if (url.href !== RESEND) throw new Error(`Not expected: ${url.href}`)
-        let { to, subject, text, html } = JSON.parse(await new Response(init.body).text())
-        emails.push({ to: to[0], subject, text, html })
+        let { to, subject, text, html, headers } = JSON.parse(await new Response(init.body).text())
+        emails.push({ to: to[0], subject, text, html, headers })
         settle()
         if (refused.has(to[0])) return Response.json({ message: 'Refused' }, { status: 422 })
         return Response.json({ id: 'sent' })
@@ -122,12 +123,22 @@ describe('a new post', () => {
       'grace@example.com',
     ])
     let [email] = emails
-    let { subject, text, html } = defined(email, 'an email')
+    let { subject, text, html, headers } = defined(email, 'an email')
+    let unsubscribe = capture(text, /To unsubscribe: (\S+)\n$/)
     expect(subject).toBe('Up top')
     expect(text).toBe(
       'Up top\nSee https://example.org\n\nhttps://example.com/posts/emailed001\n\n' +
-        'You’re subscribed to Test Site (https://example.com).\n',
+        `You’re subscribed to Test Site (https://example.com).\nTo unsubscribe: ${unsubscribe}\n`,
     )
+    // Each subscriber's own link to unsubscribe, in the footer, and for email apps' button.
+    expect(unsubscribe).toMatch(/^https:\/\/example\.com\/unsubscribe\/[\w-]{36}\/[\w-]{22}$/)
+    expect(html).toContain(`<a href="${unsubscribe}">Unsubscribe</a>`)
+    expect(headers).toEqual({
+      'List-Unsubscribe': `<${unsubscribe}>`,
+      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+    })
+    let other = capture(defined(emails[1], 'another email').text, /To unsubscribe: (\S+)\n$/)
+    expect(other).not.toBe(unsubscribe)
     expect(html).toStartWith('<!DOCTYPE html><html lang="en">')
     expect(html).toContain('<meta name="color-scheme" content="light dark">')
     // Every URL is the site's full one.
