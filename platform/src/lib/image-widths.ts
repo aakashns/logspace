@@ -12,7 +12,7 @@ export interface ImageInfo {
 
 // The widths a photo is resized to, in pixels. The steps are close together so the one a browser
 // picks for a screen isn't much bigger than it needs: a full-width photo is up to 576px wide (the
-// 36rem column) and half that in the feed's grid, at 1x to 3x pixel density.
+// 36rem column) and half that in the composer's grid, at 1x to 3x pixel density.
 export const IMAGE_WIDTHS = [320, 400, 480, 600, 680, 800, 960, 1160, 1400, 1600]
 
 // Files that can be resized. GIFs (which may be animated) and other images are served as they are.

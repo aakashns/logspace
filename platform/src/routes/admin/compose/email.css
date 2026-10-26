@@ -1,8 +1,20 @@
 /*
- * The email of a new post (see email.tsx): the post as its page shows it, and below it, what the
- * reader subscribed to, and the link to unsubscribe.
+ * The email of a new post (see email.tsx): the post as its page shows it, but with its photos one
+ * after another, and below it, what the reader subscribed to, and the link to unsubscribe.
  */
 @layer components {
+  .photo-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .single-photo {
+    height: auto;
+    object-fit: cover;
+    background-color: var(--muted);
+  }
+
   .email-footer {
     padding-block: 1.5rem 2rem;
     border-top: 1px solid var(--border);

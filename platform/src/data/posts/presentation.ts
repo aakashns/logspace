@@ -9,7 +9,7 @@ import { clamp } from './format.ts'
 import type { PhotoRecord, PostRecord } from './post.ts'
 
 // The `sizes` of a photo shown across the content column (36rem wide inside its padding, see
-// --content-width in theme.css), and of one in the feed's two-column photo grid, for choosing
+// --content-width in theme.css), and of one in the composer's two-column grid, for choosing
 // between a photo's resized copies (see ../../lib/image-widths.ts).
 export const FULL_WIDTH_IMAGE_SIZES = '(min-width: 38rem) 36rem, calc(100vw - 2rem)'
 export const HALF_WIDTH_IMAGE_SIZES = '(min-width: 38rem) 18rem, calc(50vw - 1rem)'
@@ -184,15 +184,13 @@ export interface PreloadImage {
 }
 
 // The image that's likely the largest thing on screen when `post` is the first post shown (in
-// the feed, or with `full` on the post's own page), for the document to preload: the first photo,
-// or a video's poster.
-export function getPriorityImage(post: Post, full = false): PreloadImage | undefined {
+// the feed, or on the post's own page), for the document to preload: the first photo, or a
+// video's poster.
+export function getPriorityImage(post: Post): PreloadImage | undefined {
   switch (post.type) {
     case 'photos': {
       let [{ src, srcset }] = post.photos
-      let inGrid = !full && post.photos.length > 1
-      let sizes = inGrid ? HALF_WIDTH_IMAGE_SIZES : FULL_WIDTH_IMAGE_SIZES
-      return { href: src, srcset, sizes: srcset ? sizes : undefined }
+      return { href: src, srcset, sizes: srcset ? FULL_WIDTH_IMAGE_SIZES : undefined }
     }
     case 'video':
       return post.video.poster ? { href: post.video.poster } : undefined

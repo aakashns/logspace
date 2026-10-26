@@ -33,7 +33,7 @@ function preferColorScheme(styles: string): string {
 
 const EMAIL_STYLES = preferColorScheme(DOCUMENT_STYLES + POST_PAGE_STYLES + stylesheet(css))
 
-// A photo as the post page shows it, kept to the email's width by its own style too, for email
+// A photo at its own shape, kept to the email's width by its own style too, for email
 // apps that drop the stylesheet (where a photo would be as wide as its pixels).
 function EmailPhoto(props: { photo: Photo }): Html {
   let { photo } = props
@@ -84,7 +84,7 @@ export const newPostEmail: NewPostEmail = (post, site, unsubscribeUrl) => {
                 ))}
               </div>
             ) : (
-              <PostMedia post={post} full priority />
+              <PostMedia post={post} priority />
             )}
           </article>
           <footer class="email-footer">

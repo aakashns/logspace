@@ -6,7 +6,6 @@ import { raw, type Html } from '#jsx/jsx-runtime'
 import { formatPostDate } from '../data/posts/format.ts'
 import {
   FULL_WIDTH_IMAGE_SIZES,
-  HALF_WIDTH_IMAGE_SIZES,
   type LinkPreview,
   type Photo,
   type Post,
@@ -14,8 +13,10 @@ import {
 } from '../data/posts/presentation.ts'
 import { urls } from '../lib/urls.ts'
 import { ShareButton } from './controls.tsx'
+import { CaretLeftIcon, CaretRightIcon, CloseIcon } from './icons.tsx'
 import css from './post.css' with { type: 'text' }
 import { stylesheet } from './stylesheet.ts'
+import { Button } from './ui/button.tsx'
 
 // For the pages that show posts.
 export const POST_STYLES = stylesheet(css)
@@ -51,22 +52,16 @@ export function Caption(props: { html: string }): Html {
   )
 }
 
-// What goes under the caption: photos, a video, or a link preview. The feed
-// shows up to four photos in a grid; the post page (`full`) shows them all, one after another.
+// What goes under the caption: photos, a video, or a link preview.
 export function PostMedia(props: {
   post: Post
   preview?: LinkPreview | undefined
-  full?: boolean | undefined
   priority?: boolean | undefined
 }): Html | null {
-  let { post, preview, full, priority } = props
+  let { post, preview, priority } = props
   switch (post.type) {
     case 'photos':
-      return full ? (
-        <PhotoList photos={post.photos} priority={priority} />
-      ) : (
-        <PhotoGrid photos={post.photos} priority={priority} />
-      )
+      return <PhotoCarousel id={`photos-${post.id}`} photos={post.photos} priority={priority} />
     case 'video':
       return <VideoPlayer video={post.video} />
     case 'text':
@@ -74,49 +69,82 @@ export function PostMedia(props: {
   }
 }
 
-// A single photo keeps its own shape; two to four share a 16:9 frame, split the way X does it.
-// Past four, the last tile says how many more there are.
-function PhotoGrid(props: {
+// Which photo the track is scrolled to, for the dots and arrows (see .carousel in post.css).
+const SHOW_INDEX =
+  "el.parentElement.style.setProperty('--index', Math.round(el.scrollLeft / el.clientWidth))"
+// Scrolls the track a photo back or forward (data-step), and it snaps to that photo.
+const STEP =
+  'el.parentElement.firstElementChild.scrollBy({ left: el.dataset.step * el.parentElement.clientWidth })'
+// In the lightbox, the arrow key in the button's aria-keyshortcuts presses it.
+const STEP_BY_KEY =
+  "evt.key === el.getAttribute('aria-keyshortcuts') && el.parentElement.matches(':popover-open') && (evt.preventDefault(), el.click())"
+
+// A post's photos in a row to swipe through, as on Instagram: one photo keeps its own shape, and
+// more are cropped to a 3:4 frame, with arrows and a dot for each. The row is a popover, so
+// clicking a photo opens the same element as a lightbox, at the same photo, where photos are
+// shown whole; clicking one again, its close button, or Escape closes it.
+function PhotoCarousel(props: {
+  id: string
   photos: Arr.NonEmptyReadonlyArray<Photo>
   priority?: boolean | undefined
 }): Html {
-  let { photos, priority } = props
-  if (photos.length === 1) {
-    let [photo] = photos
-    return (
-      <PostImage
-        photo={photo}
-        priority={priority}
-        aspectRatio={displayAspectRatio(photo)}
-        class="media-frame single-photo"
-      />
-    )
-  }
-  let shown = photos.slice(0, 4)
-  let more = photos.length - shown.length
+  let { id, photos, priority } = props
+  let many = photos.length > 1
+  let aspectRatio = many ? '3 / 4' : displayAspectRatio(photos[0])
   return (
-    <div class="media-frame photo-grid" data-count={shown.length}>
-      {shown.map((photo, index) => (
-        <div class="grid-tile">
-          <PostImage photo={photo} priority={priority} sizes={HALF_WIDTH_IMAGE_SIZES} />
-          {more > 0 && index === shown.length - 1 ? <span class="more-photos">+{more}</span> : null}
-        </div>
-      ))}
+    <div
+      id={id}
+      popover
+      class="carousel"
+      style={`--count: ${photos.length}${aspectRatio ? `; --aspect-ratio: ${aspectRatio}` : ''}`}
+    >
+      <div class="carousel-track" data-on:scroll={many ? SHOW_INDEX : undefined}>
+        {photos.map((photo, index) => (
+          <button type="button" popovertarget={id} class="carousel-slide">
+            <PostImage photo={photo} priority={priority && index === 0} />
+          </button>
+        ))}
+      </div>
+      {many ? (
+        <>
+          <StepButton step={-1} />
+          <StepButton step={1} />
+          <div class="carousel-dots" aria-hidden="true">
+            {photos.map(() => (
+              <span />
+            ))}
+          </div>
+        </>
+      ) : null}
+      <Button
+        popovertarget={id}
+        popovertargetaction="hide"
+        variant="ghost"
+        size="icon-lg"
+        aria-label="Close"
+        class="carousel-close"
+      >
+        <CloseIcon />
+      </Button>
     </div>
   )
 }
 
-function PhotoList(props: { photos: readonly Photo[]; priority?: boolean | undefined }): Html {
+function StepButton(props: { step: -1 | 1 }): Html {
+  let back = props.step === -1
   return (
-    <div class="photo-list">
-      {props.photos.map((photo, index) => (
-        <PostImage
-          photo={photo}
-          priority={props.priority && index === 0}
-          class="media-frame single-photo"
-        />
-      ))}
-    </div>
+    <Button
+      variant="secondary"
+      size="icon-sm"
+      aria-label={back ? 'Previous photo' : 'Next photo'}
+      aria-keyshortcuts={back ? 'ArrowLeft' : 'ArrowRight'}
+      class="carousel-step"
+      data-step={props.step}
+      data-on:click={STEP}
+      data-on:keydown__window={STEP_BY_KEY}
+    >
+      {back ? <CaretLeftIcon /> : <CaretRightIcon />}
+    </Button>
   )
 }
 
@@ -169,10 +197,9 @@ function PostImage(props: {
   photo: Photo
   priority?: boolean | undefined
   sizes?: string | undefined
-  aspectRatio?: string | undefined
   class?: string | undefined
 }): Html {
-  let { photo, priority, sizes = FULL_WIDTH_IMAGE_SIZES, aspectRatio } = props
+  let { photo, priority, sizes = FULL_WIDTH_IMAGE_SIZES } = props
   return (
     <img
       src={photo.src}
@@ -184,7 +211,6 @@ function PostImage(props: {
       loading={priority ? 'eager' : 'lazy'}
       fetchpriority={priority ? 'high' : undefined}
       decoding="async"
-      style={aspectRatio ? `aspect-ratio: ${aspectRatio}` : undefined}
       class={props.class}
     />
   )

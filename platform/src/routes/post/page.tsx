@@ -9,7 +9,7 @@ import css from './page.css' with { type: 'text' }
 // For a post's page, and the page saying there's no post.
 export const POST_PAGE_STYLES = POST_STYLES + stylesheet(css)
 
-// A post on its own page: its caption, with every photo at full size.
+// A post on its own page.
 export function PostPage(props: {
   post: Post
   siteUrl: string
@@ -20,7 +20,7 @@ export function PostPage(props: {
     <article class="post-page">
       <PostMeta post={post} siteUrl={siteUrl} />
       {post.captionHtml ? <Caption html={post.captionHtml} /> : null}
-      <PostMedia post={post} preview={preview} full priority />
+      <PostMedia post={post} preview={preview} priority />
     </article>
   )
 }
