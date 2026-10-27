@@ -14,7 +14,6 @@
     padding-inline: 0.625rem;
     border: 1px solid transparent;
     border-radius: var(--radius-lg);
-    background-clip: padding-box;
     font-size: 0.875rem;
     line-height: 1.25rem;
     font-weight: 500;
@@ -72,8 +71,11 @@
     }
   }
 
+  /* Its fill stops inside its border, so the translucent dark one doesn't darken the border too.
+   * Filled variants paint under their transparent border, to be as tall as this one looks. */
   [data-slot='button'][data-variant='outline'] {
     border-color: light-dark(var(--border), var(--input));
+    background-clip: padding-box;
     background-color: light-dark(
       var(--background),
       color-mix(in oklch, var(--input) 30%, transparent)
