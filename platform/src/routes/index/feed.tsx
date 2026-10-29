@@ -16,14 +16,17 @@ export function Feed(props: { items: readonly FeedItem[]; siteUrl: string }): Ht
   return (
     <section aria-label="Posts" class="feed">
       {props.items.map(({ post, preview }, index) => (
-        <article class="feed-post">
-          {/* Covers the whole post so a click anywhere opens it. Hidden from keyboard and screen
-              readers, which use the timestamp link instead. */}
-          <a href={urls.post(post.id)} aria-hidden="true" tabindex="-1" class="post-link" />
-          <PostMeta post={post} siteUrl={props.siteUrl} />
-          {post.captionHtml ? <Caption html={post.captionHtml} /> : null}
-          <PostMedia post={post} preview={preview} priority={index === 0} />
-        </article>
+        <>
+          <hr />
+          <article class="feed-post">
+            {/* Covers the whole post so a click anywhere opens it. Hidden from keyboard and
+                screen readers, which use the timestamp link instead. */}
+            <a href={urls.post(post.id)} aria-hidden="true" tabindex="-1" class="post-link" />
+            <PostMeta post={post} siteUrl={props.siteUrl} />
+            {post.captionHtml ? <Caption html={post.captionHtml} /> : null}
+            <PostMedia post={post} preview={preview} priority={index === 0} />
+          </article>
+        </>
       ))}
     </section>
   )
