@@ -116,10 +116,19 @@ function PhotoCarousel(props: {
         data-on:command={FULL_SCREEN_SIZES}
       >
         <div class="carousel-track" data-on:scroll={many ? SHOW_INDEX : undefined}>
+          {/* Each photo's button lies over it rather than around it, because Reader views
+              drop buttons and all they hold. */}
           {photos.map((photo, index) => (
-            <button type="button" command="show-modal" commandfor={id} class="carousel-slide">
+            <div class="carousel-slide">
               <PostImage photo={photo} priority={priority && index === 0} />
-            </button>
+              <button
+                type="button"
+                command="show-modal"
+                commandfor={id}
+                aria-label="Open photo"
+                class="carousel-open"
+              />
+            </div>
           ))}
         </div>
         {many ? (
