@@ -57,7 +57,9 @@ const postFile = Effect.gen(function* () {
   let media = yield* PostMedia
 
   if (version !== null && width !== null) {
-    let variant = yield* media.resized(id, name, Number(width), version)
+    let format = searchParams.get('format') ?? 'webp'
+    if (format !== 'webp' && format !== 'jpeg') return notFound()
+    let variant = yield* media.resized(id, name, Number(width), version, { format })
     return variant ? yield* fileResponse(variant, IMMUTABLE) : notFound()
   }
   let file = yield* media.original(id, name)

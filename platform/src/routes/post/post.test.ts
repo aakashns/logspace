@@ -2,7 +2,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test'
 import { Effect } from 'effect'
 
-import { defined, makeTestApp } from '../../../test/app.ts'
+import { capture, defined, makeTestApp } from '../../../test/app.ts'
 import { PostCommands } from '../../data/posts/commands.ts'
 import { PostQueries } from '../../data/posts/queries.ts'
 import { newPostEmail } from '../admin/compose/email.tsx'
@@ -15,6 +15,61 @@ beforeEach(app.seedDatabase)
 afterAll(app.dispose)
 
 describe('a post’s page and files', () => {
+  it('shares an upright JPEG without relying on EXIF orientation', async () => {
+    let jpeg = await Bun.file('test/content/posts/drdp3ei6fd/hike-1.jpg').bytes()
+    // A camera JPEG stored sideways, with EXIF orientation 6 (90 degrees clockwise).
+    let exif = Buffer.from(
+      'ffe1002245786966000049492a0008000000010012010300010000000600000000000000',
+      'hex',
+    )
+    let upload = Buffer.concat([jpeg.subarray(0, 2), exif, jpeg.subarray(2)])
+    let id = 'upright000'
+    await app.run(
+      Effect.flatMap(PostCommands, (commands) =>
+        commands.save(
+          {
+            post: {
+              id,
+              type: 'photos',
+              date: '2000-01-01T00:00:00Z',
+              photos: [{ file: 'camera.jpg', alt: 'A view' }],
+            },
+            uploads: [{ name: 'camera.jpg', file: new Blob([upload]) }],
+            issues: [],
+          },
+          newPostEmail,
+        ),
+      ),
+    )
+    let html = await (await app.fetch(`/posts/${id}`)).text()
+    let url = capture(html, /<meta property="og:image" content="([^"]+)">/).replaceAll('&amp;', '&')
+    expect(url).toMatch(/camera\.jpg\?w=320&v=[0-9a-f]{12}&format=jpeg$/)
+    expect(html).toContain('<meta property="og:image:width" content="21">')
+    expect(html).toContain('<meta property="og:image:height" content="32">')
+    expect(html).toContain('<meta property="og:image:alt" content="A view">')
+    expect(capture(html, /<meta name="twitter:image" content="([^"]+)">/)).toBe(
+      url.replaceAll('&', '&amp;'),
+    )
+    let [response, cached] = await Promise.all([app.fetch(url), app.fetch(url)])
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Content-Type')).toBe('image/jpeg')
+    expect(response.headers.get('Cache-Control')).toBe('public, max-age=31536000, immutable')
+    let bytes = new Uint8Array(await response.arrayBuffer())
+    expect(await new Bun.Image(bytes).metadata()).toMatchObject({
+      width: 21,
+      height: 32,
+      format: 'jpeg',
+    })
+    expect(bytes).toEqual(
+      new Uint8Array(await new Bun.Image(jpeg).rotate(90).jpeg({ quality: 78 }).bytes()),
+    )
+    expect(bytes).toEqual(new Uint8Array(await cached.arrayBuffer()))
+    let original = await app.fetch(`/posts/${id}/camera.jpg`)
+    expect(new Uint8Array(await original.arrayBuffer())).toEqual(new Uint8Array(upload))
+    expect((await app.fetch(url.replace(/v=[0-9a-f]+/, 'v=000000000000'))).status).toBe(404)
+    expect((await app.fetch(url.replace('format=jpeg', 'format=gif'))).status).toBe(404)
+  })
+
   it('renders each post with its SEO tags', async () => {
     for (let post of await posts()) {
       let response = await app.fetch(`/posts/${post.id}`)

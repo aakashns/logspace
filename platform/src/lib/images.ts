@@ -50,11 +50,13 @@ export class Images extends Context.Service<
     // A photo's upright size and a hash of it, or undefined if it isn't an image Bun can read
     // (a .jpg that isn't one): pages then show it without a size.
     readonly readInfo: (bytes: Uint8Array) => Effect.Effect<ImageInfo | undefined>
-    // The photo at one of IMAGE_WIDTHS (or its own width, if that's smaller), upright, as WebP.
+    // The photo at one of IMAGE_WIDTHS (or its own width, if that's smaller), upright.
+    // JPEG is for social crawlers that do not support WebP or EXIF orientation.
     // Fails if Bun can't decode it all (a PNG cut short reads its size but not its pixels).
     readonly resize: (
       bytes: Uint8Array,
       width: number,
+      format?: 'webp' | 'jpeg',
     ) => Effect.Effect<Uint8Array, ImageUnreadable>
     readonly processSiteImage: (
       kind: SiteImageKind,
@@ -76,12 +78,12 @@ export class Images extends Context.Service<
             Effect.map(({ width, height }) => ({ width, height, version: hash(bytes) })),
             Effect.orElseSucceed(() => undefined),
           ),
-        resize: (bytes, width) =>
+        resize: (bytes, width, format = 'webp') =>
           Effect.tryPromise({
             try: () =>
               new Bun.Image(bytes)
                 .resize(width, undefined, { withoutEnlargement: true })
-                .webp({ quality: 78 })
+                [format]({ quality: 78 })
                 .bytes(),
             catch: (cause) => new ImageUnreadable({ cause }),
           }),
