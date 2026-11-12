@@ -9,7 +9,10 @@ import { MediaStorage, mediaKeys, type StoredFile } from '../../lib/media-storag
 import { getPostFileNames, isPostFileName } from './post.ts'
 import { PostQueries } from './queries.ts'
 
-type Options = { readonly unpublished?: boolean | undefined }
+type Options = {
+  readonly unpublished?: boolean | undefined
+  readonly format?: 'webp' | 'jpeg' | undefined
+}
 
 export class PostMedia extends Context.Service<
   PostMedia,
@@ -22,8 +25,8 @@ export class PostMedia extends Context.Service<
       name: string,
       options?: Options,
     ) => Effect.Effect<StoredFile | undefined>
-    // A post's image resized to one of IMAGE_WIDTHS, as WebP, if the post is published and names
-    // it (or `unpublished`), and `version` is its current one.
+    // A post's image resized to one of IMAGE_WIDTHS, as WebP (or JPEG), if published and
+    // naming it (or `unpublished`), and `version` is its current one.
     readonly resized: (
       id: string,
       name: string,
@@ -61,13 +64,20 @@ export class PostMedia extends Context.Service<
       // Made from the photo only if it's the version asked for: while a photo is being replaced,
       // a request for the old version could otherwise store the new one under the old's URL. A
       // photo Bun can't decode has no resized copies, and pages that ask get a 404.
-      let make = (id: string, name: string, width: number, version: string, key: string) =>
+      let make = (
+        id: string,
+        name: string,
+        width: number,
+        version: string,
+        key: string,
+        format: 'webp' | 'jpeg',
+      ) =>
         Effect.gen(function* () {
           let file = yield* storage.get(mediaKeys.postFile(id, name))
           if (!file) return undefined
           let bytes = new Uint8Array(yield* Effect.promise(() => file.blob.arrayBuffer()))
           if (hash(bytes) !== version) return undefined
-          yield* storage.put(key, yield* images.resize(bytes, width))
+          yield* storage.put(key, yield* images.resize(bytes, width, format))
           return yield* storage.get(key)
         }).pipe(
           Effect.catchTag('ImageUnreadable', (error) =>
@@ -86,7 +96,8 @@ export class PostMedia extends Context.Service<
         if (!isPostFileName(name) || !(yield* isServed(id, name, options))) return undefined
         let info = yield* posts.imageInfo(id, name)
         if (info?.version !== version) return undefined
-        let key = `${mediaKeys.variants(id, name)}${width}-${version}.webp`
+        let format = options?.format ?? 'webp'
+        let key = `${mediaKeys.variants(id, name)}${width}-${version}.${format === 'jpeg' ? 'jpg' : 'webp'}`
         let existing = yield* storage.get(key)
         if (existing) return existing
 
@@ -97,7 +108,7 @@ export class PostMedia extends Context.Service<
           pending = deferred
           // Made to the end even if this request goes away, since others may be waiting for it.
           yield* Effect.uninterruptible(
-            Effect.flatMap(Effect.exit(make(id, name, width, version, key)), (result) =>
+            Effect.flatMap(Effect.exit(make(id, name, width, version, key, format)), (result) =>
               Effect.sync(() => {
                 inProgress.delete(key)
                 Deferred.doneUnsafe(deferred, result)

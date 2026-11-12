@@ -18,6 +18,8 @@ export type Post = TextPost | PhotosPost | VideoPost
 
 interface BasePost {
   readonly id: string
+  // An upright copy for link previews, with its own dimensions.
+  readonly socialImage?: MetaImage | undefined
   // In UTC, like "2026-10-16T13:12:00Z".
   readonly date: string
   readonly city?: string | undefined
@@ -106,7 +108,17 @@ export function toPost(
     case 'text':
       return { ...base, type: 'text', caption: post.caption }
     case 'photos':
-      return { ...base, type: 'photos', photos: Arr.map(post.photos, photo) }
+      return {
+        ...base,
+        type: 'photos',
+        photos: Arr.map(post.photos, photo),
+        socialImage: getSocialImage(
+          src(post.photos[0].file),
+          post.photos[0].file,
+          image(post.photos[0].file),
+          post.photos[0].alt,
+        ),
+      }
     case 'video': {
       let { file, poster, width, height } = post.video
       let info = poster ? image(poster) : undefined
@@ -119,8 +131,27 @@ export function toPost(
         video.width = info.width
         video.height = info.height
       }
-      return { ...base, type: 'video', video }
+      return {
+        ...base,
+        type: 'video',
+        video,
+        socialImage: poster ? getSocialImage(src(poster), poster, info) : undefined,
+      }
     }
+  }
+}
+
+// Bake the orientation into JPEG pixels: social crawlers may ignore an upload's EXIF or not
+// support WebP. Use the poster's own dimensions, even when the video has a different size.
+function getSocialImage(url: string, name: string, info?: ImageInfo, alt?: string): MetaImage {
+  let sources = info ? getImageSources(name, info) : []
+  let source = sources.find((source) => source.param >= POSTER_WIDTH) ?? sources.at(-1)
+  if (!info || !source) return { url, alt, width: info?.width, height: info?.height }
+  return {
+    url: `${url}?w=${source.param}&v=${info.version}&format=jpeg`,
+    alt,
+    width: source.width,
+    height: Math.max(1, Math.floor((info.height * source.width) / info.width)),
   }
 }
 
@@ -161,17 +192,11 @@ interface MetaImage {
 export function getPostMeta(post: Post): PageMeta {
   let text = post.caption ? captionText(post.caption) : ''
   let [firstLine = ''] = text.split('\n')
-  let [photo] = post.type === 'photos' ? post.photos : []
-  let image = photo
-    ? { url: photo.src, alt: photo.alt, width: photo.width, height: photo.height }
-    : post.type === 'video' && post.video.posterImage
-      ? { url: post.video.posterImage, width: post.video.width, height: post.video.height }
-      : undefined
   return {
     path: urls.post(post.id),
     title: clamp(firstLine, 60) || 'Post',
     description: clamp(text.replace(/\s+/g, ' '), 160) || undefined,
-    image,
+    image: post.socialImage,
     published: post.date,
   }
 }

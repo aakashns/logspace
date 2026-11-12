@@ -125,6 +125,42 @@ describe('captions', () => {
 })
 
 describe('presentation', () => {
+  it('shares resized photos and posters with the copy’s dimensions', () => {
+    let info = { width: 3024, height: 4032, version: 'v1' }
+    let photo = toPost(
+      { id: ID, type: 'photos', date: DATE, photos: [{ file: 'a.jpg', alt: 'A' }] },
+      () => info,
+    )
+    expect(getPostMeta(photo).image).toEqual({
+      url: `/posts/${ID}/a.jpg?w=1160&v=v1&format=jpeg`,
+      alt: 'A',
+      width: 1160,
+      height: 1546,
+    })
+    let video = toPost(
+      {
+        id: ID,
+        type: 'video',
+        date: DATE,
+        video: { file: 'v.mp4', poster: 'a.jpg', width: 1920, height: 1080 },
+      },
+      () => info,
+    )
+    expect(getPostMeta(video).image).toEqual({
+      url: `/posts/${ID}/a.jpg?w=1160&v=v1&format=jpeg`,
+      alt: undefined,
+      width: 1160,
+      height: 1546,
+    })
+    let unknown = toPost({
+      id: ID,
+      type: 'photos',
+      date: DATE,
+      photos: [{ file: 'a.jpg', alt: 'A' }],
+    })
+    expect(getPostMeta(unknown).image?.url).toBe(`/posts/${ID}/a.jpg`)
+  })
+
   it('gives photos URLs, and the size and resized copies of those it knows', () => {
     let photos = [
       { file: 'a b.jpg', alt: 'A' },
