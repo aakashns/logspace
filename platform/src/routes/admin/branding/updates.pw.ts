@@ -8,13 +8,28 @@ test('updates persist preferences, survive dropped requests, and show the restar
   page,
   app,
 }, info) => {
+  const screenshot = async (name: string) => {
+    const path = info.outputPath(`${name}-full-page.png`)
+    await page.evaluate(() => window.scrollTo(0, 0))
+    await page.screenshot({ path, fullPage: true })
+    await info.attach(name, { path, contentType: 'image/png' })
+  }
   const section = page.locator('#software-updates')
   await expect(section).toContainText('99.0.0 is available')
   await section.scrollIntoViewIfNeeded()
-  await info.attach('update-available', {
-    body: await section.screenshot(),
-    contentType: 'image/png',
-  })
+  await screenshot('update-available')
+  await page.setViewportSize({ width: 390, height: 844 })
+  await screenshot('update-available-mobile')
+  expect(await page.locator('body').evaluate((body) => body.scrollWidth)).toBeLessThanOrEqual(390)
+  await page.setViewportSize({ width: 1100, height: 900 })
+  const details = section.locator('details')
+  await section.locator('summary').click()
+  await page.waitForResponse(
+    (response) =>
+      response.url().includes('/admin/branding/updates') && response.request().method() === 'GET',
+  )
+  await expect(details).not.toHaveAttribute('open')
+  await section.locator('summary').click()
   await page.getByLabel('Enable automatic updates').check()
   await page.getByRole('button', { name: 'Save update preference' }).click()
   const file = join(app.directory, 'updates.json')
@@ -32,10 +47,7 @@ test('updates persist preferences, survive dropped requests, and show the restar
   })
   await page.getByRole('button', { name: 'Update now', exact: true }).click()
   await expect(section).toContainText('Update requested', { timeout: 12000 })
-  await info.attach('update-pending', {
-    body: await section.screenshot(),
-    contentType: 'image/png',
-  })
+  await screenshot('update-pending')
   // Simulate the independent privileged job and replacement server completing the upgrade.
   await writeFile(
     file,
@@ -51,8 +63,11 @@ test('updates persist preferences, survive dropped requests, and show the restar
   await expect(section).toContainText('Running LogSpace 99.0.0')
   await expect(page.getByRole('button', { name: 'Update now', exact: true })).toHaveCount(0)
   expect(posts).toBe(1)
-  await info.attach('update-complete', {
-    body: await section.screenshot(),
-    contentType: 'image/png',
-  })
+  await screenshot('update-complete')
+  await page.goto('/admin/integrations')
+  await page
+    .locator('summary')
+    .filter({ has: page.getByRole('heading', { name: 'Email', exact: true }) })
+    .click()
+  await screenshot('integrations-reference')
 })

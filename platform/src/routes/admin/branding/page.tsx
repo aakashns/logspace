@@ -1,3 +1,5 @@
+import { CONFIG_SECTION_STYLES } from '../config-section.tsx'
+import { BADGE_STYLES } from '../../../components/ui/badge.tsx'
 import { UpdateSection } from './updates.tsx'
 import type { UpdateStatus } from '../../../lib/updates.ts'
 import type { Child, Html } from '#jsx/jsx-runtime'
@@ -23,7 +25,13 @@ import { FIELDS_STYLES, hintId, LabelledField, TextareaField, TextField } from '
 import { BackLink } from '../layout.tsx'
 import css from './page.css' with { type: 'text' }
 
-export const BRANDING_PAGE_STYLES = FIELDS_STYLES + CHECKBOX_STYLES + ALERT_STYLES + stylesheet(css)
+export const BRANDING_PAGE_STYLES =
+  CONFIG_SECTION_STYLES +
+  BADGE_STYLES +
+  FIELDS_STYLES +
+  CHECKBOX_STYLES +
+  ALERT_STYLES +
+  stylesheet(css)
 
 export interface BrandingPageProps {
   readonly updates: UpdateStatus

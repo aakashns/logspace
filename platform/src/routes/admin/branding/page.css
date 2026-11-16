@@ -57,14 +57,3 @@
     object-fit: cover;
   }
 }
-
-.update-section {
-  margin-top: 3rem;
-  display: grid;
-  gap: 1rem;
-}
-.update-section form {
-  display: grid;
-  gap: 1rem;
-  justify-items: start;
-}
