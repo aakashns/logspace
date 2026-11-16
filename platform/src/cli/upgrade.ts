@@ -5,6 +5,9 @@ import { Config, Console, Effect, FileSystem, Path } from 'effect'
 import { Prompt } from 'effect/cli'
 import { FetchHttpClient, HttpClient } from 'effect/http'
 
+import { compareVersions } from '../lib/version.ts'
+import { latestRelease } from '../lib/releases.ts'
+
 import { DOMAINS_FILE } from './deploy.ts'
 import { fail, IS_BINARY, reportFailures, VERSION } from './shell.ts'
 
@@ -29,7 +32,10 @@ export const upgrade = Effect.fn('upgrade')(
     // A string with a default can't fail to read.
     let releases = yield* Effect.orDie(releasesUrl)
 
-    let version = (requested ?? (yield* latestTag(releases))).replace(/^v/, '')
+    let version = (
+      requested ??
+      (yield* latestRelease(releases).pipe(Effect.mapError((error) => fail(error.message))))
+    ).replace(/^v/, '')
     if (!/^\d+\.\d+\.\d+$/.test(version)) return yield* fail(`Not a release: ${version}`)
     let order = compareVersions(version, VERSION)
     if (order === 0 || (order < 0 && requested === undefined)) {
@@ -91,18 +97,6 @@ export const upgrade = Effect.fn('upgrade')(
   Effect.provide(FetchHttpClient.layer),
 )
 
-// The latest release's tag, from where GitHub sends /releases/latest (/releases/tag/<tag>).
-const latestTag = Effect.fnUntraced(function* (releases: string) {
-  let url = `${releases}/latest`
-  let response = yield* (yield* HttpClient.HttpClient).get(url).pipe(
-    Effect.provideService(FetchHttpClient.RequestInit, { redirect: 'manual' }),
-    Effect.mapError((error) => fail(`Couldn't reach ${url}: ${error.message}`)),
-  )
-  let tag = /\/releases\/tag\/([^/?#]+)$/.exec(response.headers['location'] ?? '')?.[1]
-  if (!tag) return yield* fail(`Couldn't find the latest release at ${url}`)
-  return decodeURIComponent(tag)
-})
-
 const download = Effect.fnUntraced(function* (url: string) {
   let response = yield* (yield* HttpClient.HttpClient)
     .get(url)
@@ -115,14 +109,3 @@ const download = Effect.fnUntraced(function* (url: string) {
   )
   return new Uint8Array(body)
 })
-
-// Orders two versions like 0.12.3, both from release tags or package.json.
-function compareVersions(a: string, b: string): number {
-  let x = a.split('.').map(Number)
-  let y = b.split('.').map(Number)
-  for (let i = 0; i < 3; i++) {
-    let difference = (x[i] ?? 0) - (y[i] ?? 0)
-    if (difference !== 0) return difference
-  }
-  return 0
-}

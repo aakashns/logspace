@@ -1,12 +1,14 @@
 // The real application and bundled assets, with explicit disposable configuration. This entry
 // point never reads AppConfig.layer or .env. All app data stays in the test-owned directory.
+import { BunHttpServer, BunFileSystem } from '@effect/platform-bun'
+import { browserUpdates } from './updates.ts'
 import { BunRuntime } from '@effect/platform-bun'
 import { Context, Effect, Layer, Redacted } from 'effect'
-import { HttpServer } from 'effect/http'
+import { HttpServer, HttpRouter } from 'effect/http'
 import { join } from 'node:path'
 
 import { AppConfig } from '../src/lib/config.ts'
-import { ServerLive } from '../src/server.ts'
+import { ServerLive, AppLive, AppRoutes } from '../src/server.ts'
 
 const [directory, password, secret] = process.argv.slice(2)
 if (!directory || !password || !secret)
@@ -27,7 +29,16 @@ const config = Layer.succeed(
   }),
 )
 
-const server = ServerLive.pipe(
+const live =
+  process.argv[5] === 'updates'
+    ? HttpRouter.serve(AppRoutes, { disableLogger: true }).pipe(
+        Layer.provideMerge(
+          Layer.merge(AppLive, browserUpdates(directory).pipe(Layer.provide(BunFileSystem.layer))),
+        ),
+        Layer.provideMerge(BunHttpServer.layer({ port: 0, hostname: '127.0.0.1' })),
+      )
+    : ServerLive
+const server = live.pipe(
   Layer.provide(config),
   Layer.tap((context) =>
     Effect.sync(() => {

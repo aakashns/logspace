@@ -5,6 +5,7 @@ import { BunFileSystem } from '@effect/platform-bun'
 import { Clock, Effect, Layer, ManagedRuntime, Redacted } from 'effect'
 import { HttpRouter, HttpServer } from 'effect/http'
 
+import { Updates } from '../src/lib/updates.ts'
 import { AppConfig } from '../src/lib/config.ts'
 import { PublicNetwork } from '../src/lib/public-http.ts'
 import { AppRoutes, AppServices } from '../src/server.ts'
@@ -29,13 +30,21 @@ export type TestApp = ReturnType<typeof makeTestApp>
 
 export function makeTestApp(
   config: Partial<AppConfig['Service']> = {},
-  overrides: { clock?: Clock.Clock; network?: PublicNetwork['Service'] } = {},
+  overrides: {
+    clock?: Clock.Clock
+    network?: PublicNetwork['Service']
+    updates?: Updates['Service']
+  } = {},
 ) {
   let configLayer = Layer.succeed(AppConfig, AppConfig.of({ ...TEST_CONFIG, ...config }))
   // The runtime (for calling services directly) and the handler share one MemoMap, so they share
   // every service, and so the database.
   let memoMap = Layer.makeMemoMapUnsafe()
-  let services = Layer.mergeAll(AppServices, BunFileSystem.layer).pipe(
+  let services = Layer.mergeAll(
+    AppServices,
+    BunFileSystem.layer,
+    overrides.updates ? Layer.succeed(Updates, overrides.updates) : Layer.empty,
+  ).pipe(
     Layer.provide(
       overrides.network ? Layer.succeed(PublicNetwork, overrides.network) : PublicNetwork.layer,
     ),

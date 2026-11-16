@@ -47,6 +47,9 @@ export const urls = {
     // The four parts of the admin, which /admin links to.
     posts: () => '/admin/posts',
     branding: () => '/admin/branding',
+    updateStatus: () => '/admin/branding/updates',
+    updateNow: () => '/admin/branding/updates',
+    autoUpdates: () => '/admin/branding/updates/automatic',
     integrations: () => '/admin/integrations',
     subscribers: () => '/admin/subscribers',
     deleteSubscriber: (id: string) => `/admin/subscribers/${encodeURIComponent(id)}/delete`,

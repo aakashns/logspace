@@ -15,6 +15,7 @@ import { readForm } from '../../../lib/http/forms.ts'
 import { requestUrl } from '../../../lib/http/pages.ts'
 import { redirect } from '../../../lib/http/responses.ts'
 import { AdminAuth } from '../../../lib/http/admin-session.ts'
+import { Updates } from '../../../lib/updates.ts'
 import { urls } from '../../../lib/urls.ts'
 import { adminOnly, adminPage } from '../admin.tsx'
 import { BRANDING_PAGE_STYLES, BrandingPage } from './page.tsx'
@@ -28,7 +29,12 @@ const brandingPage = (props: {
     let saved = yield* (yield* SiteConfigQueries).saved
     return yield* adminPage(
       'Branding',
-      <BrandingPage {...props} images={saved} unconfigured={!isSiteConfigured(saved)} />,
+      <BrandingPage
+        {...props}
+        images={saved}
+        unconfigured={!isSiteConfigured(saved)}
+        updates={yield* (yield* Updates).status}
+      />,
       { styles: BRANDING_PAGE_STYLES, status: props.issues ? 400 : 200 },
     )
   })

@@ -24,8 +24,10 @@ import { Images } from './lib/images.ts'
 import { MediaStorage } from './lib/media-storage.ts'
 import { PublicHttpLive, PublicNetwork } from './lib/public-http.ts'
 import { Secrets } from './lib/secrets.ts'
+import { Updates } from './lib/updates.ts'
 import { ComposeRoutes } from './routes/admin/compose/handler.tsx'
 import { BrandingRoutes } from './routes/admin/branding/handler.tsx'
+import { UpdateRoutes } from './routes/admin/branding/updates-handler.tsx'
 import { AdminIndexRoutes } from './routes/admin/index/handler.tsx'
 import { IntegrationRoutes } from './routes/admin/integrations/handler.tsx'
 import { AdminLoginRoutes } from './routes/admin/login/handler.tsx'
@@ -87,6 +89,7 @@ const EmailLive = Email.layer.pipe(
 // queries; the remaining outputs are the APIs used by routes and the server's shutdown hook.
 export const AppServices = Layer.mergeAll(
   MigratedDatabase,
+  Updates.layer.pipe(Layer.provide([BunFileSystem.layer, IntegrationHttp])),
   MediaStorage.layer,
   Images.layer,
   PostQueriesLive,
@@ -156,6 +159,7 @@ export const AppRoutes = Layer.mergeAll(
   PostListRoutes,
   ComposeRoutes,
   BrandingRoutes,
+  UpdateRoutes,
   IntegrationRoutes,
   SubscriberRoutes,
   DevIndexRoutes,

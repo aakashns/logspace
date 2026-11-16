@@ -1,3 +1,5 @@
+import { UpdateSection } from './updates.tsx'
+import type { UpdateStatus } from '../../../lib/updates.ts'
 import type { Child, Html } from '#jsx/jsx-runtime'
 
 import { stylesheet } from '../../../components/stylesheet.ts'
@@ -24,6 +26,7 @@ import css from './page.css' with { type: 'text' }
 export const BRANDING_PAGE_STYLES = FIELDS_STYLES + CHECKBOX_STYLES + ALERT_STYLES + stylesheet(css)
 
 export interface BrandingPageProps {
+  readonly updates: UpdateStatus
   // What was typed, and the images that are saved.
   readonly values: SiteText
   readonly images: SiteImages
@@ -181,6 +184,7 @@ export function BrandingPage(props: BrandingPageProps): Html {
           </div>
         </FieldGroup>
       </form>
+      <UpdateSection status={props.updates} />
     </section>
   )
 }
