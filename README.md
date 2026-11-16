@@ -25,7 +25,7 @@ Write like a tweet, with **bold**, *italic*, and links that turn clickable on th
 
 ## Updates and backups
 
-Open **Manage Config → Branding → Updates** to see the running version and install a newer
+Open **Manage Site → Integrations → Updates** to see the running version and install a newer
 release with **Update now**. **Enable automatic updates** opts in to one daily check and automatic
 installation. Updates run `upgrade --yes` followed by `deploy`, briefly restarting the service;
 the page reconnects automatically. Existing installations need one manual upgrade and deploy to

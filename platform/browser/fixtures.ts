@@ -143,7 +143,7 @@ export const test = base.extend<{ app: Application; managedUpdates: boolean }>({
     await page.getByLabel('Site URL', { exact: true }).fill(app.origin)
     await page.getByLabel('Site description', { exact: true }).fill('Disposable browser test site')
     await page.getByRole('button', { name: 'Save', exact: true }).click()
-    await expect(page.getByRole('status').filter({ hasText: 'Saved' })).toContainText('Saved')
+    await expect(page.getByRole('status')).toContainText('Saved')
     await use(page)
   },
 })

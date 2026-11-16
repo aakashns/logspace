@@ -1,4 +1,4 @@
-/* Collapsible settings sections shared by Branding and Integrations. */
+/* Collapsible sections for integrations and software updates. */
 @layer components {
   .config-section-summary {
     display: flex;

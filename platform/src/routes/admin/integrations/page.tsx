@@ -1,3 +1,5 @@
+import type { UpdateStatus } from '../../../lib/updates.ts'
+import { UpdateSection } from './updates.tsx'
 import type { Child, Html } from '#jsx/jsx-runtime'
 
 import { stylesheet } from '../../../components/stylesheet.ts'
@@ -15,7 +17,6 @@ import {
 } from '../../../components/ui/field.tsx'
 import { Input } from '../../../components/ui/input.tsx'
 import { NativeSelect, NATIVE_SELECT_STYLES } from '../../../components/ui/native-select.tsx'
-import { Separator, SEPARATOR_STYLES } from '../../../components/ui/separator.tsx'
 import type { EmailFailure, EmailStatus } from '../../../data/site/email.ts'
 import {
   EMAILS_PER_HOUR,
@@ -38,7 +39,6 @@ export const INTEGRATIONS_PAGE_STYLES =
   BADGE_STYLES +
   CHECKBOX_STYLES +
   NATIVE_SELECT_STYLES +
-  SEPARATOR_STYLES +
   TURNSTILE_STYLES +
   stylesheet(css)
 
@@ -74,18 +74,20 @@ export interface EmailSectionProps {
 export function IntegrationsPage(props: {
   turnstile: TurnstileSectionProps
   email: EmailSectionProps
+  updates: UpdateStatus
 }): Html {
   return (
     <section class="admin-page">
       <BackLink />
       <h1 class="page-title">Integrations</h1>
       <p class="muted">
-        Services the site connects to. Secret keys are encrypted and not shown once entered.
+        Services the site connects to, and software updates. Secret keys are encrypted and not shown
+        once entered.
       </p>
       <div class="integrations">
         <TurnstileSection {...props.turnstile} />
         <EmailSection {...props.email} />
-        <Separator />
+        <UpdateSection status={props.updates} />
       </div>
     </section>
   )

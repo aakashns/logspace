@@ -42,9 +42,9 @@ const saveAutomatic = adminOnly(() =>
 export const UpdateRoutes = HttpRouter.addAll([
   HttpRouter.route(
     'GET',
-    '/admin/branding/updates',
+    '/admin/integrations/updates',
     adminOnly(() => patch()),
   ),
-  HttpRouter.route('POST', '/admin/branding/updates', updateNow),
-  HttpRouter.route('POST', '/admin/branding/updates/automatic', saveAutomatic),
+  HttpRouter.route('POST', '/admin/integrations/updates', updateNow),
+  HttpRouter.route('POST', '/admin/integrations/updates/automatic', saveAutomatic),
 ])

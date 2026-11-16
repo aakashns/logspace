@@ -14,6 +14,9 @@ test('updates persist preferences, survive dropped requests, and show the restar
     await page.screenshot({ path, fullPage: true })
     await info.attach(name, { path, contentType: 'image/png' })
   }
+  await page.goto('/admin/branding')
+  await expect(page.locator('#software-updates')).toHaveCount(0)
+  await page.goto('/admin/integrations')
   const section = page.locator('#software-updates')
   await expect(section).toContainText('99.0.0 is available')
   await section.scrollIntoViewIfNeeded()
@@ -26,7 +29,8 @@ test('updates persist preferences, survive dropped requests, and show the restar
   await section.locator('summary').click()
   await page.waitForResponse(
     (response) =>
-      response.url().includes('/admin/branding/updates') && response.request().method() === 'GET',
+      response.url().includes('/admin/integrations/updates') &&
+      response.request().method() === 'GET',
   )
   await expect(details).not.toHaveAttribute('open')
   await section.locator('summary').click()
@@ -38,7 +42,7 @@ test('updates persist preferences, survive dropped requests, and show the restar
   await expect(page.getByLabel('Enable automatic updates')).toBeChecked()
   // The server accepts the mutation, but the connection dies before the browser receives it.
   let posts = 0
-  await page.route('**/admin/branding/updates', async (route) => {
+  await page.route('**/admin/integrations/updates', async (route) => {
     if (route.request().method() === 'POST') {
       posts++
       await route.fetch()
@@ -64,7 +68,6 @@ test('updates persist preferences, survive dropped requests, and show the restar
   await expect(page.getByRole('button', { name: 'Update now', exact: true })).toHaveCount(0)
   expect(posts).toBe(1)
   await screenshot('update-complete')
-  await page.goto('/admin/integrations')
   await page
     .locator('summary')
     .filter({ has: page.getByRole('heading', { name: 'Email', exact: true }) })
