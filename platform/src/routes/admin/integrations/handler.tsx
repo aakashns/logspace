@@ -12,6 +12,7 @@ import { Turnstile } from '../../../data/site/turnstile.ts'
 import { formText, SMALL_FORM_LIMIT, readForm } from '../../../lib/http/forms.ts'
 import { redirect } from '../../../lib/http/responses.ts'
 import { AdminAuth, type AdminSession } from '../../../lib/http/admin-session.ts'
+import { Updates } from '../../../lib/updates.ts'
 import { urls } from '../../../lib/urls.ts'
 import { adminOnly, adminPage } from '../admin.tsx'
 import {
@@ -42,6 +43,7 @@ const integrationsPage = (
       <IntegrationsPage
         turnstile={{ ...sections.turnstile, status: turnstileStatus }}
         email={{ ...sections.email, status: emailStatus }}
+        updates={yield* (yield* Updates).status}
       />,
       {
         styles: INTEGRATIONS_PAGE_STYLES,

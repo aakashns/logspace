@@ -10,6 +10,7 @@
 // Caddy is pointed at, so run it again after changing it.
 import { Array as Arr, Console, Effect, FileSystem, Path } from 'effect'
 
+import { updateService, updatePath, updateTimer } from './update-units.ts'
 import { promptAdminPassword } from './admin-password.ts'
 import { addSite } from './caddyfile.ts'
 import { ENV_FILE, readEnvFile, setEnvVariable } from './env-file.ts'
@@ -51,6 +52,7 @@ RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 Environment=PORT=${DEFAULT_PORT}
 Environment=TRUST_PROXY=1
 Environment=HOST=127.0.0.1
+Environment=LOGSPACE_MANAGED_UPDATES=true
 # The SQLite database, media, and caches live in folders systemd creates before the service starts
 # (StateDirectory, CacheDirectory), which the app runs in.
 StateDirectory=logspace
@@ -130,7 +132,27 @@ export const deploy = Effect.fn('deploy')(function* (args: readonly string[]) {
   yield* Console.log(`Installing logspace.service, which runs ${binary}...`)
   yield* fs.writeFileString(SERVICE_FILE, service(binary))
   yield* fs.chmod(SERVICE_FILE, 0o644)
+  // Results live in a root-owned directory, outside the app's writable state.
+  yield* fs.makeDirectory('/var/lib/logspace-updater', { recursive: true, mode: 0o755 })
+  yield* fs.chmod('/var/lib/logspace-updater', 0o755)
+  for (let [name, contents] of [
+    ['service', updateService(binary)],
+    ['path', updatePath],
+    ['timer', updateTimer],
+  ] as const) {
+    let file = `/etc/systemd/system/logspace-update.${name}`
+    yield* fs.writeFileString(file, contents)
+    yield* fs.chmod(file, 0o644)
+  }
   yield* run('systemctl', 'daemon-reload')
+  yield* run(
+    'systemctl',
+    'enable',
+    '--now',
+    '--quiet',
+    'logspace-update.path',
+    'logspace-update.timer',
+  )
   yield* run('systemctl', 'enable', '--quiet', 'logspace')
   yield* run('systemctl', 'restart', 'logspace')
 

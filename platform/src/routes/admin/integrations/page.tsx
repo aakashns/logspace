@@ -1,7 +1,8 @@
+import type { UpdateStatus } from '../../../lib/updates.ts'
+import { UpdateSection } from './updates.tsx'
 import type { Child, Html } from '#jsx/jsx-runtime'
 
 import { stylesheet } from '../../../components/stylesheet.ts'
-import { CaretDownIcon } from '../../../components/icons.tsx'
 import { TURNSTILE_STYLES, TurnstileWidget } from '../../../components/turnstile.tsx'
 import { Alert, ALERT_STYLES, AlertDescription, AlertTitle } from '../../../components/ui/alert.tsx'
 import { Badge, BADGE_STYLES } from '../../../components/ui/badge.tsx'
@@ -16,7 +17,6 @@ import {
 } from '../../../components/ui/field.tsx'
 import { Input } from '../../../components/ui/input.tsx'
 import { NativeSelect, NATIVE_SELECT_STYLES } from '../../../components/ui/native-select.tsx'
-import { Separator, SEPARATOR_STYLES } from '../../../components/ui/separator.tsx'
 import type { EmailFailure, EmailStatus } from '../../../data/site/email.ts'
 import {
   EMAILS_PER_HOUR,
@@ -29,15 +29,16 @@ import type { TurnstileFailure, TurnstileStatus } from '../../../data/site/turns
 import { urls } from '../../../lib/urls.ts'
 import { FIELDS_STYLES, hintId, LabelledField, TextField } from '../fields.tsx'
 import { BackLink } from '../layout.tsx'
+import { ConfigSection as Integration, CONFIG_SECTION_STYLES } from '../config-section.tsx'
 import css from './page.css' with { type: 'text' }
 
 export const INTEGRATIONS_PAGE_STYLES =
+  CONFIG_SECTION_STYLES +
   FIELDS_STYLES +
   ALERT_STYLES +
   BADGE_STYLES +
   CHECKBOX_STYLES +
   NATIVE_SELECT_STYLES +
-  SEPARATOR_STYLES +
   TURNSTILE_STYLES +
   stylesheet(css)
 
@@ -73,18 +74,20 @@ export interface EmailSectionProps {
 export function IntegrationsPage(props: {
   turnstile: TurnstileSectionProps
   email: EmailSectionProps
+  updates: UpdateStatus
 }): Html {
   return (
     <section class="admin-page">
       <BackLink />
       <h1 class="page-title">Integrations</h1>
       <p class="muted">
-        Services the site connects to. Secret keys are encrypted and not shown once entered.
+        Services the site connects to, and software updates. Secret keys are encrypted and not shown
+        once entered.
       </p>
       <div class="integrations">
         <TurnstileSection {...props.turnstile} />
         <EmailSection {...props.email} />
-        <Separator />
+        <UpdateSection status={props.updates} />
       </div>
     </section>
   )
@@ -525,33 +528,6 @@ function TurnstileSection(props: TurnstileSectionProps): Html {
         <TurnstileTry siteKey={status.siteKey} verification={verification} />
       )}
     </Integration>
-  )
-}
-
-// A service's name and status, which open to its settings, with a line above to set it apart from
-// the one before (the page closes the last with another).
-function Integration(props: {
-  id: string
-  title: string
-  badge: Html
-  open: boolean
-  children: Child
-}): Html {
-  let { id, title, badge, open, children } = props
-  return (
-    <>
-      <Separator />
-      <details open={open}>
-        <summary class="integration-summary">
-          <h2 id={`${id}-heading`}>{title}</h2>
-          {badge}
-          <CaretDownIcon class="integration-caret" />
-        </summary>
-        <section class="integration-body" aria-labelledby={`${id}-heading`}>
-          {children}
-        </section>
-      </details>
-    </>
   )
 }
 

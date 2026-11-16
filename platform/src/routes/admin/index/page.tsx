@@ -25,7 +25,7 @@ export function AdminIndexPage(): Html {
           {
             href: urls.admin.integrations(),
             title: 'Integrations',
-            text: 'Services the site connects to: Cloudflare Turnstile, and email.',
+            text: 'Cloudflare Turnstile, email, and software updates.',
           },
           {
             href: urls.admin.subscribers(),

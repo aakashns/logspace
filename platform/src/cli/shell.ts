@@ -2,10 +2,7 @@
 import { Config, Effect, PlatformError, Runtime, Schema, Stream } from 'effect'
 import { ChildProcess, ChildProcessSpawner } from 'effect/process'
 
-import packageJson from '../../package.json' with { type: 'json' }
-
-// The release this is (package.json's version).
-export const VERSION = packageJson.version
+export { VERSION } from '../lib/version.ts'
 
 // Whether this is the built binary, rather than `bun src/cli/index.ts` in a checkout.
 export const IS_BINARY = Bun.isStandaloneExecutable

@@ -61,6 +61,13 @@ const migrate = Command.make(
   ),
 )
 
+const serviceUpdate = Command.make('service-update', {}, () =>
+  Effect.flatMap(
+    Effect.promise(() => import('./service-update.ts')),
+    (module) => module.serviceUpdate,
+  ),
+).pipe(Command.withDescription('Run the managed systemd update job (root only)'))
+
 const upgrade = Command.make(
   'upgrade',
   {
@@ -99,7 +106,15 @@ const logspace = Command.make('logspace', {}, () => runServer).pipe(
       'ADMIN_PASSWORD and AUTH_SESSION_SECRET (the admin password and the secret that signs its ' +
       'session cookie), and TRUST_PROXY=1 behind a reverse proxy.',
   ),
-  Command.withSubcommands([start, deploy, setAdminPassword, migrate, upgrade, turnstile]),
+  Command.withSubcommands([
+    start,
+    deploy,
+    setAdminPassword,
+    migrate,
+    upgrade,
+    turnstile,
+    serviceUpdate,
+  ]),
 )
 
 // The old binary's spellings of help and version, which prints the version alone, for scripts.

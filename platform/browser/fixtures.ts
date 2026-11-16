@@ -15,7 +15,10 @@ class Application {
   private secret = crypto.randomUUID()
   private child?: ChildProcess
   logs = ''
-  constructor(readonly directory: string) {}
+  constructor(
+    readonly directory: string,
+    readonly managedUpdates = false,
+  ) {}
 
   async start() {
     const child = spawn(
@@ -28,6 +31,7 @@ class Application {
         this.directory,
         this.password,
         this.secret,
+        this.managedUpdates ? 'updates' : 'default',
       ],
       {
         cwd: this.directory,
@@ -94,11 +98,12 @@ class Application {
   }
 }
 
-export const test = base.extend<{ app: Application }>({
+export const test = base.extend<{ app: Application; managedUpdates: boolean }>({
+  managedUpdates: [false, { option: true }],
   // Playwright requires a destructuring pattern even when this fixture has no dependencies.
   // oxlint-disable-next-line no-empty-pattern
-  app: async ({}, use, info) => {
-    const app = new Application(await mkdtemp(join(tmpdir(), 'logspace-browser-')))
+  app: async ({ managedUpdates }, use, info) => {
+    const app = new Application(await mkdtemp(join(tmpdir(), 'logspace-browser-')), managedUpdates)
     try {
       await app.start()
       await use(app)
